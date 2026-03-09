@@ -96,4 +96,11 @@ public sealed class AppSettings
     /// Defaults to <c>true</c>.
     /// </summary>
     public bool ShowImagesInLists { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the minimum log level written to the rolling log file.
+    /// Accepted values: "Verbose", "Debug", "Information", "Warning", "Error", "Fatal".
+    /// Defaults to "Error" so the log stays quiet during normal use.
+    /// </summary>
+    public string MinimumLogLevel { get; set; } = "Error";
 }

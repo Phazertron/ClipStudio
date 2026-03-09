@@ -808,7 +808,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
                 AddTagToHighlightAsync,
                 RemoveTagFromHighlightAsync,
                 ExportHighlightAsync,
-                UpdateHighlightLabelAsync));
+                UpdateHighlightLabelAsync,
+                onSetRating:      async (hvm, r) => await _highlightService.SetRatingAsync(hvm.HighlightId, r),
+                onToggleFavorite: async (hvm)    => await _highlightService.ToggleFavoriteAsync(hvm.HighlightId)));
         }
     }
 

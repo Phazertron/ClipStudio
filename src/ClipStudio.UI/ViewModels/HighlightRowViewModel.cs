@@ -80,6 +80,12 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
     /// </summary>
     public string PlayerDisplay { get; }
 
+    /// <summary>Gets the star rating (0–5) for this highlight. 0 = unrated.</summary>
+    public int Rating { get; }
+
+    /// <summary>Gets whether this highlight is marked as a favourite.</summary>
+    public bool IsFavorite { get; }
+
     /// <summary>
     /// Gets the absolute path to the highlight thumbnail image, or null if not yet generated.
     /// </summary>
@@ -163,6 +169,8 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
         Notes            = highlight.Notes ?? string.Empty;
         CreatedAtDisplay = highlight.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
         ThumbnailPath    = highlight.ThumbnailPath;
+        Rating           = highlight.Rating;
+        IsFavorite       = highlight.IsFavorite;
 
         // Derive game and player display from parent clip navigation properties.
         var gameTag = highlight.Clip?.ClipTags

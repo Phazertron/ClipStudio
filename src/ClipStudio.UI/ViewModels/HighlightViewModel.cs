@@ -27,7 +27,28 @@ public sealed partial class HighlightViewModel : ViewModelBase
     public int HighlightId { get; }
 
     /// <summary>Gets or sets the star rating (0–5) for this highlight.</summary>
-    [ObservableProperty] private int _rating;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRated1OrMore))]
+    [NotifyPropertyChangedFor(nameof(IsRated2OrMore))]
+    [NotifyPropertyChangedFor(nameof(IsRated3OrMore))]
+    [NotifyPropertyChangedFor(nameof(IsRated4OrMore))]
+    [NotifyPropertyChangedFor(nameof(IsRated5OrMore))]
+    private int _rating;
+
+    /// <summary>Gets whether the rating is at least 1 star.</summary>
+    public bool IsRated1OrMore => Rating >= 1;
+
+    /// <summary>Gets whether the rating is at least 2 stars.</summary>
+    public bool IsRated2OrMore => Rating >= 2;
+
+    /// <summary>Gets whether the rating is at least 3 stars.</summary>
+    public bool IsRated3OrMore => Rating >= 3;
+
+    /// <summary>Gets whether the rating is at least 4 stars.</summary>
+    public bool IsRated4OrMore => Rating >= 4;
+
+    /// <summary>Gets whether the rating is at least 5 stars.</summary>
+    public bool IsRated5OrMore => Rating >= 5;
 
     /// <summary>Gets or sets whether this highlight is marked as a favourite.</summary>
     [ObservableProperty] private bool _isFavorite;

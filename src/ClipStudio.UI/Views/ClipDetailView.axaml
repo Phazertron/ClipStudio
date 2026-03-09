@@ -972,6 +972,46 @@
                                                     Loaded="OnHighlightTagPickerLoaded"
                                                     Unloaded="OnHighlightTagPickerUnloaded"/>
 
+                                                <!-- Rating + Favourite row -->
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <Button Command="{Binding SetRatingCommand}" CommandParameter="1" Padding="2" ToolTip.Tip="1 star">
+                                                        <Panel>
+                                                            <icons:MaterialIcon Kind="Star"       Width="14" Height="14" Foreground="#FFD700" IsVisible="{Binding IsRated1OrMore}"/>
+                                                            <icons:MaterialIcon Kind="StarBorder" Width="14" Height="14" Foreground="#606060" IsVisible="{Binding !IsRated1OrMore}"/>
+                                                        </Panel>
+                                                    </Button>
+                                                    <Button Command="{Binding SetRatingCommand}" CommandParameter="2" Padding="2" ToolTip.Tip="2 stars">
+                                                        <Panel>
+                                                            <icons:MaterialIcon Kind="Star"       Width="14" Height="14" Foreground="#FFD700" IsVisible="{Binding IsRated2OrMore}"/>
+                                                            <icons:MaterialIcon Kind="StarBorder" Width="14" Height="14" Foreground="#606060" IsVisible="{Binding !IsRated2OrMore}"/>
+                                                        </Panel>
+                                                    </Button>
+                                                    <Button Command="{Binding SetRatingCommand}" CommandParameter="3" Padding="2" ToolTip.Tip="3 stars">
+                                                        <Panel>
+                                                            <icons:MaterialIcon Kind="Star"       Width="14" Height="14" Foreground="#FFD700" IsVisible="{Binding IsRated3OrMore}"/>
+                                                            <icons:MaterialIcon Kind="StarBorder" Width="14" Height="14" Foreground="#606060" IsVisible="{Binding !IsRated3OrMore}"/>
+                                                        </Panel>
+                                                    </Button>
+                                                    <Button Command="{Binding SetRatingCommand}" CommandParameter="4" Padding="2" ToolTip.Tip="4 stars">
+                                                        <Panel>
+                                                            <icons:MaterialIcon Kind="Star"       Width="14" Height="14" Foreground="#FFD700" IsVisible="{Binding IsRated4OrMore}"/>
+                                                            <icons:MaterialIcon Kind="StarBorder" Width="14" Height="14" Foreground="#606060" IsVisible="{Binding !IsRated4OrMore}"/>
+                                                        </Panel>
+                                                    </Button>
+                                                    <Button Command="{Binding SetRatingCommand}" CommandParameter="5" Padding="2" ToolTip.Tip="5 stars">
+                                                        <Panel>
+                                                            <icons:MaterialIcon Kind="Star"       Width="14" Height="14" Foreground="#FFD700" IsVisible="{Binding IsRated5OrMore}"/>
+                                                            <icons:MaterialIcon Kind="StarBorder" Width="14" Height="14" Foreground="#606060" IsVisible="{Binding !IsRated5OrMore}"/>
+                                                        </Panel>
+                                                    </Button>
+                                                    <Button Command="{Binding ToggleFavoriteCommand}" Padding="2" ToolTip.Tip="Toggle favourite">
+                                                        <Panel>
+                                                            <icons:MaterialIcon Kind="Heart"        Width="14" Height="14" Foreground="#E74C3C" IsVisible="{Binding IsFavorite}"/>
+                                                            <icons:MaterialIcon Kind="HeartOutline" Width="14" Height="14" Foreground="#E74C3C" IsVisible="{Binding !IsFavorite}"/>
+                                                        </Panel>
+                                                    </Button>
+                                                </StackPanel>
+
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>

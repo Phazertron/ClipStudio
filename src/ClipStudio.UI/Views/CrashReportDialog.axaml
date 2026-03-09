@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:icons="using:Material.Icons.Avalonia"
+        xmlns:local="using:ClipStudio.UI.Views"
+        x:Class="ClipStudio.UI.Views.CrashReportDialog"
+        x:DataType="local:CrashReportDialogViewModel"
+        Title="ClipStudio crashed last session"
+        Width="560" Height="400"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,12">
+            <icons:MaterialIcon Kind="AlertCircle" Width="28" Height="28" Foreground="#E74C3C" VerticalAlignment="Center"/>
+            <StackPanel Spacing="2">
+                <TextBlock Text="ClipStudio crashed in the previous session."
+                           FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock Text="The crash report below may help diagnose the issue."
+                           FontSize="12" Opacity="0.6"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Crash report text -->
+        <ScrollViewer Grid.Row="1"
+                      Margin="0,0,0,12">
+            <TextBox x:Name="CrashTextBox"
+                     Text="{Binding CrashText}"
+                     IsReadOnly="True"
+                     FontFamily="Consolas,Courier New,monospace"
+                     FontSize="11"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"/>
+        </ScrollViewer>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding DumpFilePath}"
+                       FontSize="10"
+                       Opacity="0.4"
+                       TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    Content="Send Report"
+                    Margin="0,0,8,0"
+                    Click="OnSendReportClicked"
+                    ToolTip.Tip="Open GitHub Issues to submit this crash report"/>
+            <Button Grid.Column="2"
+                    Content="Dismiss"
+                    Click="OnDismissClicked"
+                    ToolTip.Tip="Delete the crash dump and close this dialog"/>
+        </Grid>
+
+    </Grid>
+</Window>

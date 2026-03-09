@@ -1,0 +1,13 @@
+obj/
+bin/
+*.user
+.vs/
+publish/
+releases/
+*.db
+*.db-shm
+*.db-wal
+settings.json
+notes.md
+DECISION_LOG.md
+.claude/

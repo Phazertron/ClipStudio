@@ -1,6 +1,8 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Avalonia;
+using Serilog;
 using Velopack;
 
 namespace ClipStudio.UI;
@@ -25,8 +27,34 @@ internal sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Compute the settings path early so Serilog can read the configured log level.
+        var settingsPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "ClipStudio", "settings.json");
+
+        App.SetupSerilog(settingsPath);
+
+        // Hook global exception handlers BEFORE the UI starts so no crash escapes silently.
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            var ex = args.ExceptionObject as Exception
+                  ?? new Exception(args.ExceptionObject?.ToString() ?? "Unknown error");
+            Log.Fatal(ex, "Unhandled AppDomain exception (IsTerminating={IsTerminating}).", args.IsTerminating);
+            Log.CloseAndFlush();
+            CrashReporter.WriteCrashDump(ex);
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            Log.Error(args.Exception, "Unobserved task exception.");
+            args.SetObserved();
+        };
+
         VelopackApp.Build().Run();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+
+        Log.Information("ClipStudio shutting down.");
+        Log.CloseAndFlush();
     }
 
     /// <summary>

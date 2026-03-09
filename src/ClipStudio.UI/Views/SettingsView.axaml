@@ -455,6 +455,44 @@
                 <!-- Divider -->
                 <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
 
+                <!-- ===== Logging ===== -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Logging"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Minimum log level"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="Error is recommended for everyday use. Set to Verbose only when diagnosing a specific problem."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ComboBox SelectedItem="{Binding MinimumLogLevel}"
+                                  FontSize="12"
+                                  Width="160">
+                            <ComboBoxItem>Verbose</ComboBoxItem>
+                            <ComboBoxItem>Debug</ComboBoxItem>
+                            <ComboBoxItem>Information</ComboBoxItem>
+                            <ComboBoxItem>Warning</ComboBoxItem>
+                            <ComboBoxItem>Error</ComboBoxItem>
+                            <ComboBoxItem>Fatal</ComboBoxItem>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <Button Command="{Binding OpenLogsFolderCommand}"
+                            FontSize="12">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="FolderOpen" Width="16" Height="16"/>
+                            <TextBlock Text="Open Logs Folder"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
                 <!-- ===== Save ===== -->
                 <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                     <Button Command="{Binding SavePreferencesCommand}"
@@ -475,7 +513,7 @@
                 <!-- Divider -->
                 <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
 
-                <!-- ===== Footer (version + support) ===== -->
+                <!-- ===== Footer (version + support + feedback) ===== -->
                 <StackPanel Spacing="8">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Command="{Binding OpenKofiCommand}"
@@ -483,6 +521,13 @@
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <icons:MaterialIcon Kind="CoffeeMaker" Width="16" Height="16"/>
                                 <TextBlock Text="Support on Ko-fi"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding SendFeedbackCommand}"
+                                FontSize="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <icons:MaterialIcon Kind="BugOutline" Width="16" Height="16"/>
+                                <TextBlock Text="Send Feedback / Report Bug"/>
                             </StackPanel>
                         </Button>
                     </StackPanel>

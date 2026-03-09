@@ -20,6 +20,8 @@ using FFMpegCore;
 using LibVLCSharp.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Serilog;
+using Serilog.Events;
 
 namespace ClipStudio.UI;
 
@@ -31,6 +33,63 @@ public partial class App : AvaloniaApp
 {
     /// <summary>Gets the application-wide DI service provider. Available after <see cref="Initialize"/>.</summary>
     public static IServiceProvider Services { get; private set; } = null!;
+
+    /// <summary>Gets the absolute path to the directory that contains rolling log files.</summary>
+    public static string LogsFolder { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "ClipStudio", "logs");
+
+    /// <summary>
+    /// Initialises the Serilog rolling-file logger.
+    /// Must be called before <see cref="BuildServiceProvider"/> so that logging is available
+    /// during service construction. Reads the minimum log level from the settings file if it
+    /// exists; falls back to <c>Error</c> so the log stays quiet during normal use.
+    /// </summary>
+    /// <param name="settingsPath">Absolute path to the settings JSON file.</param>
+    internal static void SetupSerilog(string settingsPath)
+    {
+        // Determine the minimum log level from persisted settings (if available).
+        LogEventLevel level = LogEventLevel.Error;
+        try
+        {
+            if (File.Exists(settingsPath))
+            {
+                var json   = File.ReadAllText(settingsPath);
+                // Simple string search to avoid a full JSON parse dependency here.
+                if (json.Contains("\"MinimumLogLevel\""))
+                {
+                    foreach (var candidate in new[] {
+                        "Verbose", "Debug", "Information", "Warning", "Error", "Fatal" })
+                    {
+                        if (json.Contains($"\"{candidate}\"") &&
+                            Enum.TryParse<LogEventLevel>(candidate, out var parsed))
+                        {
+                            level = parsed;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Fallback to Error level if settings cannot be read.
+        }
+
+        Directory.CreateDirectory(LogsFolder);
+        var logPath = Path.Combine(LogsFolder, "clipstudio-.log");
+
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Is(level)
+            .WriteTo.File(
+                logPath,
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 14,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
+
+        Log.Information("ClipStudio starting up.");
+    }
 
     /// <inheritdoc/>
     public override void Initialize()
@@ -47,11 +106,11 @@ public partial class App : AvaloniaApp
     {
         // Catch any exception that escapes the Avalonia dispatcher loop (e.g. from
         // synchronous view creation or property-change handlers) so the app does not
-        // hard-crash.  The exception type and message are written to the debug output
-        // so the developer can identify the root cause.
+        // hard-crash.
         Dispatcher.UIThread.UnhandledException += (_, args) =>
         {
             args.Handled = true;
+            Log.Error(args.Exception, "Unhandled UI-thread exception.");
             System.Diagnostics.Debug.WriteLine(
                 $"[ClipStudio] Unhandled UI exception ({args.Exception.GetType().FullName}): {args.Exception}");
         };
@@ -114,6 +173,10 @@ public partial class App : AvaloniaApp
 
         // Check for updates silently in the background; result is applied on next restart.
         _ = Program.TryCheckForUpdatesAsync();
+
+        // Show crash report dialog if a dump from the previous session was found.
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime dl2)
+            _ = ShowPendingCrashReportAsync(dl2);
 
         base.OnFrameworkInitializationCompleted();
     }
@@ -187,6 +250,33 @@ public partial class App : AvaloniaApp
         });
     }
 
+    /// <summary>
+    /// If any crash dump files from the previous session exist, shows the first one
+    /// in a modal <see cref="CrashReportDialog"/> so the user can report or dismiss it.
+    /// </summary>
+    private static async Task ShowPendingCrashReportAsync(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        // Give the main window a moment to appear before showing the dialog.
+        await Task.Delay(1500);
+
+        var dumps = CrashReporter.GetPendingCrashDumps();
+        if (dumps.Length == 0)
+            return;
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var dumpPath = dumps[0];
+            var vm = new CrashReportDialogViewModel
+            {
+                CrashText    = CrashReporter.ReadCrashDump(dumpPath),
+                DumpFilePath = dumpPath,
+            };
+            var dialog = new CrashReportDialog(vm);
+            if (desktop.MainWindow is not null)
+                dialog.ShowDialog(desktop.MainWindow);
+        });
+    }
+
     private static IServiceProvider BuildServiceProvider()
     {
         var appDataPath = Path.Combine(
@@ -200,7 +290,7 @@ public partial class App : AvaloniaApp
 
         var services = new ServiceCollection();
 
-        services.AddLogging(logging => logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Information));
+        services.AddLogging(logging => logging.AddSerilog(dispose: false));
 
         services.AddClipStudioData(dbPath);
         services.AddClipStudioApplication(settingsPath);

@@ -93,6 +93,12 @@ public sealed partial class HighlightsPageViewModel : ViewModelBase
     /// <summary>Gets or sets the latest clip creation date filter (inclusive). Null = no upper bound.</summary>
     [ObservableProperty] private DateTime? _filterDateTo;
 
+    /// <summary>Gets or sets the minimum star rating filter (0 = no filter, 1–5 = minimum rating).</summary>
+    [ObservableProperty] private int _filterMinRating;
+
+    /// <summary>Gets or sets whether to show only highlights marked as favourites.</summary>
+    [ObservableProperty] private bool _filterFavoritesOnly;
+
     // ---- Picker data ----
 
     /// <summary>Gets the available general tags for the tag filter picker.</summary>
@@ -133,6 +139,9 @@ public sealed partial class HighlightsPageViewModel : ViewModelBase
     /// <summary>Gets the command that clears the date-to filter.</summary>
     public IRelayCommand ClearDateToCommand { get; }
 
+    /// <summary>Gets the command that clears the minimum-rating filter.</summary>
+    public IRelayCommand ClearRatingFilterCommand { get; }
+
     /// <summary>
     /// Initialises a new <see cref="HighlightsPageViewModel"/>.
     /// </summary>
@@ -157,6 +166,7 @@ public sealed partial class HighlightsPageViewModel : ViewModelBase
         ClearPlayerFilterCommand = new RelayCommand(() => SelectedFilterPlayer = null);
         ClearDateFromCommand     = new RelayCommand(() => FilterDateFrom      = null);
         ClearDateToCommand       = new RelayCommand(() => FilterDateTo        = null);
+        ClearRatingFilterCommand = new RelayCommand(() => FilterMinRating     = 0);
     }
 
     /// <summary>
@@ -205,6 +215,8 @@ public sealed partial class HighlightsPageViewModel : ViewModelBase
     partial void OnSelectedFilterPlayerChanged(Player? value) => ApplyFilterAndSort();
     partial void OnFilterDateFromChanged(DateTime? value)    => ApplyFilterAndSort();
     partial void OnFilterDateToChanged(DateTime? value)      => ApplyFilterAndSort();
+    partial void OnFilterMinRatingChanged(int value)         => ApplyFilterAndSort();
+    partial void OnFilterFavoritesOnlyChanged(bool value)    => ApplyFilterAndSort();
 
     // ---- Private helpers ----
 
@@ -281,6 +293,14 @@ public sealed partial class HighlightsPageViewModel : ViewModelBase
             if (FilterDateTo.HasValue && row.CreatedAt.ToLocalTime().Date > FilterDateTo.Value.Date)
                 continue;
 
+            // Rating filter
+            if (FilterMinRating > 0 && row.Rating < FilterMinRating)
+                continue;
+
+            // Favourites only
+            if (FilterFavoritesOnly && !row.IsFavorite)
+                continue;
+
             yield return row;
         }
     }
@@ -324,6 +344,8 @@ public sealed partial class HighlightsPageViewModel : ViewModelBase
         SelectedFilterPlayer = null;
         FilterDateFrom       = null;
         FilterDateTo         = null;
+        FilterMinRating      = 0;
+        FilterFavoritesOnly  = false;
         SearchText           = string.Empty;
     }
 

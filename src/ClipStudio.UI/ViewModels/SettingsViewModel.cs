@@ -115,6 +115,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _showImagesInLists = true;
 
+    /// <summary>
+    /// Gets or sets the minimum log level for the rolling log file.
+    /// Accepted values: "Verbose", "Debug", "Information", "Warning", "Error", "Fatal".
+    /// </summary>
+    [ObservableProperty]
+    private string _minimumLogLevel = "Error";
+
     // ---- State ----
 
     /// <summary>Gets or sets a value indicating whether a background operation is running.</summary>
@@ -151,6 +158,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     /// <summary>Gets the command that opens the Ko-fi support page in the default browser.</summary>
     public IRelayCommand OpenKofiCommand { get; }
+
+    /// <summary>Gets the command that opens the logs folder in the system file explorer.</summary>
+    public IRelayCommand OpenLogsFolderCommand { get; }
+
+    /// <summary>Gets the command that opens the GitHub Issues page to submit feedback.</summary>
+    public IRelayCommand SendFeedbackCommand { get; }
 
     // ---- Callbacks ----
 
@@ -227,6 +240,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         RepairLibraryCommand         = new AsyncRelayCommand(RepairLibraryAsync);
         ClearAudioCacheCommand       = new RelayCommand(ClearAudioCache);
         OpenKofiCommand              = new RelayCommand(OpenKofi);
+        OpenLogsFolderCommand        = new RelayCommand(OpenLogsFolder);
+        SendFeedbackCommand          = new RelayCommand(SendFeedback);
     }
 
     // ---- Load ----
@@ -267,6 +282,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             TrashExpiredSendToRecycleBin   = s.TrashExpiredSendToRecycleBin;
             AutoApplyMePlayerOnImport      = s.AutoApplyMePlayerOnImport;
             ShowImagesInLists              = s.ShowImagesInLists;
+            MinimumLogLevel                = s.MinimumLogLevel;
         }
         finally
         {
@@ -473,6 +489,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         s.TrashExpiredSendToRecycleBin   = TrashExpiredSendToRecycleBin;
         s.AutoApplyMePlayerOnImport      = AutoApplyMePlayerOnImport;
         s.ShowImagesInLists              = ShowImagesInLists;
+        s.MinimumLogLevel                = MinimumLogLevel;
         await _settings.SaveAsync();
 
         // Re-apply FFmpeg binary path immediately so scans after saving use the new value.
@@ -589,6 +606,37 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private static void OpenKofi()
     {
         Process.Start(new ProcessStartInfo("https://ko-fi.com/phazertron") { UseShellExecute = true });
+    }
+
+    // ---- Logs + Feedback ----
+
+    /// <summary>
+    /// Opens the ClipStudio logs folder in the system file explorer.
+    /// Creates the folder first if it does not yet exist.
+    /// </summary>
+    private static void OpenLogsFolder()
+    {
+        Directory.CreateDirectory(App.LogsFolder);
+        Process.Start(new ProcessStartInfo
+        {
+            FileName        = App.LogsFolder,
+            UseShellExecute = true,
+        });
+    }
+
+    /// <summary>Opens the GitHub Issues page so the user can submit feedback.</summary>
+    private static void SendFeedback()
+    {
+        // Replace Phazertron/ClipStudio with the real repository path before shipping.
+        const string url = "https://github.com/Phazertron/ClipStudio/issues/new";
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Opening a browser is best-effort.
+        }
     }
 
     // ---- Helpers ----
