@@ -1,0 +1,499 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="700"
+             x:Class="ClipStudio.UI.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Header / loading bar -->
+        <Border Grid.Row="0"
+                Padding="16,10"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="Settings"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+                <ProgressBar Grid.Column="1"
+                             IsIndeterminate="True"
+                             IsVisible="{Binding IsLoading}"
+                             Width="80" Height="4"/>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Margin="24,16" Spacing="24" MaxWidth="680">
+
+                <!-- ===== Source Folders ===== -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Source Folders"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <!-- Add folder row -->
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding NewFolderPath}"
+                                 Watermark="Absolute folder path..."
+                                 FontSize="12"/>
+                        <Button Grid.Column="1"
+                                Click="OnBrowseSourceFolderClicked"
+                                ToolTip.Tip="Browse for folder"
+                                Margin="6,0,0,0"
+                                Padding="8">
+                            <icons:MaterialIcon Kind="FolderOpen" Width="16" Height="16"/>
+                        </Button>
+                        <Button Grid.Column="2"
+                                Command="{Binding AddFolderCommand}"
+                                ToolTip.Tip="Add watched folder"
+                                Margin="6,0,0,0">
+                            <icons:MaterialIcon Kind="FolderPlus" Width="18" Height="18"/>
+                        </Button>
+                    </Grid>
+
+                    <!-- Error message -->
+                    <TextBlock Text="{Binding FolderError}"
+                               FontSize="12"
+                               Foreground="#E74C3C"
+                               IsVisible="{Binding FolderError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                    <!-- Folder list -->
+                    <TextBlock Text="No source folders configured. Add a folder above to start importing clips."
+                               FontSize="12"
+                               Opacity="0.4"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding !SourceFolders.Count}"/>
+
+                    <ItemsControl ItemsSource="{Binding SourceFolders}"
+                                  IsVisible="{Binding SourceFolders.Count}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:SourceFolderRowViewModel">
+                                <Border Margin="0,0,0,6"
+                                        Padding="10,8"
+                                        CornerRadius="6"
+                                        Opacity="{Binding RowOpacity}"
+                                        Background="{DynamicResource SystemChromeMediumLowColor}"
+                                        BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                        BorderThickness="1">
+                                    <StackPanel Spacing="6">
+
+                                        <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+
+                                            <!-- Path + last scan -->
+                                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Path}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding LastScannedDisplay, StringFormat='Last scan: {0}'}"
+                                                           FontSize="11"
+                                                           Opacity="0.55"/>
+                                            </StackPanel>
+
+                                            <!-- Status badge: Active / Archived -->
+                                            <Panel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
+                                                <Border Padding="6,2"
+                                                        CornerRadius="10"
+                                                        Background="{DynamicResource SystemChromeLowColor}"
+                                                        IsVisible="{Binding IsActive}">
+                                                    <TextBlock Text="Active" FontSize="11" Opacity="0.7"/>
+                                                </Border>
+                                                <Border Padding="6,2"
+                                                        CornerRadius="10"
+                                                        Background="#60402010"
+                                                        IsVisible="{Binding !IsActive}">
+                                                    <TextBlock Text="Archived" FontSize="11" Foreground="#FFCC88"/>
+                                                </Border>
+                                            </Panel>
+
+                                            <!-- Scan (only when active) -->
+                                            <Button Grid.Column="2"
+                                                    Command="{Binding ScanCommand}"
+                                                    ToolTip.Tip="Scan folder for new clips"
+                                                    Padding="5"
+                                                    IsEnabled="{Binding !IsScanning}"
+                                                    IsVisible="{Binding IsActive}"
+                                                    Margin="0,0,4,0">
+                                                <icons:MaterialIcon Kind="Magnify" Width="16" Height="16"/>
+                                            </Button>
+
+                                            <!-- Restore button (only when inactive) -->
+                                            <Button Grid.Column="2"
+                                                    Command="{Binding ToggleActiveCommand}"
+                                                    ToolTip.Tip="Restore folder and resume watching"
+                                                    Padding="5,5,8,5"
+                                                    IsVisible="{Binding !IsActive}"
+                                                    Margin="0,0,4,0">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <icons:MaterialIcon Kind="Restore" Width="14" Height="14"/>
+                                                    <TextBlock Text="Restore" FontSize="11"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <!-- Toggle active (only when active) -->
+                                            <Button Grid.Column="3"
+                                                    Command="{Binding ToggleActiveCommand}"
+                                                    ToolTip.Tip="Disable watching"
+                                                    Padding="5"
+                                                    IsVisible="{Binding IsActive}"
+                                                    Margin="0,0,4,0">
+                                                <icons:MaterialIcon Kind="ToggleSwitch" Width="16" Height="16"/>
+                                            </Button>
+
+                                            <!-- Remove (handled in code-behind to show confirmation dialog) -->
+                                            <Button Grid.Column="4"
+                                                    Click="OnRemoveFolderClicked"
+                                                    ToolTip.Tip="Remove / wipe folder"
+                                                    Padding="5">
+                                                <icons:MaterialIcon Kind="FolderRemove" Width="16" Height="16"/>
+                                            </Button>
+
+                                        </Grid>
+
+                                        <!-- Active scan progress -->
+                                        <StackPanel Spacing="3"
+                                                    IsVisible="{Binding IsScanning}">
+                                            <ProgressBar Value="{Binding ScanProgressPercent}"
+                                                         Minimum="0"
+                                                         Maximum="100"
+                                                         Height="4"/>
+                                            <TextBlock Text="{Binding ScanStatusText}"
+                                                       FontSize="11"
+                                                       Opacity="0.75"
+                                                       TextWrapping="Wrap"
+                                                       IsVisible="{Binding ScanStatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                        </StackPanel>
+
+                                        <!-- Scan result summary -->
+                                        <TextBlock Text="{Binding LastScanSummary}"
+                                                   FontSize="11"
+                                                   Opacity="0.65"
+                                                   IsVisible="{Binding LastScanSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                                        <!-- Per-file import errors (selectable so the user can copy them) -->
+                                        <ItemsControl ItemsSource="{Binding ScanErrorMessages}"
+                                                      IsVisible="{Binding ScanErrorMessages.Count}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <SelectableTextBlock Text="{Binding}"
+                                                                         FontSize="11"
+                                                                         Foreground="#E74C3C"
+                                                                         TextWrapping="Wrap"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Scan all folders button — below the list so it's contextually close to the sources -->
+                    <Button Command="{Binding ScanAllCommand}"
+                            ToolTip.Tip="Scan all folders for new clips"
+                            IsVisible="{Binding SourceFolders.Count}"
+                            HorizontalAlignment="Left">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="Magnify" Width="16" Height="16"/>
+                            <TextBlock Text="Scan All" FontSize="12"/>
+                        </StackPanel>
+                    </Button>
+
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                <!-- ===== Preferences ===== -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Preferences"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <!-- Thumbnail offset -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Thumbnail offset (seconds)"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <NumericUpDown Value="{Binding ThumbnailOffsetSeconds}"
+                                       Minimum="0"
+                                       Maximum="300"
+                                       Increment="1"
+                                       Width="140"
+                                       HorizontalAlignment="Left"
+                                       FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Screenshot output folder -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Screenshot output folder"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding ScreenshotOutputFolder}"
+                                     Watermark="Absolute path to screenshots folder..."
+                                     FontSize="12"/>
+                            <Button Grid.Column="1"
+                                    Click="OnBrowseScreenshotFolderClicked"
+                                    ToolTip.Tip="Browse for folder"
+                                    Margin="6,0,0,0"
+                                    Padding="8">
+                                <icons:MaterialIcon Kind="FolderOpen" Width="16" Height="16"/>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Auto-mark reviewed toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-mark clip as Reviewed when a tag is added"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, adding a game or general tag to an Unreviewed clip automatically marks it as Reviewed."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding AutoMarkReviewedOnTagAdd}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Auto-play toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-play clip when opening"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, the video starts playing automatically as soon as a clip is opened in the detail view."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding AutoPlayOnOpen}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Auto-scan at startup toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-scan source folders at startup"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, all active source folders are scanned for new clips each time the application starts. May slow startup on large folders."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding AutoScanAtStartup}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Cache audio mix previews"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, the mixed audio preview (one file per clip) is kept on disk between sessions. Re-opening a clip auto-loads its mix instantly without re-running FFmpeg. When disabled, the preview is regenerated on each open and deleted on close. Each file uses roughly 15-120 MB depending on clip length."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                            <ToggleSwitch IsChecked="{Binding CacheAudioPreviews}"
+                                      OnContent="Keep between sessions"
+                                      OffContent="Regenerate each time"
+                                      FontSize="12"/>
+                        <Button Command="{Binding ClearAudioCacheCommand}"
+                                HorizontalAlignment="Left"
+                                FontSize="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <icons:MaterialIcon Kind="DeleteOutline" Width="16" Height="16"/>
+                                <TextBlock Text="Clear Audio Cache"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Auto-apply "me" player on import toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-tag Me player on import"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, any player marked as Me is automatically tagged on every newly imported clip."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding AutoApplyMePlayerOnImport}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Show images in lists toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Show game cover art and player icons in lists"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, game cover images and player icon thumbnails are shown in the library details view and highlights list. Disable to show plain text instead. Takes effect after the next refresh."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding ShowImagesInLists}"
+                                      OnContent="Show images"
+                                      OffContent="Text only"
+                                      FontSize="12"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                <!-- ===== Trash ===== -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Trash"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <!-- Recycle bin toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Send deleted items to system Recycle Bin"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, clips removed from the Trash (by auto-expiry after 30 days or via Empty Trash) are moved to the operating-system Recycle Bin instead of being permanently deleted immediately."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding TrashExpiredSendToRecycleBin}"
+                                      OnContent="Send to Recycle Bin"
+                                      OffContent="Permanently delete"
+                                      FontSize="12"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                <!-- ===== OBS Integration ===== -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="OBS Integration"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <TextBlock Text="Use the bundled OBS Python script to automatically embed the active game name in replay buffer filenames. ClipStudio then reads this tag on import."
+                               FontSize="12"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"/>
+
+                    <!-- Script status -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Script status"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="{Binding OBSScriptStatus}"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <!-- Action buttons -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Command="{Binding OpenOBSScriptsFolderCommand}"
+                                FontSize="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <icons:MaterialIcon Kind="FolderOpen" Width="16" Height="16"/>
+                                <TextBlock Text="Open OBS Scripts Folder"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Click="OnCopyOBSScriptPathClicked"
+                                FontSize="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <icons:MaterialIcon Kind="ContentCopy" Width="16" Height="16"/>
+                                <TextBlock Text="Copy Script Path"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Installation instructions -->
+                    <TextBlock FontSize="11"
+                               Opacity="0.55"
+                               TextWrapping="Wrap">
+                        <Run Text="To install: in OBS go to"/>
+                        <Run Text=" Tools &gt; Scripts &gt; +" FontWeight="SemiBold"/>
+                        <Run Text=", then select the script file shown above."/>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                <!-- ===== Library Maintenance ===== -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Library Maintenance"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <TextBlock Text="Regenerate any missing thumbnail or preview-strip images and remove orphaned cache files. Run this if clips are showing broken images after moving or editing the database."
+                               FontSize="12"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"/>
+
+                    <Button Command="{Binding RepairLibraryCommand}"
+                            IsEnabled="{Binding !IsLoading}"
+                            HorizontalAlignment="Left"
+                            FontSize="12">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="Wrench" Width="16" Height="16"/>
+                            <TextBlock Text="Repair Library"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                <!-- ===== Save ===== -->
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Button Command="{Binding SavePreferencesCommand}"
+                            FontSize="12">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="ContentSave" Width="16" Height="16"/>
+                            <TextBlock Text="Save Preferences"/>
+                        </StackPanel>
+                    </Button>
+
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="12"
+                               Opacity="0.7"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                <!-- ===== Footer (version + support) ===== -->
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Command="{Binding OpenKofiCommand}"
+                                FontSize="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <icons:MaterialIcon Kind="CoffeeMaker" Width="16" Height="16"/>
+                                <TextBlock Text="Support on Ko-fi"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding AppVersion}"
+                               FontSize="11"
+                               Opacity="0.4"/>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </Grid>
+</UserControl>

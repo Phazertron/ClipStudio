@@ -10,6 +10,9 @@ searchable way to find and export the moments that matter.
 
 ```
 ClipStudio/
+├── documentation/
+│   ├── SPECIFICATION.md                # Full software specification
+│   ├── DECISION_LOG.md                 # Architectural and product decision log       
 ├── src/
 │   ├── ClipStudio.Core/            # Domain entities, enums, repository interfaces
 │   │   ├── Entities/               # Clip, Tag, Highlight, Screenshot, ExportJob, ...
@@ -21,9 +24,6 @@ ClipStudio/
 ├── tests/
 │   └── ClipStudio.Tests/           # xUnit tests with Moq and in-memory EF Core
 ├── obs-scripts/                    # OBS Python script for game-name filename embedding
-├── CLAUDE.md                       # Project guidelines for developers and AI agents
-├── SPECIFICATION.md                # Full software specification
-├── DECISION_LOG.md                 # Architectural and product decision log
 └── ClipStudio.sln
 ```
 

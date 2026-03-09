@@ -1,0 +1,99 @@
+using System.Collections.Generic;
+using ClipStudio.Core.Enums;
+
+namespace ClipStudio.Application.Models;
+
+/// <summary>
+/// Represents the persisted user preferences for the ClipStudio application.
+/// </summary>
+public sealed class AppSettings
+{
+    /// <summary>Gets or sets the default trim mode applied when exporting clips or highlights.</summary>
+    public TrimMode DefaultTrimMode { get; set; } = TrimMode.NonDestructive;
+
+    /// <summary>
+    /// Gets or sets whether the original source file is deleted after a successful destructive export.
+    /// Only relevant when <see cref="DefaultTrimMode"/> is <see cref="TrimMode.Destructive"/>.
+    /// </summary>
+    public bool DeleteOriginalAfterDestructiveTrim { get; set; } = false;
+
+    /// <summary>Gets or sets the offset in seconds from the start of the clip used to capture the thumbnail frame.</summary>
+    public int ThumbnailOffsetSeconds { get; set; } = 5;
+
+    /// <summary>Gets or sets the number of frames included in the hover-scrub preview strip per clip.</summary>
+    public int PreviewStripFrameCount { get; set; } = 20;
+
+    /// <summary>Gets or sets the UI theme preference. Accepted values: "Dark", "Light", "System".</summary>
+    public string Theme { get; set; } = "Dark";
+
+    /// <summary>Gets or sets the absolute path to the folder where frame screenshots are saved.</summary>
+    public string ScreenshotOutputFolder { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets whether the application has not yet completed the first-run setup wizard.</summary>
+    public bool IsFirstRun { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the absolute path to the folder containing the FFmpeg binaries (ffmpeg.exe, ffprobe.exe).
+    /// Leave empty to rely on the system PATH, or to let the app auto-detect a <c>ffmpeg/</c> subfolder
+    /// next to the application executable.
+    /// </summary>
+    public string FfmpegBinaryFolder { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets whether a clip is automatically transitioned to the Reviewed state when the user
+    /// applies their first tag to it. Defaults to <c>true</c>.
+    /// </summary>
+    public bool AutoMarkReviewedOnTagAdd { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether a clip starts playing automatically when it is opened in the detail view.
+    /// Defaults to <c>true</c>.
+    /// </summary>
+    public bool AutoPlayOnOpen { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether all active source folders are scanned for new clips automatically
+    /// each time the application starts. Defaults to <c>false</c>.
+    /// </summary>
+    public bool AutoScanAtStartup { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether mixed audio previews are cached on disk so repeated playback of the
+    /// same track selection does not require re-running FFmpeg. Defaults to <c>true</c>.
+    /// </summary>
+    public bool CacheAudioPreviews { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether clips removed from the Trash (by auto-expiry after 30 days or via
+    /// the Empty Trash action) are sent to the operating-system Recycle Bin rather than being
+    /// permanently deleted. Defaults to <c>true</c>.
+    /// </summary>
+    public bool TrashExpiredSendToRecycleBin { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether players marked as "Me" are automatically tagged on every newly imported clip.
+    /// Defaults to <c>true</c>.
+    /// </summary>
+    public bool AutoApplyMePlayerOnImport { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the persisted pixel widths for the resizable columns in the library detail view.
+    /// Keyed by column name (e.g. "Game", "Tags", "Players", "Date", "Duration", "Rating").
+    /// A <c>null</c> value means default widths are used.
+    /// </summary>
+    public Dictionary<string, double>? LibraryColumnWidths { get; set; }
+
+    /// <summary>
+    /// Gets or sets the persisted pixel widths for the resizable columns in the highlights list.
+    /// Keyed by column name (e.g. "Tags", "Game", "Players", "Start", "End", "Duration", "Created").
+    /// A <c>null</c> value means default widths are used.
+    /// </summary>
+    public Dictionary<string, double>? HighlightsColumnWidths { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether game cover art and player icon images are shown in the library
+    /// details view and highlights list. When <c>false</c>, plain text is shown instead.
+    /// Defaults to <c>true</c>.
+    /// </summary>
+    public bool ShowImagesInLists { get; set; } = true;
+}

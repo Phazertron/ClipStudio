@@ -1,0 +1,172 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ClipStudio.UI.ViewModels"
+        xmlns:icons="using:Material.Icons.Avalonia"
+        xmlns:conv="using:ClipStudio.UI.Converters"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
+        x:Class="ClipStudio.UI.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="ClipStudio"
+        MinWidth="900"
+        MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid ColumnDefinitions="220,*">
+
+        <!-- ===== Sidebar ===== -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource SystemChromeMediumLowColor}"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,1,0">
+
+            <DockPanel>
+
+                <!-- App title -->
+                <Border DockPanel.Dock="Top"
+                        Padding="16,20,16,12"
+                        BorderBrush="{DynamicResource SystemChromeHighColor}"
+                        BorderThickness="0,0,0,1">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="ClipStudio"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="Clip Manager"
+                                   FontSize="11"
+                                   Opacity="0.5"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Navigation items -->
+                <ListBox DockPanel.Dock="Top"
+                         ItemsSource="{Binding NavigationItems}"
+                         SelectedItem="{Binding SelectedNavigationItem}"
+                         Background="Transparent"
+                         Padding="8,8,8,0">
+
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="vm:NavigationItemViewModel">
+                            <Grid ColumnDefinitions="Auto,*" Margin="0,2">
+
+                                <!-- Icon with scan animation and badge overlay -->
+                                <Panel Grid.Column="0"
+                                       Width="20" Height="20"
+                                       VerticalAlignment="Center"
+                                       Margin="4,0,10,0">
+
+                                    <!-- Normal icon (hidden while scanning) -->
+                                    <icons:MaterialIcon Kind="{Binding Icon}"
+                                                        Width="20" Height="20"
+                                                        IsVisible="{Binding !IsScanning}"/>
+
+                                    <!-- Spinning cog shown during scan/import -->
+                                    <icons:MaterialIcon Kind="Cog"
+                                                        Width="20" Height="20"
+                                                        IsVisible="{Binding IsScanning}"
+                                                        RenderTransformOrigin="50%,50%">
+                                        <icons:MaterialIcon.RenderTransform>
+                                            <RotateTransform/>
+                                        </icons:MaterialIcon.RenderTransform>
+                                        <icons:MaterialIcon.Styles>
+                                            <Style Selector="icons|MaterialIcon[IsVisible=True]">
+                                                <Style.Animations>
+                                                    <Animation Duration="0:0:1.5" IterationCount="INFINITE">
+                                                        <KeyFrame Cue="0%">
+                                                            <Setter Property="RotateTransform.Angle" Value="0"/>
+                                                        </KeyFrame>
+                                                        <KeyFrame Cue="100%">
+                                                            <Setter Property="RotateTransform.Angle" Value="360"/>
+                                                        </KeyFrame>
+                                                    </Animation>
+                                                </Style.Animations>
+                                            </Style>
+                                        </icons:MaterialIcon.Styles>
+                                    </icons:MaterialIcon>
+
+                                    <!-- Badge overlay (unreviewed count) -->
+                                    <Border IsVisible="{Binding BadgeCount, Converter={x:Static conv:IsPositiveConverter.Instance}}"
+                                            Background="#CC2200"
+                                            CornerRadius="7"
+                                            MinWidth="14" Height="14"
+                                            Padding="2,0"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Top"
+                                            Margin="0,-5,-5,0">
+                                        <TextBlock Text="{Binding BadgeCount}"
+                                                   FontSize="9"
+                                                   FontWeight="Bold"
+                                                   Foreground="White"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                </Panel>
+
+                                <!-- Label -->
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding Label}"
+                                           VerticalAlignment="Center"
+                                           FontSize="13"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="10,8"/>
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </ListBox.Styles>
+                </ListBox>
+
+
+                <!-- Spacer -->
+                <Grid DockPanel.Dock="Top"/>
+
+            </DockPanel>
+        </Border>
+
+        <!-- ===== Content area ===== -->
+        <Panel Grid.Column="1">
+            <ContentControl Content="{Binding CurrentPage}"/>
+
+            <!-- Startup loading overlay — shown until heavy initialisation completes -->
+            <Border IsVisible="{Binding IsStartupLoading}"
+                    Background="{DynamicResource SystemChromeMediumColor}"
+                    ZIndex="100">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="16">
+                    <!-- Spinning cog -->
+                    <icons:MaterialIcon Kind="Cog"
+                                        Width="48" Height="48"
+                                        HorizontalAlignment="Center"
+                                        RenderTransformOrigin="50%,50%">
+                        <icons:MaterialIcon.RenderTransform>
+                            <RotateTransform/>
+                        </icons:MaterialIcon.RenderTransform>
+                        <icons:MaterialIcon.Styles>
+                            <Style Selector="icons|MaterialIcon">
+                                <Style.Animations>
+                                    <Animation Duration="0:0:2" IterationCount="INFINITE">
+                                        <KeyFrame Cue="0%">
+                                            <Setter Property="RotateTransform.Angle" Value="0"/>
+                                        </KeyFrame>
+                                        <KeyFrame Cue="100%">
+                                            <Setter Property="RotateTransform.Angle" Value="360"/>
+                                        </KeyFrame>
+                                    </Animation>
+                                </Style.Animations>
+                            </Style>
+                        </icons:MaterialIcon.Styles>
+                    </icons:MaterialIcon>
+                    <TextBlock Text="{Binding StartupStatusText}"
+                               HorizontalAlignment="Center"
+                               FontSize="13"
+                               Opacity="0.7"/>
+                </StackPanel>
+            </Border>
+        </Panel>
+
+    </Grid>
+</Window>

@@ -1,0 +1,134 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1060" d:DesignHeight="750"
+             x:Class="ClipStudio.UI.Views.UnreviewedQueueView"
+             x:DataType="vm:UnreviewedQueueViewModel">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- ===== Header ===== -->
+        <Border Grid.Row="0"
+                Padding="16,12"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Spacing="2">
+                    <TextBlock Text="Unreviewed Queue"
+                               FontSize="16"
+                               FontWeight="SemiBold"/>
+                    <TextBlock FontSize="12" Opacity="0.55">
+                        <Run Text="{Binding UnreviewedCount}"/>
+                        <Run Text=" clip(s) waiting for review"/>
+                    </TextBlock>
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Command="{Binding LoadCommand}"
+                        Content="Refresh"
+                        VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- ===== Loading indicator ===== -->
+        <ProgressBar Grid.Row="0"
+                     IsIndeterminate="True"
+                     IsVisible="{Binding IsLoading}"
+                     VerticalAlignment="Bottom"
+                     Height="2"
+                     Margin="0"/>
+
+        <!-- ===== Queue list ===== -->
+        <ScrollViewer Grid.Row="1">
+            <Panel Margin="12,12,12,24">
+
+                <!-- Empty state -->
+                <TextBlock Text="All caught up! No unreviewed clips."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="15"
+                           Opacity="0.4"
+                           IsVisible="{Binding !Clips.Count}"/>
+
+                <!-- Clip row list -->
+                <ItemsControl ItemsSource="{Binding Clips}"
+                              IsVisible="{Binding Clips.Count}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="8"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:ClipCardViewModel">
+                            <Border CornerRadius="8"
+                                    ClipToBounds="True"
+                                    Cursor="Hand"
+                                    Background="{DynamicResource SystemChromeMediumLowColor}"
+                                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                    BorderThickness="1"
+                                    Tapped="OnClipRowTapped">
+                                <Grid ColumnDefinitions="160,*" Height="90">
+
+                                    <!-- Thumbnail -->
+                                    <Panel Grid.Column="0"
+                                           Background="{DynamicResource SystemChromeLowColor}">
+                                        <Image Source="{Binding ThumbnailBitmap}"
+                                               Stretch="UniformToFill"
+                                               IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                        <TextBlock Text="No Preview"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="11"
+                                                   Opacity="0.35"
+                                                   IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                    </Panel>
+
+                                    <!-- Details -->
+                                    <StackPanel Grid.Column="1"
+                                                Spacing="4"
+                                                VerticalAlignment="Center"
+                                                Margin="14,0,14,0">
+
+                                        <TextBlock Text="{Binding FileName}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding FileName}"/>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="16">
+                                            <TextBlock Text="{Binding RecordedAtDisplay}"
+                                                       FontSize="11"
+                                                       Opacity="0.6"/>
+                                            <TextBlock Text="{Binding DurationDisplay}"
+                                                       FontSize="11"
+                                                       Opacity="0.6"/>
+                                        </StackPanel>
+
+                                        <!-- Suggested game name badge -->
+                                        <Border CornerRadius="4"
+                                                Padding="6,2"
+                                                HorizontalAlignment="Left"
+                                                Background="{DynamicResource SystemAccentColorDark2}"
+                                                IsVisible="{Binding SuggestedGameName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                            <TextBlock FontSize="11">
+                                                <Run Text="Game: "/>
+                                                <Run Text="{Binding SuggestedGameName}"/>
+                                            </TextBlock>
+                                        </Border>
+
+                                    </StackPanel>
+
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </Panel>
+        </ScrollViewer>
+
+    </Grid>
+</UserControl>

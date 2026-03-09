@@ -1,0 +1,284 @@
+name: Release
+
+# Triggered by pushing a semver tag, e.g. "v1.0.0" or "v1.2.3-beta".
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  PROJECT:        'src/ClipStudio.UI/ClipStudio.UI.csproj'
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Derive version and channel from the git tag
+  # --------------------------------------------------------------------------
+  metadata:
+    name: Derive release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      channel: ${{ steps.meta.outputs.channel }}
+    steps:
+      - name: Parse tag
+        id: meta
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"            # e.g. v1.2.3 or v1.2.3-beta
+          VERSION="${TAG#v}"                  # strip leading 'v'
+          if [[ "$VERSION" == *-* ]]; then
+            CHANNEL="${VERSION##*-}"          # everything after last '-'
+          else
+            CHANNEL="stable"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+
+  # --------------------------------------------------------------------------
+  # Windows build + Velopack package
+  # --------------------------------------------------------------------------
+  build-windows:
+    name: Windows (${{ needs.metadata.outputs.version }})
+    needs: metadata
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install vpk CLI
+        run: dotnet tool install -g vpk
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-restore --verbosity minimal
+
+      - name: Publish
+        run: |
+          dotnet publish ${{ env.PROJECT }} `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --output publish/windows `
+            -p:Version=${{ needs.metadata.outputs.version }} `
+            -p:DebugType=None `
+            -p:DebugSymbols=false
+
+      - name: Copy OBS scripts
+        run: Copy-Item obs-scripts -Destination publish/windows/obs-scripts -Recurse
+        shell: pwsh
+
+      - name: Bundle FFmpeg (LGPL essentials)
+        shell: pwsh
+        run: |
+          $FfmpegDir    = "publish/windows/ffmpeg"
+          $FfmpegZip    = "$env:TEMP/ffmpeg-bundle.zip"
+          $FfmpegExtract = "$env:TEMP/ffmpeg-extract"
+          New-Item -ItemType Directory -Path $FfmpegDir -Force | Out-Null
+          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" `
+            -OutFile $FfmpegZip -UseBasicParsing
+          Expand-Archive -Path $FfmpegZip -DestinationPath $FfmpegExtract -Force
+          $BinDir = Get-ChildItem $FfmpegExtract -Recurse -Directory | Where-Object { $_.Name -eq "bin" } | Select-Object -First 1
+          foreach ($exe in @("ffmpeg.exe", "ffprobe.exe")) {
+            Copy-Item (Join-Path $BinDir.FullName $exe) -Destination $FfmpegDir -Force
+          }
+
+      - name: Pack (Velopack)
+        run: |
+          vpk pack `
+            --packId ClipStudio `
+            --packVersion ${{ needs.metadata.outputs.version }} `
+            --packDir publish/windows `
+            --mainExe ClipStudio.UI.exe `
+            --outputDir releases/windows `
+            --channel ${{ needs.metadata.outputs.channel }} `
+            --packTitle "ClipStudio" `
+            --packAuthors "ClipStudio Team"
+        shell: pwsh
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-${{ needs.metadata.outputs.version }}
+          path: releases/windows/**
+          if-no-files-found: error
+
+  # --------------------------------------------------------------------------
+  # macOS build + Velopack package
+  # --------------------------------------------------------------------------
+  build-macos:
+    name: macOS (${{ needs.metadata.outputs.version }})
+    needs: metadata
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install vpk CLI
+        run: dotnet tool install -g vpk
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Publish
+        run: |
+          dotnet publish ${{ env.PROJECT }} \
+            --configuration Release \
+            --runtime osx-x64 \
+            --self-contained true \
+            --output publish/macos \
+            -p:Version=${{ needs.metadata.outputs.version }} \
+            -p:DebugType=None \
+            -p:DebugSymbols=false
+
+      - name: Copy OBS scripts
+        run: cp -r obs-scripts publish/macos/obs-scripts
+
+      - name: Bundle FFmpeg (macOS)
+        run: |
+          brew install ffmpeg
+          mkdir -p publish/macos/ffmpeg
+          cp "$(which ffmpeg)"  publish/macos/ffmpeg/ffmpeg
+          cp "$(which ffprobe)" publish/macos/ffmpeg/ffprobe
+          chmod +x publish/macos/ffmpeg/ffmpeg publish/macos/ffmpeg/ffprobe
+
+      - name: Pack (Velopack)
+        run: |
+          vpk pack \
+            --packId ClipStudio \
+            --packVersion ${{ needs.metadata.outputs.version }} \
+            --packDir publish/macos \
+            --mainExe ClipStudio.UI \
+            --outputDir releases/macos \
+            --channel ${{ needs.metadata.outputs.channel }} \
+            --packTitle "ClipStudio" \
+            --packAuthors "ClipStudio Team"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release-${{ needs.metadata.outputs.version }}
+          path: releases/macos/**
+          if-no-files-found: error
+
+  # --------------------------------------------------------------------------
+  # Linux build + Velopack package
+  # --------------------------------------------------------------------------
+  build-linux:
+    name: Linux (${{ needs.metadata.outputs.version }})
+    needs: metadata
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install vpk CLI
+        run: dotnet tool install -g vpk
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Publish
+        run: |
+          dotnet publish ${{ env.PROJECT }} \
+            --configuration Release \
+            --runtime linux-x64 \
+            --self-contained true \
+            --output publish/linux \
+            -p:Version=${{ needs.metadata.outputs.version }} \
+            -p:DebugType=None \
+            -p:DebugSymbols=false
+
+      - name: Copy OBS scripts
+        run: cp -r obs-scripts publish/linux/obs-scripts
+
+      - name: Bundle FFmpeg (Linux)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          mkdir -p publish/linux/ffmpeg
+          cp "$(which ffmpeg)"  publish/linux/ffmpeg/ffmpeg
+          cp "$(which ffprobe)" publish/linux/ffmpeg/ffprobe
+          chmod +x publish/linux/ffmpeg/ffmpeg publish/linux/ffmpeg/ffprobe
+
+      - name: Pack (Velopack)
+        run: |
+          vpk pack \
+            --packId ClipStudio \
+            --packVersion ${{ needs.metadata.outputs.version }} \
+            --packDir publish/linux \
+            --mainExe ClipStudio.UI \
+            --outputDir releases/linux \
+            --channel ${{ needs.metadata.outputs.channel }} \
+            --packTitle "ClipStudio" \
+            --packAuthors "ClipStudio Team"
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-${{ needs.metadata.outputs.version }}
+          path: releases/linux/**
+          if-no-files-found: error
+
+  # --------------------------------------------------------------------------
+  # GitHub Release — attach all platform artifacts
+  # --------------------------------------------------------------------------
+  publish-release:
+    name: Publish GitHub Release
+    needs: [ metadata, build-windows, build-macos, build-linux ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release-${{ needs.metadata.outputs.version }}
+          path: dist/windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-release-${{ needs.metadata.outputs.version }}
+          path: dist/macos
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-release-${{ needs.metadata.outputs.version }}
+          path: dist/linux
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ClipStudio ${{ needs.metadata.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ needs.metadata.outputs.channel != 'stable' }}
+          generate_release_notes: true
+          files: |
+            dist/windows/**
+            dist/macos/**
+            dist/linux/**

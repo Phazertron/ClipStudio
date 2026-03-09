@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels.WizardSteps"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="580" d:DesignHeight="360"
+             x:Class="ClipStudio.UI.Views.WizardSteps.FinishStepView"
+             x:DataType="vm:FinishStepViewModel">
+
+    <StackPanel Spacing="20" Margin="8">
+
+        <TextBlock Text="One last thing — choose your preferred theme."
+                   FontSize="13"
+                   Opacity="0.7"
+                   TextWrapping="Wrap"/>
+
+        <!-- Theme selection -->
+        <Border Padding="14,10"
+                CornerRadius="6"
+                Background="{DynamicResource SystemChromeMediumLowColor}"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="1">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Theme" FontSize="12" Opacity="0.6"/>
+                <StackPanel Spacing="8">
+                    <RadioButton Content="Dark (recommended)"
+                                 IsChecked="{Binding IsDarkTheme}"
+                                 FontSize="13"/>
+                    <RadioButton Content="Light"
+                                 IsChecked="{Binding IsLightTheme}"
+                                 FontSize="13"/>
+                    <RadioButton Content="Follow system"
+                                 IsChecked="{Binding IsSystemTheme}"
+                                 FontSize="13"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Ready message -->
+        <Border Padding="14,10"
+                CornerRadius="6"
+                Background="#1A27AE60"
+                BorderBrush="#2727AE60"
+                BorderThickness="1">
+            <StackPanel Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:MaterialIcon Kind="RocketLaunch" Width="18" Height="18"
+                                        Foreground="#27AE60" VerticalAlignment="Center"/>
+                    <TextBlock Text="ClipStudio is ready to go!"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="#27AE60" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Text="Click Get Started to open the app. You can change all of these settings later via the Settings page."
+                           FontSize="12"
+                           Opacity="0.7"
+                           TextWrapping="Wrap"
+                           Margin="26,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Finishing indicator -->
+        <ProgressBar IsIndeterminate="True"
+                     Height="3"
+                     IsVisible="{Binding IsFinishing}"/>
+
+    </StackPanel>
+
+</UserControl>

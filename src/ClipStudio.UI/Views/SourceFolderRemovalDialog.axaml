@@ -1,0 +1,141 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ClipStudio.UI.ViewModels"
+        xmlns:icons="using:Material.Icons.Avalonia"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="300"
+        x:Class="ClipStudio.UI.Views.SourceFolderRemovalDialog"
+        x:DataType="vm:SourceFolderRemovalDialogViewModel"
+        Title="Remove Source Folder"
+        Width="480"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Margin="24" Spacing="16">
+
+        <!-- Title -->
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <icons:MaterialIcon Kind="FolderRemove" Width="22" Height="22" Opacity="0.8"/>
+            <TextBlock Text="Remove Source Folder"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Folder path -->
+        <TextBlock Text="{Binding FolderPath}"
+                   FontSize="12"
+                   Opacity="0.65"
+                   TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding FolderPath}"/>
+
+        <TextBlock Text="This folder has clips associated with it in the library. What would you like to do with them?"
+                   FontSize="12"
+                   TextWrapping="Wrap"
+                   Opacity="0.85"/>
+
+        <!-- Initial choice panel -->
+        <StackPanel IsVisible="{Binding !IsWipeConfirmVisible}" Spacing="8">
+
+            <!-- Archive option -->
+            <Border CornerRadius="6"
+                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                    BorderThickness="1"
+                    Padding="12,10">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <icons:MaterialIcon Grid.Column="0"
+                                        Kind="ArchiveArrowDown"
+                                        Width="20" Height="20"
+                                        Opacity="0.7"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,10,0"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Archive clips" FontSize="12" FontWeight="SemiBold"/>
+                        <TextBlock Text="Clips are hidden from the library but all data and source files are preserved on disk."
+                                   FontSize="11"
+                                   Opacity="0.6"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Column="2"
+                            Command="{Binding ArchiveCommand}"
+                            Content="Archive"
+                            FontSize="12"
+                            Margin="10,0,0,0"
+                            Padding="12,6"
+                            VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Wipe option -->
+            <Border CornerRadius="6"
+                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                    BorderThickness="1"
+                    Padding="12,10">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <icons:MaterialIcon Grid.Column="0"
+                                        Kind="DeleteForever"
+                                        Width="20" Height="20"
+                                        Opacity="0.7"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,10,0"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Wipe clip records" FontSize="12" FontWeight="SemiBold"/>
+                        <TextBlock Text="Clip records, tags, highlights, and cached thumbnails are permanently deleted. Source video files are not touched."
+                                   FontSize="11"
+                                   Opacity="0.6"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Column="2"
+                            Command="{Binding ShowWipeConfirmCommand}"
+                            Content="Wipe"
+                            FontSize="12"
+                            Margin="10,0,0,0"
+                            Padding="12,6"
+                            VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Cancel -->
+            <Button Command="{Binding CancelCommand}"
+                    Content="Cancel — keep folder and clips"
+                    HorizontalAlignment="Right"
+                    FontSize="12"
+                    Padding="12,6"/>
+
+        </StackPanel>
+
+        <!-- Wipe second-confirmation panel -->
+        <Border IsVisible="{Binding IsWipeConfirmVisible}"
+                Background="#4AE74C3C"
+                CornerRadius="6"
+                Padding="14,12">
+            <StackPanel Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:MaterialIcon Kind="AlertCircle" Width="18" Height="18" Foreground="#E74C3C" VerticalAlignment="Center"/>
+                    <TextBlock Text="This cannot be undone"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#E74C3C"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Text="All clip database records, tags, highlights, screenshots, and cached thumbnails for this folder will be permanently removed. Source video files on disk are not affected."
+                           FontSize="12"
+                           TextWrapping="Wrap"/>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Command="{Binding ConfirmWipeCommand}"
+                            Content="Confirm Wipe"
+                            FontSize="12"
+                            Padding="12,6"/>
+                    <Button Command="{Binding BackFromWipeCommand}"
+                            Content="Back"
+                            FontSize="12"
+                            Padding="12,6"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+    </StackPanel>
+
+</Window>

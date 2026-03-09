@@ -1,0 +1,487 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:conv="using:ClipStudio.UI.Converters"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="750"
+             x:Class="ClipStudio.UI.Views.HighlightsPageView"
+             x:DataType="vm:HighlightsPageViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
+
+        <!-- ===== Toolbar ===== -->
+        <Border Grid.Row="0"
+                Padding="16,10"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+
+                <TextBlock Grid.Column="0"
+                           Text="Highlights"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="0,0,16,0"/>
+
+                <!-- Search box -->
+                <TextBox Grid.Column="1"
+                         Text="{Binding SearchText}"
+                         Watermark="Search labels, clips, tags, games, notes..."
+                         FontSize="12"
+                         MaxWidth="400"
+                         HorizontalAlignment="Left"
+                         CornerRadius="6"/>
+
+                <!-- Sort dropdown -->
+                <ComboBox Grid.Column="2"
+                          x:Name="SortComboBox"
+                          Margin="8,0,0,0"
+                          FontSize="12"
+                          SelectedIndex="0"
+                          ToolTip.Tip="Sort order"
+                          SelectionChanged="OnSortChanged">
+                    <ComboBoxItem Tag="CreatedDesc">Date (newest first)</ComboBoxItem>
+                    <ComboBoxItem Tag="CreatedAsc">Date (oldest first)</ComboBoxItem>
+                    <ComboBoxItem Tag="LabelAsc">Label (A-Z)</ComboBoxItem>
+                    <ComboBoxItem Tag="LabelDesc">Label (Z-A)</ComboBoxItem>
+                    <ComboBoxItem Tag="DurationDesc">Duration (longest first)</ComboBoxItem>
+                    <ComboBoxItem Tag="DurationAsc">Duration (shortest first)</ComboBoxItem>
+                    <ComboBoxItem Tag="GameAsc">Game (A-Z)</ComboBoxItem>
+                    <ComboBoxItem Tag="GameDesc">Game (Z-A)</ComboBoxItem>
+                </ComboBox>
+
+                <!-- Count -->
+                <TextBlock Grid.Column="3"
+                           Text="{Binding Highlights.Count, StringFormat='{}{0} highlight(s)'}"
+                           FontSize="12"
+                           Opacity="0.5"
+                           VerticalAlignment="Center"
+                           Margin="12,0"/>
+
+                <!-- Filter panel toggle -->
+                <Button Grid.Column="4"
+                        Command="{Binding ToggleFilterPanelCommand}"
+                        ToolTip.Tip="Toggle filter panel"
+                        Margin="4,0,0,0">
+                    <icons:MaterialIcon Kind="FilterVariant" Width="16" Height="16"/>
+                </Button>
+
+                <!-- Refresh -->
+                <Button Grid.Column="5"
+                        Command="{Binding LoadCommand}"
+                        ToolTip.Tip="Refresh"
+                        Margin="4,0,0,0">
+                    <icons:MaterialIcon Kind="Refresh" Width="16" Height="16"/>
+                </Button>
+
+            </Grid>
+        </Border>
+
+        <!-- Loading indicator -->
+        <ProgressBar Grid.Row="0"
+                     IsIndeterminate="True"
+                     IsVisible="{Binding IsLoading}"
+                     VerticalAlignment="Bottom"
+                     Height="2"
+                     Margin="0"/>
+
+        <!-- ===== Filter panel ===== -->
+        <Border Grid.Row="1"
+                IsVisible="{Binding IsFilterPanelOpen}"
+                Padding="16,10"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1"
+                Background="{DynamicResource SystemChromeMediumLowColor}">
+            <WrapPanel Orientation="Horizontal">
+
+                <!-- Game filter -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="Game:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <ComboBox ItemsSource="{Binding AvailableGameTags}"
+                              SelectedItem="{Binding FilterGameTag}"
+                              PlaceholderText="All games"
+                              FontSize="12"
+                              MinWidth="120">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" FontSize="12"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Command="{Binding ClearGameFilterCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear game filter"
+                            IsVisible="{Binding FilterGameTag, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Tag filter -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="Tag:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <ComboBox ItemsSource="{Binding AvailableTags}"
+                              SelectedItem="{Binding SelectedFilterTag}"
+                              PlaceholderText="All tags"
+                              FontSize="12"
+                              MinWidth="120">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" FontSize="12"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Command="{Binding ClearTagFilterCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear tag filter"
+                            IsVisible="{Binding SelectedFilterTag, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Player filter -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="Player:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <ComboBox ItemsSource="{Binding AvailablePlayers}"
+                              SelectedItem="{Binding SelectedFilterPlayer}"
+                              PlaceholderText="All players"
+                              FontSize="12"
+                              MinWidth="120">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" FontSize="12"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Command="{Binding ClearPlayerFilterCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear player filter"
+                            IsVisible="{Binding SelectedFilterPlayer, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Date from -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="From:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <CalendarDatePicker SelectedDate="{Binding FilterDateFrom}"
+                                        FontSize="12"
+                                        Width="150"/>
+                    <Button Command="{Binding ClearDateFromCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear from-date"
+                            IsVisible="{Binding FilterDateFrom, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Date to -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="To:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <CalendarDatePicker SelectedDate="{Binding FilterDateTo}"
+                                        FontSize="12"
+                                        Width="150"/>
+                    <Button Command="{Binding ClearDateToCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear to-date"
+                            IsVisible="{Binding FilterDateTo, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Clear all -->
+                <Button Command="{Binding ClearFiltersCommand}"
+                        Content="Clear all"
+                        FontSize="12"
+                        Margin="0,0,0,4"
+                        VerticalAlignment="Center"/>
+
+            </WrapPanel>
+        </Border>
+
+        <!-- ===== Column headers ===== -->
+        <!-- Layout: 170 | * | 140 | 110 | 110 | 70 | 70 | 70 | 120 -->
+        <Border Grid.Row="2"
+                Padding="12,4"
+                Background="{DynamicResource SystemChromeLowColor}"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1">
+            <Grid x:Name="HighlightsHeaderGrid" ColumnDefinitions="170,*,140,110,110,70,70,70,120">
+
+                <TextBlock Grid.Column="0" Text=""
+                           FontSize="11" Opacity="0.6" FontWeight="SemiBold"/>
+
+                <!-- Label/Clip — sortable -->
+                <Button Grid.Column="1"
+                        Command="{Binding SetSortCommand}"
+                        CommandParameter="Label"
+                        Classes="Flat"
+                        Padding="8,2"
+                        HorizontalContentAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Label / Clip" FontSize="11" Opacity="0.6" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding SortIndicatorForLabel}" FontSize="10" Opacity="0.6"/>
+                    </StackPanel>
+                </Button>
+
+                <TextBlock Grid.Column="2" Text="Tags"
+                           FontSize="11" Opacity="0.6" FontWeight="SemiBold"
+                           Margin="8,0,0,0" VerticalAlignment="Center"/>
+
+                <!-- Game — sortable -->
+                <Button Grid.Column="3"
+                        Command="{Binding SetSortCommand}"
+                        CommandParameter="Game"
+                        Classes="Flat"
+                        Padding="8,2"
+                        HorizontalContentAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Game" FontSize="11" Opacity="0.6" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding SortIndicatorForGame}" FontSize="10" Opacity="0.6"/>
+                    </StackPanel>
+                </Button>
+
+                <TextBlock Grid.Column="4" Text="Players"
+                           FontSize="11" Opacity="0.6" FontWeight="SemiBold"
+                           Margin="8,0,0,0" VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Column="5" Text="Start"
+                           FontSize="11" Opacity="0.6" FontWeight="SemiBold"
+                           Margin="8,0,0,0" VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Column="6" Text="End"
+                           FontSize="11" Opacity="0.6" FontWeight="SemiBold"
+                           Margin="8,0,0,0" VerticalAlignment="Center"/>
+
+                <!-- Duration — sortable -->
+                <Button Grid.Column="7"
+                        Command="{Binding SetSortCommand}"
+                        CommandParameter="Duration"
+                        Classes="Flat"
+                        Padding="8,2"
+                        HorizontalContentAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Dur." FontSize="11" Opacity="0.6" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding SortIndicatorForDuration}" FontSize="10" Opacity="0.6"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- Created — sortable -->
+                <Button Grid.Column="8"
+                        Command="{Binding SetSortCommand}"
+                        CommandParameter="Created"
+                        Classes="Flat"
+                        Padding="8,2"
+                        HorizontalContentAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Created" FontSize="11" Opacity="0.6" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding SortIndicatorForCreated}" FontSize="10" Opacity="0.6"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- Custom resize handles: thin strips at column right edges. Tag = column index in HighlightsHeaderGrid. -->
+                <Rectangle Grid.Column="1" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                           Fill="#28808080" Cursor="SizeWestEast" Tag="1"
+                           PointerPressed="OnHighlightResizeHandlePressed"
+                           PointerMoved="OnHighlightResizeHandleMoved"
+                           PointerReleased="OnHighlightResizeHandleReleased"/>
+                <Rectangle Grid.Column="2" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                           Fill="#28808080" Cursor="SizeWestEast" Tag="2"
+                           PointerPressed="OnHighlightResizeHandlePressed"
+                           PointerMoved="OnHighlightResizeHandleMoved"
+                           PointerReleased="OnHighlightResizeHandleReleased"/>
+                <Rectangle Grid.Column="3" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                           Fill="#28808080" Cursor="SizeWestEast" Tag="3"
+                           PointerPressed="OnHighlightResizeHandlePressed"
+                           PointerMoved="OnHighlightResizeHandleMoved"
+                           PointerReleased="OnHighlightResizeHandleReleased"/>
+                <Rectangle Grid.Column="4" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                           Fill="#28808080" Cursor="SizeWestEast" Tag="4"
+                           PointerPressed="OnHighlightResizeHandlePressed"
+                           PointerMoved="OnHighlightResizeHandleMoved"
+                           PointerReleased="OnHighlightResizeHandleReleased"/>
+                <Rectangle Grid.Column="5" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                           Fill="#28808080" Cursor="SizeWestEast" Tag="5"
+                           PointerPressed="OnHighlightResizeHandlePressed"
+                           PointerMoved="OnHighlightResizeHandleMoved"
+                           PointerReleased="OnHighlightResizeHandleReleased"/>
+                <Rectangle Grid.Column="6" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                           Fill="#28808080" Cursor="SizeWestEast" Tag="6"
+                           PointerPressed="OnHighlightResizeHandlePressed"
+                           PointerMoved="OnHighlightResizeHandleMoved"
+                           PointerReleased="OnHighlightResizeHandleReleased"/>
+                <Rectangle Grid.Column="7" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                           Fill="#28808080" Cursor="SizeWestEast" Tag="7"
+                           PointerPressed="OnHighlightResizeHandlePressed"
+                           PointerMoved="OnHighlightResizeHandleMoved"
+                           PointerReleased="OnHighlightResizeHandleReleased"/>
+
+            </Grid>
+        </Border>
+
+        <!-- ===== List ===== -->
+        <ScrollViewer Grid.Row="3">
+            <Panel>
+
+                <!-- Empty state -->
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="8"
+                            Margin="0,60,0,0"
+                            IsVisible="{Binding !Highlights.Count}">
+                    <icons:MaterialIcon Kind="BookmarkOutline" Width="48" Height="48" Opacity="0.2"
+                                        HorizontalAlignment="Center"/>
+                    <TextBlock Text="No highlights found."
+                               FontSize="15"
+                               Opacity="0.4"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Open a clip and mark in/out points to create highlights."
+                               FontSize="12"
+                               Opacity="0.3"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <ItemsControl x:Name="HighlightsItemsControl"
+                              ItemsSource="{Binding Highlights}"
+                              IsVisible="{Binding Highlights.Count}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:HighlightRowViewModel">
+                            <!-- Clicking anywhere on the row opens the highlight in watch mode. -->
+                            <Border Padding="8"
+                                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                    BorderThickness="0,0,0,1"
+                                    Cursor="Hand"
+                                    Tapped="OnHighlightRowTapped">
+                                <Border.Styles>
+                                    <Style Selector="Border:pointerover">
+                                        <Setter Property="Background" Value="{DynamicResource SystemChromeMediumLowColor}"/>
+                                    </Style>
+                                </Border.Styles>
+
+                                <!-- Layout: 170 | * | 140 | 110 | 110 | 70 | 70 | 70 | 120 -->
+                                <Grid x:Name="HighlightRowGrid" ColumnDefinitions="170,*,140,110,110,70,70,70,120">
+
+                                    <!-- Thumbnail (160x90) -->
+                                    <Border Grid.Column="0"
+                                            Width="160" Height="90"
+                                            CornerRadius="4"
+                                            ClipToBounds="True"
+                                            Background="{DynamicResource SystemChromeLowColor}"
+                                            VerticalAlignment="Center">
+                                        <Panel>
+                                            <Image Source="{Binding ThumbnailBitmap}"
+                                                   Stretch="UniformToFill"
+                                                   IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                            <TextBlock Text="No Preview"
+                                                       FontSize="10"
+                                                       Opacity="0.3"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                        </Panel>
+                                    </Border>
+
+                                    <!-- Label + Clip name -->
+                                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center" Margin="8,0,0,0">
+                                        <TextBlock Text="{Binding Label}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding ClipName}"
+                                                   FontSize="11"
+                                                   Opacity="0.5"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    <!-- Tags -->
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding TagsDisplay}"
+                                               FontSize="11"
+                                               Opacity="0.7"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Center"
+                                               Margin="8,0,0,0"/>
+
+                                    <!-- Game: cover image when available, text fallback -->
+                                    <Panel Grid.Column="3" VerticalAlignment="Center" Margin="8,0,0,0" ClipToBounds="True">
+                                        <Image Source="{Binding GameCoverBitmap}"
+                                               Height="72"
+                                               Stretch="Uniform"
+                                               HorizontalAlignment="Left"
+                                               IsVisible="{Binding HasGameCoverBitmap}"
+                                               ToolTip.Tip="{Binding GameDisplay}"/>
+                                        <TextBlock Text="{Binding GameDisplay}"
+                                                   FontSize="11"
+                                                   Opacity="0.7"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   IsVisible="{Binding !HasGameCoverBitmap}"/>
+                                    </Panel>
+
+                                    <!-- Players: icons when available, text fallback -->
+                                    <Panel Grid.Column="4" VerticalAlignment="Center" Margin="8,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding PlayerIconBitmaps}"
+                                                      IsVisible="{Binding HasPlayerIconBitmaps}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Width="36" Height="36" CornerRadius="18" ClipToBounds="True" Margin="1">
+                                                        <Image Source="{Binding}" Stretch="UniformToFill"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Text="{Binding PlayerDisplay}"
+                                                   FontSize="11"
+                                                   Opacity="0.7"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   IsVisible="{Binding !HasPlayerIconBitmaps}"/>
+                                    </Panel>
+
+                                    <!-- Start -->
+                                    <TextBlock Grid.Column="5"
+                                               Text="{Binding StartTimeDisplay}"
+                                               FontSize="12"
+                                               FontFamily="Monospace"
+                                               VerticalAlignment="Center"
+                                               Margin="8,0,0,0"/>
+
+                                    <!-- End -->
+                                    <TextBlock Grid.Column="6"
+                                               Text="{Binding EndTimeDisplay}"
+                                               FontSize="12"
+                                               FontFamily="Monospace"
+                                               VerticalAlignment="Center"
+                                               Margin="8,0,0,0"/>
+
+                                    <!-- Duration -->
+                                    <TextBlock Grid.Column="7"
+                                               Text="{Binding DurationDisplay}"
+                                               FontSize="12"
+                                               FontFamily="Monospace"
+                                               VerticalAlignment="Center"
+                                               Margin="8,0,0,0"/>
+
+                                    <!-- Created -->
+                                    <TextBlock Grid.Column="8"
+                                               Text="{Binding CreatedAtDisplay}"
+                                               FontSize="11"
+                                               Opacity="0.55"
+                                               VerticalAlignment="Center"
+                                               Margin="8,0,0,0"/>
+
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </Panel>
+        </ScrollViewer>
+
+    </Grid>
+</UserControl>

@@ -1,0 +1,174 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ClipStudio.UI.ViewModels"
+        xmlns:stepsVm="using:ClipStudio.UI.ViewModels.WizardSteps"
+        xmlns:stepsViews="using:ClipStudio.UI.Views.WizardSteps"
+        xmlns:icons="using:Material.Icons.Avalonia"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="520"
+        x:Class="ClipStudio.UI.Views.SetupWizardWindow"
+        x:DataType="vm:SetupWizardViewModel"
+        Title="ClipStudio Setup"
+        Width="640" Height="520"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+
+    <!-- Map each step view model type to its view -->
+    <Window.DataTemplates>
+        <DataTemplate DataType="stepsVm:WelcomeStepViewModel">
+            <stepsViews:WelcomeStepView/>
+        </DataTemplate>
+        <DataTemplate DataType="stepsVm:SourceFoldersStepViewModel">
+            <stepsViews:SourceFoldersStepView/>
+        </DataTemplate>
+        <DataTemplate DataType="stepsVm:FfmpegStepViewModel">
+            <stepsViews:FfmpegStepView/>
+        </DataTemplate>
+        <DataTemplate DataType="stepsVm:FinishStepViewModel">
+            <stepsViews:FinishStepView/>
+        </DataTemplate>
+    </Window.DataTemplates>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- ===== Header ===== -->
+        <Border Grid.Row="0"
+                Padding="24,16"
+                Background="{DynamicResource SystemChromeMediumLowColor}"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1">
+
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+
+                <!-- Title + step label -->
+                <TextBlock Grid.Row="0" Grid.Column="0"
+                           Text="{Binding CurrentStep.Title}"
+                           FontSize="17"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="0" Grid.Column="1"
+                           Text="{Binding StepLabel}"
+                           FontSize="12"
+                           Opacity="0.5"
+                           VerticalAlignment="Center"/>
+
+                <!-- Step indicator dots -->
+                <ItemsControl Grid.Row="1" Grid.Column="0"
+                              ItemsSource="{Binding StepIndicators}"
+                              Margin="0,10,0,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="8"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:StepIndicatorViewModel">
+                            <Panel Width="28" Height="28">
+
+                                <!-- Completed: filled accent circle with check -->
+                                <Border Width="28" Height="28"
+                                        CornerRadius="14"
+                                        Background="{DynamicResource SystemAccentColor}"
+                                        IsVisible="{Binding IsCompleted}">
+                                    <icons:MaterialIcon Kind="Check"
+                                                        Width="14" Height="14"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        Foreground="White"/>
+                                </Border>
+
+                                <!-- Current: filled accent circle with number -->
+                                <Border Width="28" Height="28"
+                                        CornerRadius="14"
+                                        Background="{DynamicResource SystemAccentColor}"
+                                        IsVisible="{Binding IsCurrent}">
+                                    <TextBlock Text="{Binding Number}"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+
+                                <!-- Pending: outline circle with number -->
+                                <Border Width="28" Height="28"
+                                        CornerRadius="14"
+                                        BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                        BorderThickness="1.5"
+                                        Opacity="0.4">
+                                    <TextBlock Text="{Binding Number}"
+                                               FontSize="12"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+
+                            </Panel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </Grid>
+
+        </Border>
+
+        <!-- Progress bar (overlays bottom edge of header) -->
+        <ProgressBar Grid.Row="0"
+                     Value="{Binding ProgressPercent}"
+                     Maximum="100"
+                     Height="3"
+                     VerticalAlignment="Bottom"
+                     Margin="0"
+                     CornerRadius="0"/>
+
+        <!-- ===== Step content area ===== -->
+        <ScrollViewer Grid.Row="1">
+            <ContentControl Content="{Binding CurrentStep}" Margin="24,20"/>
+        </ScrollViewer>
+
+        <!-- ===== Footer: navigation buttons ===== -->
+        <Border Grid.Row="2"
+                Padding="24,14"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,1,0,0">
+
+            <Grid ColumnDefinitions="*,Auto,Auto">
+
+                <!-- App name / branding -->
+                <TextBlock Grid.Column="0"
+                           Text="ClipStudio"
+                           FontSize="13"
+                           Opacity="0.4"
+                           VerticalAlignment="Center"/>
+
+                <!-- Back -->
+                <Button Grid.Column="1"
+                        Command="{Binding BackCommand}"
+                        IsEnabled="{Binding CanGoBack}"
+                        Margin="0,0,10,0">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <icons:MaterialIcon Kind="ChevronLeft" Width="16" Height="16"/>
+                        <TextBlock Text="Back"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- Next / Get Started -->
+                <Button Grid.Column="2"
+                        Command="{Binding NextCommand}"
+                        Classes="accent">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding NextButtonLabel}"/>
+                        <icons:MaterialIcon Kind="ChevronRight" Width="16" Height="16"
+                                            IsVisible="{Binding !IsLastStep}"/>
+                        <icons:MaterialIcon Kind="RocketLaunch" Width="16" Height="16"
+                                            IsVisible="{Binding IsLastStep}"/>
+                    </StackPanel>
+                </Button>
+
+            </Grid>
+
+        </Border>
+
+    </Grid>
+
+</Window>

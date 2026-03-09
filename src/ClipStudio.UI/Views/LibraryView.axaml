@@ -1,0 +1,1236 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:conv="using:ClipStudio.UI.Converters"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1060" d:DesignHeight="750"
+             x:Class="ClipStudio.UI.Views.LibraryView"
+             x:DataType="vm:LibraryViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- ===== Toolbar ===== -->
+        <Border Grid.Row="0"
+                Padding="16,10"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+
+                <!-- Search box -->
+                <TextBox Grid.Column="0"
+                         Text="{Binding SearchText}"
+                         Watermark="Search clips..."
+                         MaxWidth="360"
+                         HorizontalAlignment="Left"
+                         CornerRadius="6"/>
+
+                <!-- Sort dropdown -->
+                <ComboBox Grid.Column="1"
+                          x:Name="SortComboBox"
+                          Margin="8,0,0,0"
+                          FontSize="12"
+                          SelectedIndex="0"
+                          ToolTip.Tip="Sort order"
+                          SelectionChanged="OnSortChanged">
+                    <ComboBoxItem Tag="DateDesc">Date (newest first)</ComboBoxItem>
+                    <ComboBoxItem Tag="DateAsc">Date (oldest first)</ComboBoxItem>
+                    <ComboBoxItem Tag="NameAsc">Name (A-Z)</ComboBoxItem>
+                    <ComboBoxItem Tag="NameDesc">Name (Z-A)</ComboBoxItem>
+                    <ComboBoxItem Tag="DurationDesc">Duration (longest first)</ComboBoxItem>
+                    <ComboBoxItem Tag="DurationAsc">Duration (shortest first)</ComboBoxItem>
+                    <ComboBoxItem Tag="RatingDesc">Rating (highest first)</ComboBoxItem>
+                </ComboBox>
+
+                <!-- View mode toggle -->
+                <Button Grid.Column="2"
+                        Command="{Binding ToggleViewModeCommand}"
+                        ToolTip.Tip="Toggle tiles / details view"
+                        Margin="4,0,0,0">
+                    <Panel>
+                        <icons:MaterialIcon Kind="ViewGrid" Width="16" Height="16"
+                                            IsVisible="{Binding IsDetailsView}"/>
+                        <icons:MaterialIcon Kind="ViewList" Width="16" Height="16"
+                                            IsVisible="{Binding IsTilesView}"/>
+                    </Panel>
+                </Button>
+
+                <!-- Filter panel toggle -->
+                <Button Grid.Column="3"
+                        Command="{Binding ToggleFilterPanelCommand}"
+                        ToolTip.Tip="Toggle filter panel"
+                        Margin="4,0,0,0">
+                    <icons:MaterialIcon Kind="FilterVariant" Width="16" Height="16"/>
+                </Button>
+
+                <!-- Bulk edit panel toggle -->
+                <Button Grid.Column="4"
+                        Command="{Binding ToggleBulkEditPanelCommand}"
+                        ToolTip.Tip="Toggle bulk edit panel"
+                        Margin="4,0,0,0">
+                    <icons:MaterialIcon Kind="CheckboxMultipleMarked" Width="16" Height="16"/>
+                </Button>
+
+                <!-- Refresh button -->
+                <Button Grid.Column="5"
+                        Command="{Binding LoadCommand}"
+                        ToolTip.Tip="Refresh"
+                        Margin="4,0,0,0">
+                    <icons:MaterialIcon Kind="Refresh" Width="16" Height="16"/>
+                </Button>
+
+            </Grid>
+        </Border>
+
+        <!-- ===== Loading indicator ===== -->
+        <ProgressBar Grid.Row="0"
+                     IsIndeterminate="True"
+                     IsVisible="{Binding IsLoading}"
+                     VerticalAlignment="Bottom"
+                     Height="2"
+                     Margin="0"/>
+
+        <!-- ===== Filter panel ===== -->
+        <Border Grid.Row="1"
+                IsVisible="{Binding IsFilterPanelOpen}"
+                Padding="16,10"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1"
+                Background="{DynamicResource SystemChromeMediumLowColor}">
+            <WrapPanel Orientation="Horizontal">
+
+                <!-- Status filter -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="Status:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <ComboBox x:Name="StatusComboBox"
+                              FontSize="12"
+                              SelectedIndex="0"
+                              SelectionChanged="OnStatusFilterChanged">
+                        <ComboBoxItem>All statuses</ComboBoxItem>
+                        <ComboBoxItem>Unreviewed</ComboBoxItem>
+                        <ComboBoxItem>Reviewed</ComboBoxItem>
+                        <ComboBoxItem ToolTip.Tip="Hidden from Library and Unreviewed queue. Use for clips you want to keep but not see regularly.">Archived</ComboBoxItem>
+                    </ComboBox>
+                    <Button Command="{Binding ClearStatusFilterCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear status filter"
+                            IsVisible="{Binding FilterStatus, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Game filter -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="Game:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <ComboBox ItemsSource="{Binding AvailableGameTags}"
+                              SelectedItem="{Binding FilterGameTag}"
+                              PlaceholderText="All games"
+                              FontSize="12"
+                              MinWidth="120">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" FontSize="12"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Command="{Binding ClearGameFilterCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear game filter"
+                            IsVisible="{Binding FilterGameTag, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Tag filter -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="Tag:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <ComboBox ItemsSource="{Binding AvailableTags}"
+                              SelectedItem="{Binding SelectedFilterTag}"
+                              PlaceholderText="All tags"
+                              FontSize="12"
+                              MinWidth="120">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" FontSize="12"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Command="{Binding ClearTagFilterCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear tag filter"
+                            IsVisible="{Binding SelectedFilterTag, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Player filter -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="Player:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <ComboBox ItemsSource="{Binding AvailablePlayers}"
+                              SelectedItem="{Binding SelectedFilterPlayer}"
+                              PlaceholderText="All players"
+                              FontSize="12"
+                              MinWidth="120">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" FontSize="12"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Command="{Binding ClearPlayerFilterCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear player filter"
+                            IsVisible="{Binding SelectedFilterPlayer, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Favourite toggle -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <ToggleButton IsChecked="{Binding FilterIsFavourite}"
+                                  FontSize="12"
+                                  Padding="8,4"
+                                  ToolTip.Tip="Show only favourites">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <icons:MaterialIcon Kind="StarCircle" Width="14" Height="14"/>
+                            <TextBlock Text="Favourites" FontSize="12"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <Button Command="{Binding ClearFavouriteFilterCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear favourite filter"
+                            IsVisible="{Binding FilterIsFavourite, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Date from -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="From:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <CalendarDatePicker SelectedDate="{Binding FilterDateFrom}"
+                                        FontSize="12"
+                                        Width="150"/>
+                    <Button Command="{Binding ClearDateFromCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear from-date"
+                            IsVisible="{Binding FilterDateFrom, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Date to -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <TextBlock Text="To:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
+                    <CalendarDatePicker SelectedDate="{Binding FilterDateTo}"
+                                        FontSize="12"
+                                        Width="150"/>
+                    <Button Command="{Binding ClearDateToCommand}"
+                            Padding="3"
+                            ToolTip.Tip="Clear to-date"
+                            IsVisible="{Binding FilterDateTo, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Clear all -->
+                <Button Command="{Binding ClearFiltersCommand}"
+                        Content="Clear all"
+                        FontSize="12"
+                        Margin="0,0,0,4"
+                        VerticalAlignment="Center"/>
+
+            </WrapPanel>
+        </Border>
+
+        <!-- ===== Main content: clips + bulk edit panel ===== -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+
+            <!-- Left: clips scroll area -->
+            <ScrollViewer Grid.Column="0">
+                <Panel Margin="12,12,12,24">
+                    <!-- Empty state -->
+                    <TextBlock Text="No clips found."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="15"
+                               Opacity="0.4"
+                               IsVisible="{Binding !Clips.Count}"/>
+
+                    <!-- ===== Tiles view ===== -->
+                    <ItemsControl ItemsSource="{Binding Clips}"
+                                  IsVisible="{Binding IsTilesView}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemWidth="220" ItemHeight="190"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:ClipCardViewModel">
+                                <Panel>
+                                <Border CornerRadius="8"
+                                        ClipToBounds="True"
+                                        Cursor="Hand"
+                                        Background="{DynamicResource SystemChromeMediumLowColor}"
+                                        BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                        BorderThickness="1"
+                                        Tapped="OnClipCardTapped">
+                                    <StackPanel>
+
+                                        <!-- Thumbnail / hover-scrub panel -->
+                                        <Panel Height="124"
+                                               Background="{DynamicResource SystemChromeLowColor}"
+                                               ClipToBounds="True"
+                                               PointerEntered="OnCardPointerEntered"
+                                               PointerExited="OnCardPointerExited"
+                                               PointerMoved="OnCardPointerMoved">
+                                            <!-- Static thumbnail -->
+                                            <Image Source="{Binding ThumbnailBitmap}"
+                                                   Stretch="UniformToFill"
+                                                   IsVisible="{Binding ShowStaticThumbnail}"/>
+                                            <!-- Preview strip scrub -->
+                                            <Image Source="{Binding StripBitmap}"
+                                                   Width="{Binding StripTotalPixelWidth}"
+                                                   Height="124"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Center"
+                                                   Margin="{Binding StripFrameOffset}"
+                                                   Stretch="Fill"
+                                                   IsVisible="{Binding !ShowStaticThumbnail}"/>
+                                            <TextBlock Text="No Preview"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="11"
+                                                       Opacity="0.35"
+                                                       IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
+
+                                            <!-- Selection checkbox (top-right) -->
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                      IsVisible="{Binding IsCheckboxVisible}"
+                                                      HorizontalAlignment="Right"
+                                                      VerticalAlignment="Top"
+                                                      Margin="0,4,4,0"
+                                                      Click="OnClipCheckBoxClicked"/>
+
+                                            <!-- Archived: dark overlay + icon -->
+                                            <Border IsVisible="{Binding IsArchived}"
+                                                    Background="#7A000000"/>
+                                            <icons:MaterialIcon Kind="ArchiveArrowDown"
+                                                                Width="32" Height="32"
+                                                                Foreground="White"
+                                                                Opacity="0.75"
+                                                                IsVisible="{Binding IsArchived}"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"/>
+
+                                            <!-- Archived notice overlay -->
+                                            <Border IsVisible="{Binding IsArchivedNoticeVisible}"
+                                                    Background="#CC1A1A2E"
+                                                    Padding="8,6"
+                                                    VerticalAlignment="Bottom">
+                                                <TextBlock Text="Archived — re-enable source folder in Settings"
+                                                           FontSize="10"
+                                                           Foreground="White"
+                                                           TextWrapping="Wrap"
+                                                           HorizontalAlignment="Center"/>
+                                            </Border>
+
+                                            <!-- Copy-format source indicator -->
+                                            <Border IsVisible="{Binding IsCopyFormatSource}"
+                                                    Background="#CC1A3A5F"
+                                                    Padding="6,3"
+                                                    VerticalAlignment="Top">
+                                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                                                    <icons:MaterialIcon Kind="ContentCopy" Width="10" Height="10" Foreground="White"/>
+                                                    <TextBlock Text="Copy Source"
+                                                               FontSize="10"
+                                                               Foreground="White"
+                                                               HorizontalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Panel>
+
+                                        <!-- Metadata -->
+                                        <StackPanel Spacing="3" Margin="10,8,10,10">
+                                            <TextBlock Text="{Binding FileName}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip.Tip="{Binding FileName}"/>
+                                            <TextBlock Text="{Binding RecordedAtDisplay}"
+                                                       FontSize="11"
+                                                       Opacity="0.6"/>
+                                            <TextBlock Text="{Binding DurationDisplay}"
+                                                       FontSize="11"
+                                                       Opacity="0.6"/>
+                                        </StackPanel>
+
+                                    </StackPanel>
+                                </Border>
+                                <!-- Selection highlight overlay -->
+                                <Border CornerRadius="8"
+                                        BorderBrush="{DynamicResource SystemAccentColor}"
+                                        BorderThickness="2"
+                                        IsVisible="{Binding IsSelected}"
+                                        IsHitTestVisible="False"/>
+                                </Panel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- ===== Details view ===== -->
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled"
+                                  IsVisible="{Binding IsDetailsView}">
+                    <StackPanel MinWidth="844">
+
+                        <!-- Column headers -->
+                        <Border Padding="8,4"
+                                Background="{DynamicResource SystemChromeMediumLowColor}"
+                                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                BorderThickness="0,0,0,1">
+                            <Grid x:Name="DetailsHeaderGrid" ColumnDefinitions="24,80,*,110,130,100,140,80,60,20">
+                                <TextBlock Grid.Column="0" Text="" Width="24"/>
+                                <Button Grid.Column="2"
+                                        Command="{Binding SetSortCommand}" CommandParameter="Name"
+                                        Padding="0" Background="Transparent" BorderThickness="0"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="2">
+                                        <TextBlock Text="Name"     FontSize="11" Opacity="0.6" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding SortIndicatorForName}" FontSize="9" VerticalAlignment="Center" Opacity="0.6"/>
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock Grid.Column="3" Text="Game"    FontSize="11" Opacity="0.6" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="Tags"    FontSize="11" Opacity="0.6" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="5" Text="Players" FontSize="11" Opacity="0.6" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <Button Grid.Column="6"
+                                        Command="{Binding SetSortCommand}" CommandParameter="Date"
+                                        Padding="0" Background="Transparent" BorderThickness="0"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="2">
+                                        <TextBlock Text="Date"     FontSize="11" Opacity="0.6" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding SortIndicatorForDate}" FontSize="9" VerticalAlignment="Center" Opacity="0.6"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="7"
+                                        Command="{Binding SetSortCommand}" CommandParameter="Duration"
+                                        Padding="0" Background="Transparent" BorderThickness="0"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="2">
+                                        <TextBlock Text="Duration" FontSize="11" Opacity="0.6" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding SortIndicatorForDuration}" FontSize="9" VerticalAlignment="Center" Opacity="0.6"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="8"
+                                        Command="{Binding SetSortCommand}" CommandParameter="Rating"
+                                        Padding="0" Background="Transparent" BorderThickness="0"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="2">
+                                        <TextBlock Text="Rating"   FontSize="11" Opacity="0.6" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding SortIndicatorForRating}" FontSize="9" VerticalAlignment="Center" Opacity="0.6"/>
+                                    </StackPanel>
+                                </Button>
+                                <!-- Custom resize handles: thin strips at column right edges. Tag = column index in DetailsHeaderGrid. -->
+                                <Rectangle Grid.Column="2" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                                           Fill="#28808080" Cursor="SizeWestEast" Tag="2"
+                                           PointerPressed="OnDetailResizeHandlePressed"
+                                           PointerMoved="OnDetailResizeHandleMoved"
+                                           PointerReleased="OnDetailResizeHandleReleased"/>
+                                <Rectangle Grid.Column="3" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                                           Fill="#28808080" Cursor="SizeWestEast" Tag="3"
+                                           PointerPressed="OnDetailResizeHandlePressed"
+                                           PointerMoved="OnDetailResizeHandleMoved"
+                                           PointerReleased="OnDetailResizeHandleReleased"/>
+                                <Rectangle Grid.Column="4" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                                           Fill="#28808080" Cursor="SizeWestEast" Tag="4"
+                                           PointerPressed="OnDetailResizeHandlePressed"
+                                           PointerMoved="OnDetailResizeHandleMoved"
+                                           PointerReleased="OnDetailResizeHandleReleased"/>
+                                <Rectangle Grid.Column="5" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                                           Fill="#28808080" Cursor="SizeWestEast" Tag="5"
+                                           PointerPressed="OnDetailResizeHandlePressed"
+                                           PointerMoved="OnDetailResizeHandleMoved"
+                                           PointerReleased="OnDetailResizeHandleReleased"/>
+                                <Rectangle Grid.Column="6" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                                           Fill="#28808080" Cursor="SizeWestEast" Tag="6"
+                                           PointerPressed="OnDetailResizeHandlePressed"
+                                           PointerMoved="OnDetailResizeHandleMoved"
+                                           PointerReleased="OnDetailResizeHandleReleased"/>
+                                <Rectangle Grid.Column="7" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                                           Fill="#28808080" Cursor="SizeWestEast" Tag="7"
+                                           PointerPressed="OnDetailResizeHandlePressed"
+                                           PointerMoved="OnDetailResizeHandleMoved"
+                                           PointerReleased="OnDetailResizeHandleReleased"/>
+                                <Rectangle Grid.Column="8" HorizontalAlignment="Right" Width="5" VerticalAlignment="Stretch"
+                                           Fill="#28808080" Cursor="SizeWestEast" Tag="8"
+                                           PointerPressed="OnDetailResizeHandlePressed"
+                                           PointerMoved="OnDetailResizeHandleMoved"
+                                           PointerReleased="OnDetailResizeHandleReleased"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Clip rows -->
+                        <ItemsControl x:Name="DetailsItemsControl" ItemsSource="{Binding Clips}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:ClipCardViewModel">
+                                    <Border Padding="8,4"
+                                            Cursor="Hand"
+                                            Background="Transparent"
+                                            BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                            BorderThickness="0,0,0,1"
+                                            Tapped="OnClipCardTapped">
+                                        <Grid x:Name="DetailRowGrid" ColumnDefinitions="24,80,*,110,130,100,140,80,60,20">
+                                            <!-- Selection highlight (left accent border) -->
+                                            <Border Grid.ColumnSpan="10"
+                                                    IsVisible="{Binding IsSelected}"
+                                                    Background="#18A020FF"
+                                                    IsHitTestVisible="False"
+                                                    BorderBrush="{DynamicResource SystemAccentColor}"
+                                                    BorderThickness="3,0,0,0"/>
+                                            <!-- Copy-format source highlight -->
+                                            <Border Grid.ColumnSpan="10"
+                                                    IsVisible="{Binding IsCopyFormatSource}"
+                                                    Background="#22007AFF"
+                                                    IsHitTestVisible="False"
+                                                    BorderBrush="{DynamicResource SystemAccentColor}"
+                                                    BorderThickness="3,0,0,0"/>
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                      VerticalAlignment="Center"
+                                                      Click="OnClipCheckBoxClicked"/>
+                                            <Panel Grid.Column="1" Height="48" Margin="0,2,8,2">
+                                                <Image Source="{Binding ThumbnailBitmap}"
+                                                       Stretch="UniformToFill"
+                                                       IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                                <Border Background="{DynamicResource SystemChromeLowColor}"
+                                                        IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                            </Panel>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding FileName}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       ToolTip.Tip="{Binding FileName}"/>
+                                            <!-- Game: cover image when available, text fallback -->
+                                            <Panel Grid.Column="3" VerticalAlignment="Center" ClipToBounds="True">
+                                                <Image Source="{Binding GameCoverBitmap}"
+                                                       Height="40"
+                                                       Stretch="Uniform"
+                                                       HorizontalAlignment="Left"
+                                                       IsVisible="{Binding HasGameCoverBitmap}"
+                                                       ToolTip.Tip="{Binding GameName}"/>
+                                                <TextBlock Text="{Binding GameName}"
+                                                           FontSize="12"
+                                                           Opacity="0.7"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           IsVisible="{Binding !HasGameCoverBitmap}"/>
+                                            </Panel>
+                                            <TextBlock Grid.Column="4"
+                                                       Text="{Binding TagsDisplay}"
+                                                       FontSize="11"
+                                                       Opacity="0.7"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                            <!-- Players: icons when available, text fallback -->
+                                            <Panel Grid.Column="5" VerticalAlignment="Center">
+                                                <ItemsControl ItemsSource="{Binding PlayerIconBitmaps}"
+                                                              IsVisible="{Binding HasPlayerIconBitmaps}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal" Spacing="2"/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Width="22" Height="22" CornerRadius="11" ClipToBounds="True">
+                                                                <Image Source="{Binding}" Stretch="UniformToFill"/>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="{Binding PlayersDisplay}"
+                                                           FontSize="11"
+                                                           Opacity="0.7"
+                                                           TextWrapping="Wrap"
+                                                           IsVisible="{Binding !HasPlayerIconBitmaps}"/>
+                                            </Panel>
+                                            <TextBlock Grid.Column="6"
+                                                       Text="{Binding RecordedAtDisplay}"
+                                                       FontSize="11"
+                                                       Opacity="0.7"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="7"
+                                                       Text="{Binding DurationDisplay}"
+                                                       FontSize="11"
+                                                       Opacity="0.7"
+                                                       VerticalAlignment="Center"/>
+                                            <!-- Rating: coloured stars -->
+                                            <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="1" VerticalAlignment="Center">
+                                                <Panel>
+                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated1OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated1OrMore}"/>
+                                                </Panel>
+                                                <Panel>
+                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated2OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated2OrMore}"/>
+                                                </Panel>
+                                                <Panel>
+                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated3OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated3OrMore}"/>
+                                                </Panel>
+                                                <Panel>
+                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated4OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated4OrMore}"/>
+                                                </Panel>
+                                                <Panel>
+                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated5OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated5OrMore}"/>
+                                                </Panel>
+                                            </StackPanel>
+                                            <icons:MaterialIcon Grid.Column="9"
+                                                                Kind="StarCircle"
+                                                                Width="14" Height="14"
+                                                                Opacity="0.8"
+                                                                VerticalAlignment="Center"
+                                                                IsVisible="{Binding IsFavourite}"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </StackPanel>
+                    </ScrollViewer>
+
+                </Panel>
+            </ScrollViewer>
+
+            <!-- ===== Bulk edit panel (right side) ===== -->
+            <Border Grid.Column="1"
+                    Width="280"
+                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                    BorderThickness="1,0,0,0"
+                    IsVisible="{Binding IsBulkEditPanelOpen}">
+                <ScrollViewer>
+                    <StackPanel Margin="14" Spacing="10">
+
+                        <!-- Header row: count + select all / deselect all -->
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding SelectedClipsCountDisplay}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Command="{Binding SelectAllCommand}"
+                                    ToolTip.Tip="Select all visible clips"
+                                    Content="All"
+                                    FontSize="11"
+                                    Padding="6,3"
+                                    Margin="0,0,4,0"/>
+                            <Button Grid.Column="2"
+                                    Command="{Binding DeselectAllCommand}"
+                                    ToolTip.Tip="Deselect all"
+                                    Padding="4">
+                                <icons:MaterialIcon Kind="CloseThick" Width="14" Height="14"/>
+                            </Button>
+                        </Grid>
+
+                        <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                        <!-- ===================== -->
+                        <!-- COPY-FORMAT SECTION   -->
+                        <!-- ===================== -->
+                        <StackPanel IsVisible="{Binding IsCopyFormatMode}" Spacing="8">
+
+                            <!-- Info row -->
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <icons:MaterialIcon Kind="ContentCopy" Width="14" Height="14" Opacity="0.7"/>
+                                <TextBlock Text="Copying from:" FontSize="11" Opacity="0.7" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding CopyFormatSourceDisplay}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding CopyFormatSourceDisplay}"/>
+
+                            <!-- Aspect toggles -->
+                            <TextBlock Text="Paste aspects:" FontSize="11" Opacity="0.7"/>
+                            <CheckBox IsChecked="{Binding BulkCopyPasteTags}"    Content="Tags"    FontSize="12"/>
+                            <CheckBox IsChecked="{Binding BulkCopyPastePlayers}" Content="Players" FontSize="12"/>
+                            <CheckBox IsChecked="{Binding BulkCopyPasteGame}"    Content="Game"    FontSize="12"/>
+
+                            <!-- Paste button -->
+                            <Button Command="{Binding PasteFormatToSelectionCommand}"
+                                    IsEnabled="{Binding HasSelectedClips}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    FontSize="12"
+                                    ToolTip.Tip="Paste format to all selected clips">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <icons:MaterialIcon Kind="ContentPaste" Width="14" Height="14"/>
+                                    <TextBlock Text="{Binding SelectedClipsCountDisplay, StringFormat='Paste to {0}'}"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Cancel copy mode -->
+                            <Button Command="{Binding ExitCopyFormatCommand}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    FontSize="12">
+                                Cancel Copy Mode
+                            </Button>
+
+                            <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+                        </StackPanel>
+
+                        <!-- ===================== -->
+                        <!-- STAGED EDITS SECTION  -->
+                        <!-- ===================== -->
+                        <StackPanel IsVisible="{Binding !IsCopyFormatMode}" Spacing="10">
+
+                            <!-- TAGS -->
+                            <StackPanel Spacing="4">
+                                <!-- Tags header with Apply checkbox, Clear-all, and Remove-all -->
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{Binding BulkApplyTags}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,4,0"/>
+                                    <TextBlock Grid.Column="1" Text="Tags" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="2"
+                                            Command="{Binding ClearBulkTagsCommand}"
+                                            ToolTip.Tip="Clear all staged tags"
+                                            Padding="3"
+                                            IsVisible="{Binding BulkPendingTags.Count}">
+                                        <icons:MaterialIcon Kind="DeleteSweep" Width="12" Height="12"/>
+                                    </Button>
+                                    <Button Grid.Column="3"
+                                            Command="{Binding ShowRemoveAllTagsConfirmCommand}"
+                                            ToolTip.Tip="Remove ALL tags from selected clips"
+                                            Padding="3">
+                                        <icons:MaterialIcon Kind="TagRemove" Width="12" Height="12" Foreground="#E74C3C"/>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Remove-all-tags confirmation strip -->
+                                <Border IsVisible="{Binding IsRemoveAllTagsConfirmVisible}"
+                                        Background="#40E74C3C"
+                                        CornerRadius="4"
+                                        Padding="6,4">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <TextBlock Grid.Column="0" Text="Remove ALL tags from selected clips?" FontSize="11" VerticalAlignment="Center"/>
+                                        <Button Grid.Column="1"
+                                                Command="{Binding ConfirmRemoveAllTagsCommand}"
+                                                Content="Remove"
+                                                Padding="6,2"
+                                                Margin="4,0,0,0"
+                                                FontSize="11"
+                                                Background="#E74C3C"
+                                                Foreground="White"/>
+                                        <Button Grid.Column="2"
+                                                Command="{Binding ShowRemoveAllTagsConfirmCommand}"
+                                                Content="Cancel"
+                                                Padding="6,2"
+                                                Margin="4,0,0,0"
+                                                FontSize="11"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Tag chips (Shared=purple+X, Partial=red+promote+X, New=yellow+X) -->
+                                <ItemsControl ItemsSource="{Binding BulkPendingTags}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="vm:BulkTagChipViewModel">
+                                            <Panel Margin="2">
+                                                <!-- Shared: purple + X -->
+                                                <Border IsVisible="{Binding IsShared}"
+                                                        Background="{DynamicResource SystemAccentColor}"
+                                                        CornerRadius="12"
+                                                        Padding="8,3"
+                                                        ToolTip.Tip="Present on all selected clips">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Remove from all selected clips">
+                                                            <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                                <!-- Partial: red + promote + X -->
+                                                <Border IsVisible="{Binding IsPartial}"
+                                                        Background="#C0E74C3C"
+                                                        CornerRadius="12"
+                                                        Padding="8,3"
+                                                        ToolTip.Tip="Present on some clips only">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding PromoteCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Add to clips that are missing it">
+                                                            <icons:MaterialIcon Kind="ArrowUpCircle" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Remove from clips that have it">
+                                                            <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                                <!-- New: yellow + X -->
+                                                <Border IsVisible="{Binding IsNew}"
+                                                        Background="#C0F39C12"
+                                                        CornerRadius="12"
+                                                        Padding="8,3"
+                                                        ToolTip.Tip="Will be added to all selected clips on Apply">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Unstage">
+                                                            <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Panel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Tag picker -->
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <ComboBox Grid.Column="0"
+                                              ItemsSource="{Binding AvailableTags}"
+                                              SelectedItem="{Binding BulkSelectedTag}"
+                                              PlaceholderText="Add tag..."
+                                              FontSize="12">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" FontSize="12"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="1"
+                                            Command="{Binding AddBulkTagCommand}"
+                                            Content="+"
+                                            FontSize="13"
+                                            FontWeight="Bold"
+                                            Margin="4,0,0,0"
+                                            Padding="8,3"
+                                            IsEnabled="{Binding BulkSelectedTag, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                            <!-- PLAYERS -->
+                            <StackPanel Spacing="4">
+                                <!-- Players header with Apply checkbox, Clear-all, and Remove-all -->
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{Binding BulkApplyPlayers}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,4,0"/>
+                                    <TextBlock Grid.Column="1" Text="Players" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="2"
+                                            Command="{Binding ClearBulkPlayersCommand}"
+                                            ToolTip.Tip="Clear all staged players"
+                                            Padding="3"
+                                            IsVisible="{Binding BulkPendingPlayers.Count}">
+                                        <icons:MaterialIcon Kind="DeleteSweep" Width="12" Height="12"/>
+                                    </Button>
+                                    <Button Grid.Column="3"
+                                            Command="{Binding ShowRemoveAllPlayersConfirmCommand}"
+                                            ToolTip.Tip="Remove ALL players from selected clips"
+                                            Padding="3">
+                                        <icons:MaterialIcon Kind="AccountRemove" Width="12" Height="12" Foreground="#E74C3C"/>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Remove-all-players confirmation strip -->
+                                <Border IsVisible="{Binding IsRemoveAllPlayersConfirmVisible}"
+                                        Background="#40E74C3C"
+                                        CornerRadius="4"
+                                        Padding="6,4">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <TextBlock Grid.Column="0" Text="Remove ALL players from selected clips?" FontSize="11" VerticalAlignment="Center"/>
+                                        <Button Grid.Column="1"
+                                                Command="{Binding ConfirmRemoveAllPlayersCommand}"
+                                                Content="Remove"
+                                                Padding="6,2"
+                                                Margin="4,0,0,0"
+                                                FontSize="11"
+                                                Background="#E74C3C"
+                                                Foreground="White"/>
+                                        <Button Grid.Column="2"
+                                                Command="{Binding ShowRemoveAllPlayersConfirmCommand}"
+                                                Content="Cancel"
+                                                Padding="6,2"
+                                                Margin="4,0,0,0"
+                                                FontSize="11"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Player chips (Shared=purple+X, Partial=red+promote+X, New=yellow+X) -->
+                                <ItemsControl ItemsSource="{Binding BulkPendingPlayers}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="vm:BulkTagChipViewModel">
+                                            <Panel Margin="2">
+                                                <!-- Shared: purple + X -->
+                                                <Border IsVisible="{Binding IsShared}"
+                                                        Background="{DynamicResource SystemAccentColor}"
+                                                        CornerRadius="12"
+                                                        Padding="8,3"
+                                                        ToolTip.Tip="Tagged on all selected clips">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Remove from all selected clips">
+                                                            <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                                <!-- Partial: red + promote + X -->
+                                                <Border IsVisible="{Binding IsPartial}"
+                                                        Background="#C0E74C3C"
+                                                        CornerRadius="12"
+                                                        Padding="8,3"
+                                                        ToolTip.Tip="Tagged on some clips only">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding PromoteCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Add to clips that are missing it">
+                                                            <icons:MaterialIcon Kind="ArrowUpCircle" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Remove from clips that have it">
+                                                            <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                                <!-- New: yellow + X -->
+                                                <Border IsVisible="{Binding IsNew}"
+                                                        Background="#C0F39C12"
+                                                        CornerRadius="12"
+                                                        Padding="8,3"
+                                                        ToolTip.Tip="Will be added to all selected clips on Apply">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Unstage">
+                                                            <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Panel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Player picker -->
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <ComboBox Grid.Column="0"
+                                              ItemsSource="{Binding AvailablePlayers}"
+                                              SelectedItem="{Binding BulkSelectedPlayerPicker}"
+                                              PlaceholderText="Add player..."
+                                              FontSize="12">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding DisplayName}" FontSize="12"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="1"
+                                            Command="{Binding AddBulkPlayerCommand}"
+                                            Content="+"
+                                            FontSize="13"
+                                            FontWeight="Bold"
+                                            Margin="4,0,0,0"
+                                            Padding="8,3"
+                                            IsEnabled="{Binding BulkSelectedPlayerPicker, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                            <!-- GAME -->
+                            <StackPanel Spacing="4">
+                                <!-- Game header with Apply checkbox, Clear-all, and Remove-all -->
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{Binding BulkApplyGame}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,4,0"/>
+                                    <TextBlock Grid.Column="1" Text="Game" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="2"
+                                            Command="{Binding ClearBulkGameCommand}"
+                                            ToolTip.Tip="Clear all staged game chips"
+                                            Padding="3"
+                                            IsVisible="{Binding BulkPendingGames.Count}">
+                                        <icons:MaterialIcon Kind="DeleteSweep" Width="12" Height="12"/>
+                                    </Button>
+                                    <Button Grid.Column="3"
+                                            Command="{Binding ShowRemoveAllGameConfirmCommand}"
+                                            ToolTip.Tip="Remove game from ALL selected clips"
+                                            Padding="3">
+                                        <icons:MaterialIcon Kind="GamepadOff" Width="12" Height="12" Foreground="#E74C3C"/>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Remove-all-game confirmation strip -->
+                                <Border IsVisible="{Binding IsRemoveAllGameConfirmVisible}"
+                                        Background="#40E74C3C"
+                                        CornerRadius="4"
+                                        Padding="6,4">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <TextBlock Grid.Column="0" Text="Remove game from ALL selected clips?" FontSize="11" VerticalAlignment="Center"/>
+                                        <Button Grid.Column="1"
+                                                Command="{Binding ConfirmRemoveAllGameCommand}"
+                                                Content="Remove"
+                                                Padding="6,2"
+                                                Margin="4,0,0,0"
+                                                FontSize="11"
+                                                Background="#E74C3C"
+                                                Foreground="White"/>
+                                        <Button Grid.Column="2"
+                                                Command="{Binding ShowRemoveAllGameConfirmCommand}"
+                                                Content="Cancel"
+                                                Padding="6,2"
+                                                Margin="4,0,0,0"
+                                                FontSize="11"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Game chips (Shared=purple+X, Partial=red+promote+X, New=yellow+X) -->
+                                <ItemsControl ItemsSource="{Binding BulkPendingGames}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="vm:BulkTagChipViewModel">
+                                            <Panel Margin="2">
+                                                <!-- Shared: purple + X -->
+                                                <Border IsVisible="{Binding IsShared}"
+                                                        Background="{DynamicResource SystemAccentColor}"
+                                                        CornerRadius="12"
+                                                        Padding="8,3"
+                                                        ToolTip.Tip="Set on all selected clips">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Remove from all selected clips">
+                                                            <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                                <!-- Partial: red + promote + X -->
+                                                <Border IsVisible="{Binding IsPartial}"
+                                                        Background="#C0E74C3C"
+                                                        CornerRadius="12"
+                                                        Padding="8,3"
+                                                        ToolTip.Tip="Set on some clips only">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding PromoteCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Set on clips that are missing it">
+                                                            <icons:MaterialIcon Kind="ArrowUpCircle" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Remove from clips that have it">
+                                                            <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                                <!-- New: yellow + X -->
+                                                <Border IsVisible="{Binding IsNew}"
+                                                        Background="#C0F39C12"
+                                                        CornerRadius="12"
+                                                        Padding="8,3"
+                                                        ToolTip.Tip="Will be set on all selected clips on Apply">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Unstage">
+                                                            <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Panel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Game picker -->
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <ComboBox Grid.Column="0"
+                                              ItemsSource="{Binding AvailableGameTags}"
+                                              SelectedItem="{Binding BulkSelectedGamePicker}"
+                                              PlaceholderText="Set game..."
+                                              FontSize="12">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" FontSize="12"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="1"
+                                            Command="{Binding AddBulkGameCommand}"
+                                            Content="+"
+                                            FontSize="13"
+                                            FontWeight="Bold"
+                                            Margin="4,0,0,0"
+                                            Padding="8,3"
+                                            IsEnabled="{Binding BulkSelectedGamePicker, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                            <!-- Apply / Cancel staged edits -->
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Button Grid.Column="0"
+                                        Command="{Binding ApplyBulkEditsCommand}"
+                                        IsEnabled="{Binding HasSelectedClips}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        FontSize="12"
+                                        Margin="0,0,4,0"
+                                        ToolTip.Tip="Apply staged changes to all selected clips">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <icons:MaterialIcon Kind="Check" Width="14" Height="14"/>
+                                        <TextBlock Text="Apply"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1"
+                                        Command="{Binding CancelBulkEditsCommand}"
+                                        ToolTip.Tip="Discard staged changes"
+                                        Padding="6,4"
+                                        FontSize="12">
+                                    Reset
+                                </Button>
+                            </Grid>
+
+                            <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                            <!-- Copy-Format button (disabled when not exactly 1 selected) -->
+                            <Button Command="{Binding StartCopyFormatCommand}"
+                                    IsEnabled="{Binding IsCopyFormatButtonEnabled}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    FontSize="12"
+                                    ToolTip.Tip="Copy tags, players and game from the selected clip to paste onto others">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <icons:MaterialIcon Kind="ContentCopy" Width="14" Height="14"/>
+                                    <TextBlock Text="Copy Format"/>
+                                </StackPanel>
+                            </Button>
+
+                        </StackPanel>
+
+                        <!-- ===================== -->
+                        <!-- TRASH (always shown)  -->
+                        <!-- ===================== -->
+                        <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                        <Button Command="{Binding ShowBulkDeleteConfirmCommand}"
+                                IsVisible="{Binding !IsBulkDeleteConfirmVisible}"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center"
+                                FontSize="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <icons:MaterialIcon Kind="Delete" Width="14" Height="14"/>
+                                <TextBlock Text="Trash Selected"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Border IsVisible="{Binding IsBulkDeleteConfirmVisible}"
+                                Background="#E74C3C"
+                                CornerRadius="4"
+                                Padding="8,6">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Move all selected clips to Trash?"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="White"/>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Command="{Binding BulkTrashCommand}"
+                                            FontSize="11"
+                                            Padding="8,4">
+                                        <TextBlock Text="Confirm" Foreground="White"/>
+                                    </Button>
+                                    <Button Command="{Binding DeselectAllCommand}"
+                                            FontSize="11"
+                                            Padding="8,4">
+                                        Cancel
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+        </Grid>
+
+    </Grid>
+</UserControl>

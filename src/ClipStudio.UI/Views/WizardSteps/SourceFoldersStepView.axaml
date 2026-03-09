@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels.WizardSteps"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="580" d:DesignHeight="360"
+             x:Class="ClipStudio.UI.Views.WizardSteps.SourceFoldersStepView"
+             x:DataType="vm:SourceFoldersStepViewModel">
+
+    <StackPanel Spacing="16" Margin="8">
+
+        <TextBlock Text="Tell ClipStudio where OBS saves your replay clips."
+                   FontSize="13"
+                   Opacity="0.7"
+                   TextWrapping="Wrap"/>
+
+        <!-- Add folder row -->
+        <Grid ColumnDefinitions="*,Auto,Auto">
+            <TextBox Grid.Column="0"
+                     Text="{Binding NewFolderPath}"
+                     Watermark="e.g. C:\Users\You\Videos\OBS"
+                     FontSize="12"
+                     KeyDown="OnPathKeyDown"/>
+            <Button Grid.Column="1"
+                    Command="{Binding BrowseCommand}"
+                    Margin="8,0,0,0"
+                    ToolTip.Tip="Browse for folder">
+                <icons:MaterialIcon Kind="FolderSearch" Width="16" Height="16"/>
+            </Button>
+            <Button Grid.Column="2"
+                    Command="{Binding AddFolderCommand}"
+                    Margin="8,0,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <icons:MaterialIcon Kind="FolderPlus" Width="16" Height="16"/>
+                    <TextBlock Text="Add"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- Validation error -->
+        <TextBlock Text="{Binding FolderError}"
+                   FontSize="12"
+                   Foreground="#E74C3C"
+                   IsVisible="{Binding FolderError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   TextWrapping="Wrap"/>
+
+        <!-- Added folders list -->
+        <Border CornerRadius="6"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="1"
+                IsVisible="{Binding AddedFolders.Count}"
+                Padding="4">
+            <ItemsControl ItemsSource="{Binding AddedFolders}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:WizardFolderItemViewModel">
+                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+                            <icons:MaterialIcon Grid.Column="0"
+                                               Kind="FolderOpen"
+                                               Width="16" Height="16"
+                                               Margin="0,0,8,0"
+                                               VerticalAlignment="Center"
+                                               Opacity="0.6"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Path}"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <Button Grid.Column="2"
+                                    Command="{Binding RemoveCommand}"
+                                    Padding="4"
+                                    Margin="8,0,0,0"
+                                    ToolTip.Tip="Remove folder">
+                                <icons:MaterialIcon Kind="Close" Width="12" Height="12"/>
+                            </Button>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <!-- Hint: can skip -->
+        <TextBlock Text="You can skip this step and add folders later in Settings."
+                   FontSize="11"
+                   Opacity="0.5"
+                   TextWrapping="Wrap"/>
+
+    </StackPanel>
+
+</UserControl>

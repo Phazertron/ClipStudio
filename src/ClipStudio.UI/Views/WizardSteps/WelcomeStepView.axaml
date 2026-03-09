@@ -1,0 +1,65 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels.WizardSteps"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="580" d:DesignHeight="360"
+             x:Class="ClipStudio.UI.Views.WizardSteps.WelcomeStepView"
+             x:DataType="vm:WelcomeStepViewModel">
+
+    <StackPanel Spacing="24" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
+
+        <!-- Icon -->
+        <icons:MaterialIcon Kind="VideoBox"
+                            Width="64" Height="64"
+                            HorizontalAlignment="Center"
+                            Foreground="{DynamicResource SystemAccentColor}"/>
+
+        <!-- Headline -->
+        <StackPanel Spacing="8" HorizontalAlignment="Center">
+            <TextBlock Text="Your OBS clip library, organised."
+                       FontSize="22"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"/>
+            <TextBlock Text="This quick setup will get ClipStudio ready in under a minute."
+                       FontSize="13"
+                       Opacity="0.6"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       MaxWidth="440"/>
+        </StackPanel>
+
+        <!-- Feature bullets -->
+        <StackPanel Spacing="10" HorizontalAlignment="Center">
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <icons:MaterialIcon Kind="FolderPlay" Width="18" Height="18"
+                                    VerticalAlignment="Center"
+                                    Foreground="{DynamicResource SystemAccentColor}"/>
+                <TextBlock Text="Automatically imports new replay clips from your OBS folders"
+                           FontSize="13" VerticalAlignment="Center" MaxWidth="380"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <icons:MaterialIcon Kind="TagMultiple" Width="18" Height="18"
+                                    VerticalAlignment="Center"
+                                    Foreground="{DynamicResource SystemAccentColor}"/>
+                <TextBlock Text="Tag clips and highlights for lightning-fast search"
+                           FontSize="13" VerticalAlignment="Center" MaxWidth="380"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <icons:MaterialIcon Kind="FileExport" Width="18" Height="18"
+                                    VerticalAlignment="Center"
+                                    Foreground="{DynamicResource SystemAccentColor}"/>
+                <TextBlock Text="Export highlights with one click using FFmpeg"
+                           FontSize="13" VerticalAlignment="Center" MaxWidth="380"/>
+            </StackPanel>
+
+        </StackPanel>
+
+    </StackPanel>
+
+</UserControl>

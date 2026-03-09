@@ -1,0 +1,272 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             x:Class="ClipStudio.UI.Views.GamesView"
+             x:DataType="vm:GamesViewModel">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- ===== Toolbar ===== -->
+        <Border Grid.Row="0"
+                Padding="16,10"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+
+                <!-- Filter box -->
+                <TextBox Grid.Column="0"
+                         Text="{Binding FilterText}"
+                         Watermark="Filter games..."
+                         MaxWidth="320"
+                         HorizontalAlignment="Left"
+                         CornerRadius="6"/>
+
+                <!-- Refresh -->
+                <Button Grid.Column="1"
+                        Command="{Binding LoadCommand}"
+                        Content="Refresh"
+                        Margin="8,0,0,0"/>
+
+                <!-- Add game -->
+                <Button Grid.Column="2"
+                        Command="{Binding BeginCreateCommand}"
+                        ToolTip.Tip="Add game"
+                        Margin="6,0,0,0">
+                    <icons:MaterialIcon Kind="GamepadVariant" Width="18" Height="18"/>
+                </Button>
+
+            </Grid>
+        </Border>
+
+        <!-- Loading indicator -->
+        <ProgressBar Grid.Row="0"
+                     IsIndeterminate="True"
+                     IsVisible="{Binding IsLoading}"
+                     VerticalAlignment="Bottom"
+                     Height="2"
+                     Margin="0"/>
+
+        <!-- ===== Main content: list + edit panel side by side ===== -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+
+            <!-- Games list -->
+            <ScrollViewer Grid.Column="0">
+                <Panel Margin="12,12,12,24">
+
+                    <!-- Empty state -->
+                    <TextBlock Text="No games found. Add a game using the button above."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="15"
+                               Opacity="0.4"
+                               TextWrapping="Wrap"
+                               MaxWidth="320"
+                               TextAlignment="Center"
+                               IsVisible="{Binding !Games.Count}"/>
+
+                    <ItemsControl ItemsSource="{Binding Games}"
+                                  IsVisible="{Binding Games.Count}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:GameRowViewModel">
+                                <Border Margin="0,0,0,4"
+                                        Padding="10,8"
+                                        CornerRadius="6"
+                                        Background="{DynamicResource SystemChromeMediumLowColor}"
+                                        BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                        BorderThickness="1"
+
+                                        >
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+
+                                        <!-- Cover art or fallback icon -->
+                                        <Panel Grid.Column="0" Width="60" Margin="0,0,8,0" VerticalAlignment="Center">
+                                            <Image Source="{Binding CoverBitmap}"
+                                                   Width="60" Height="80"
+                                                   Stretch="UniformToFill"
+                                                   IsVisible="{Binding CoverBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                            <icons:MaterialIcon Kind="GamepadVariant"
+                                                                Width="28" Height="28"
+                                                                Opacity="0.4"
+                                                                IsVisible="{Binding CoverBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                        </Panel>
+
+                                        <!-- Name + Steam badge -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="4"
+                                                        IsVisible="{Binding HasGameLink}">
+                                                <icons:MaterialIcon Kind="Steam" Width="12" Height="12" Opacity="0.5"/>
+                                                <TextBlock Text="Steam"
+                                                           FontSize="11"
+                                                           Opacity="0.5"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <!-- Clip count badge -->
+                                        <Border Grid.Column="2"
+                                                Padding="6,2"
+                                                CornerRadius="10"
+                                                Background="{DynamicResource SystemChromeLowColor}"
+                                                Margin="8,0"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding ClipCount}"
+                                                       FontSize="11"
+                                                       Opacity="0.7"/>
+                                        </Border>
+
+                                        <!-- Delete -->
+                                        <Button Grid.Column="3"
+                                                Command="{Binding DeleteCommand}"
+                                                ToolTip.Tip="Delete game"
+                                                Padding="5">
+                                            <icons:MaterialIcon Kind="DeleteCircle" Width="15" Height="15"/>
+                                        </Button>
+
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                </Panel>
+            </ScrollViewer>
+
+            <!-- ===== Add / Edit panel ===== -->
+            <Border Grid.Column="1"
+                    Width="300"
+                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                    BorderThickness="1,0,0,0"
+                    IsVisible="{Binding IsEditing}">
+
+                <ScrollViewer>
+                    <StackPanel Margin="16" Spacing="10">
+
+                        <!-- Form title -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding EditFormTitle}"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Command="{Binding CancelEditCommand}"
+                                    ToolTip.Tip="Cancel"
+                                    Padding="4">
+                                <icons:MaterialIcon Kind="CloseThick" Width="16" Height="16"/>
+                            </Button>
+                        </Grid>
+
+                        <!-- Game name (manual entry / used when editing) -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Game name" FontSize="12" Opacity="0.7"/>
+                            <TextBox Text="{Binding EditName}"
+                                     Watermark="Game title"
+                                     FontSize="12"/>
+                        </StackPanel>
+
+                        <!-- Steam search (new games only) -->
+                        <StackPanel Spacing="6"
+                                    IsVisible="{Binding !EditingTagId.HasValue}">
+
+                            <Border Height="1" Background="{DynamicResource SystemChromeHighColor}" Margin="0,2"/>
+
+                            <TextBlock Text="Or search Steam"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Opacity="0.7"/>
+
+                            <!-- Search row -->
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding SearchQuery}"
+                                         Watermark="Search Steam..."
+                                         FontSize="12"
+                                         KeyDown="OnSearchQueryKeyDown"/>
+                                <Button Grid.Column="1"
+                                        Command="{Binding SearchCommand}"
+                                        ToolTip.Tip="Search Steam"
+                                        Margin="4,0,0,0"
+                                        Padding="6">
+                                    <Panel>
+                                        <icons:MaterialIcon Kind="MagnifyPlus" Width="16" Height="16"
+                                                            IsVisible="{Binding !IsSearching}"/>
+                                        <ProgressBar IsIndeterminate="True"
+                                                     Width="16" Height="16"
+                                                     IsVisible="{Binding IsSearching}"/>
+                                    </Panel>
+                                </Button>
+                            </Grid>
+
+                            <!-- Results list with cover thumbnails.
+                                 Uses ItemsControl + Buttons to avoid ListBox.SelectedItem flickering.
+                                 Selection is handled explicitly via SelectCommand on each row. -->
+                            <ScrollViewer MaxHeight="220"
+                                          IsVisible="{Binding GameSearchResults.Count}">
+                                <ItemsControl ItemsSource="{Binding GameSearchResults}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="vm:GameSearchResultViewModel">
+                                            <Button Command="{Binding SelectCommand}"
+                                                    HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Left"
+                                                    Padding="8,6"
+                                                    Margin="0,1"
+                                                    FontSize="12">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <Image Grid.Column="0"
+                                                           Source="{Binding CoverBitmap}"
+                                                           Width="28" Height="38"
+                                                           Stretch="UniformToFill"
+                                                           Margin="0,0,8,0"
+                                                           IsVisible="{Binding CoverBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding DisplayLabel}"
+                                                               FontSize="12"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <icons:MaterialIcon Grid.Column="2"
+                                                                        Kind="Check"
+                                                                        Width="14" Height="14"
+                                                                        VerticalAlignment="Center"
+                                                                        IsVisible="{Binding IsSelected}"/>
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                        </StackPanel>
+
+                        <!-- Error message -->
+                        <TextBlock Text="{Binding SaveError}"
+                                   FontSize="12"
+                                   Foreground="#E74C3C"
+                                   TextWrapping="Wrap"
+                                   IsVisible="{Binding SaveError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                        <!-- Save -->
+                        <Button Command="{Binding SaveCommand}"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center"
+                                FontSize="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <icons:MaterialIcon Kind="ContentSave" Width="16" Height="16"/>
+                                <TextBlock Text="Save"/>
+                            </StackPanel>
+                        </Button>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+            </Border>
+
+        </Grid>
+
+    </Grid>
+</UserControl>
