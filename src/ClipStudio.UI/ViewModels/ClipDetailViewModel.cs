@@ -13,6 +13,7 @@ using ClipStudio.Core.Enums;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LibVLCSharp.Shared;
+using Material.Icons;
 
 namespace ClipStudio.UI.ViewModels;
 
@@ -123,6 +124,13 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// and reset position to 0 (set after end-of-clip with loop off, so the user can replay).
     /// </summary>
     private bool _replayAfterEnd;
+
+    /// <summary>
+    /// When true, the next <see cref="OnPlayerPlaying"/> callback should seek to
+    /// <see cref="WatchStart"/> and immediately pause (set when watch-mode LoopOff reaches the
+    /// clip's natural end so the user can replay the highlight from its start).
+    /// </summary>
+    private bool _watchModeEndPending;
 
     // ---- Player state ----
 
@@ -281,6 +289,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Gets or sets the formatted display of the trim end time.</summary>
     [ObservableProperty] private string _trimEndDisplay = "0:00";
 
+    /// <summary>Gets or sets the validation error for the trim start input. Null when valid.</summary>
+    [ObservableProperty] private string? _trimStartError;
+
+    /// <summary>Gets or sets the validation error for the trim end input. Null when valid.</summary>
+    [ObservableProperty] private string? _trimEndError;
+
     /// <summary>Gets or sets the output file path for the trimmed export.</summary>
     [ObservableProperty] private string _trimOutputPath = string.Empty;
 
@@ -361,9 +375,31 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// Gets or sets the master volume level (0–200, 100 = 100 %).
-    /// Changes are applied to the VLC media player immediately.
+    /// Changes are applied to the VLC media player immediately unless <see cref="IsMuted"/> is true.
     /// </summary>
-    [ObservableProperty] private int _masterVolume = 100;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VolumeIconKind))]
+    private int _masterVolume = 100;
+
+    /// <summary>
+    /// Gets or sets whether the master audio output is muted.
+    /// When <see langword="true"/>, VLC volume is set to zero regardless of <see cref="MasterVolume"/>.
+    /// The slider value is preserved and restored when unmuting.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VolumeIconKind))]
+    private bool _isMuted;
+
+    /// <summary>
+    /// Gets the Material icon kind that reflects the current master volume state.
+    /// Returns <see cref="MaterialIconKind.VolumeMute"/> when muted or volume is zero,
+    /// and scales between Low/Medium/High otherwise.
+    /// </summary>
+    public MaterialIconKind VolumeIconKind =>
+        IsMuted || MasterVolume == 0 ? MaterialIconKind.VolumeMute  :
+        MasterVolume <= 50           ? MaterialIconKind.VolumeLow   :
+        MasterVolume <= 100          ? MaterialIconKind.VolumeMedium :
+                                         MaterialIconKind.VolumeHigh;
 
     // ---- Collections ----
 
@@ -549,6 +585,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Gets the command that marks the current position as the trim end point.</summary>
     public IRelayCommand MarkTrimEndCommand { get; }
 
+    /// <summary>Gets the command that commits the user-edited trim start text to the underlying time value.</summary>
+    public IRelayCommand CommitTrimStartCommand { get; }
+
+    /// <summary>Gets the command that commits the user-edited trim end text to the underlying time value.</summary>
+    public IRelayCommand CommitTrimEndCommand { get; }
+
     /// <summary>Gets the command that queues a trim export job for the current range.</summary>
     public IAsyncRelayCommand QueueTrimExportCommand { get; }
 
@@ -577,6 +619,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// </summary>
     public IRelayCommand OpenInExplorerCommand { get; }
 
+    /// <summary>Gets the command that toggles the master audio mute state.</summary>
+    public IRelayCommand ToggleMuteCommand { get; }
+
+    /// <summary>Gets the command that resets the master volume to 100 %.</summary>
+    public IRelayCommand SetMasterVolumeToFullCommand { get; }
+
     /// <summary>Gets the command that tags the selected player on the current clip.</summary>
     public IAsyncRelayCommand AddPlayerCommand { get; }
 
@@ -603,6 +651,18 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
     /// <summary>Gets or sets whether the clear-all-players confirmation strip is visible.</summary>
     [ObservableProperty] private bool _isClearAllPlayersConfirmVisible;
+
+    /// <summary>Gets the command that shows the clear-all-data confirmation strip.</summary>
+    public IRelayCommand ShowClearAllDataConfirmCommand { get; }
+
+    /// <summary>Gets the command that resets the clip to Unreviewed and removes all tags, players, rating and favourite.</summary>
+    public IAsyncRelayCommand ConfirmClearAllDataCommand { get; }
+
+    /// <summary>Gets the command that cancels the clear-all-data confirmation.</summary>
+    public IRelayCommand CancelClearAllDataConfirmCommand { get; }
+
+    /// <summary>Gets or sets whether the clear-all-data confirmation strip is visible.</summary>
+    [ObservableProperty] private bool _isClearAllDataConfirmVisible;
 
     /// <summary>Gets the command that persists the current audio track settings to the database.</summary>
     public IAsyncRelayCommand SaveAudioSettingsCommand { get; }
@@ -686,6 +746,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         CancelTrimCommand         = new RelayCommand(() => IsTrimming = false);
         MarkTrimStartCommand      = new RelayCommand(MarkTrimStart);
         MarkTrimEndCommand        = new RelayCommand(MarkTrimEnd);
+        CommitTrimStartCommand    = new RelayCommand(CommitTrimStart);
+        CommitTrimEndCommand      = new RelayCommand(CommitTrimEnd);
         QueueTrimExportCommand    = new AsyncRelayCommand(QueueTrimExportAsync);
         UnlockHighlightCommand    = new RelayCommand(() => LockedHighlight = null);
         ToggleRepeatCommand       = new RelayCommand(CycleLoopMode);
@@ -709,6 +771,11 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         ConfirmDeleteCommand      = new AsyncRelayCommand(ConfirmDeleteAsync);
         CancelDeleteCommand       = new RelayCommand(() => IsDeleteConfirmVisible = false);
         OpenInExplorerCommand     = new RelayCommand(OpenInExplorer);
+        ToggleMuteCommand              = new RelayCommand(ToggleMute);
+        SetMasterVolumeToFullCommand   = new RelayCommand(() => MasterVolume = 100);
+        ShowClearAllDataConfirmCommand   = new RelayCommand(() => IsClearAllDataConfirmVisible   = true);
+        ConfirmClearAllDataCommand       = new AsyncRelayCommand(ClearAllDataAsync);
+        CancelClearAllDataConfirmCommand = new RelayCommand(() => IsClearAllDataConfirmVisible   = false);
     }
 
     // ---- Load ----
@@ -988,9 +1055,23 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// Called by the source generator when <see cref="MasterVolume"/> changes.
-    /// Applies the new level directly to the VLC media player.
+    /// Applies the new level to the VLC media player unless the output is muted.
     /// </summary>
-    partial void OnMasterVolumeChanged(int value) => MediaPlayer.Volume = value;
+    partial void OnMasterVolumeChanged(int value)
+    {
+        if (!IsMuted)
+            MediaPlayer.Volume = value;
+    }
+
+    /// <summary>
+    /// Called by the source generator when <see cref="IsMuted"/> changes.
+    /// Applies or restores the master volume on the VLC media player.
+    /// </summary>
+    partial void OnIsMutedChanged(bool value) =>
+        MediaPlayer.Volume = value ? 0 : MasterVolume;
+
+    /// <summary>Toggles the master audio mute state.</summary>
+    private void ToggleMute() => IsMuted = !IsMuted;
 
     private async Task RefreshAudioTracksAsync()
     {
@@ -1543,6 +1624,41 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         ClipPlayerChips.Clear();
     }
 
+    /// <summary>
+    /// Removes all directly-applied tags and players from the clip, resets the rating and favourite
+    /// flag to their defaults, and sets the clip status back to <see cref="ClipStatus.Unreviewed"/>.
+    /// </summary>
+    private async Task ClearAllDataAsync()
+    {
+        if (_clip is null) return;
+
+        // Remove all directly-applied general and game tags.
+        foreach (var chip in ClipTags.Where(c => !c.IsPropagated).ToList())
+            await _clipService.RemoveTagAsync(_clip.Id, chip.TagId);
+        if (ClipGameTag is not null && !ClipGameTag.IsPropagated)
+            await _clipService.RemoveTagAsync(_clip.Id, ClipGameTag.TagId);
+
+        // Remove all player associations.
+        foreach (var chip in ClipPlayerChips.ToList())
+            await _playerService.UntagClipAsync(_clip.Id, chip.TagId);
+
+        // Reset rating if set.
+        if (Rating != 0)
+            await _clipService.SetRatingAsync(_clip.Id, 0);
+
+        // Clear favourite if set.
+        if (IsFavourite)
+            await _clipService.ToggleFavouriteAsync(_clip.Id);
+
+        // Reset status to Unreviewed.
+        await _clipService.SetStatusAsync(_clip.Id, ClipStatus.Unreviewed);
+
+        IsClearAllDataConfirmVisible = false;
+
+        // Reload the full clip state.
+        await LoadAsync(_clip.Id);
+    }
+
     private async Task AddTagToHighlightAsync(HighlightViewModel highlight, int tagId)
     {
         await _highlightService.AddTagAsync(highlight.HighlightId, tagId);
@@ -1612,6 +1728,68 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     {
         _trimEnd       = TimeSpan.FromMilliseconds(MediaPlayer.Time);
         TrimEndDisplay = FormatTime(_trimEnd);
+    }
+
+    /// <summary>
+    /// Parses the current <see cref="TrimStartDisplay"/> text and updates the underlying trim start.
+    /// Resets the display to the last valid value and sets <see cref="TrimStartError"/> on failure.
+    /// </summary>
+    private void CommitTrimStart()
+    {
+        if (TryParseTime(TrimStartDisplay, out var ts))
+        {
+            _trimStart      = ts;
+            TrimStartError  = null;
+            TrimStartDisplay = FormatTime(_trimStart);
+        }
+        else
+        {
+            TrimStartError   = "Invalid time (use m:ss or h:mm:ss).";
+            TrimStartDisplay = FormatTime(_trimStart);
+        }
+    }
+
+    /// <summary>
+    /// Parses the current <see cref="TrimEndDisplay"/> text and updates the underlying trim end.
+    /// Resets the display to the last valid value and sets <see cref="TrimEndError"/> on failure.
+    /// </summary>
+    private void CommitTrimEnd()
+    {
+        if (TryParseTime(TrimEndDisplay, out var ts))
+        {
+            _trimEnd      = ts;
+            TrimEndError  = null;
+            TrimEndDisplay = FormatTime(_trimEnd);
+        }
+        else
+        {
+            TrimEndError   = "Invalid time (use m:ss or h:mm:ss).";
+            TrimEndDisplay = FormatTime(_trimEnd);
+        }
+    }
+
+    /// <summary>
+    /// Attempts to parse a user-entered time string in <c>m:ss</c> or <c>h:mm:ss</c> format.
+    /// </summary>
+    /// <param name="input">The raw input string.</param>
+    /// <param name="result">The parsed <see cref="TimeSpan"/>, or <see cref="TimeSpan.Zero"/> on failure.</param>
+    /// <returns><see langword="true"/> if parsing succeeded; otherwise <see langword="false"/>.</returns>
+    private static bool TryParseTime(string? input, out TimeSpan result)
+    {
+        result = TimeSpan.Zero;
+        if (string.IsNullOrWhiteSpace(input)) return false;
+
+        if (TimeSpan.TryParseExact(input.Trim(), [@"m\:ss", @"h\:mm\:ss", @"mm\:ss"], null, out result))
+            return true;
+
+        // Fallback: plain seconds as integer.
+        if (int.TryParse(input.Trim(), out var secs))
+        {
+            result = TimeSpan.FromSeconds(secs);
+            return true;
+        }
+
+        return false;
     }
 
     private async Task QueueTrimExportAsync()
@@ -1726,6 +1904,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
                             break;
 
                         case LoopMode.LoopAll:
+                            // Pause immediately so VLC does not continue playing past the
+                            // highlight end while the next highlight is being loaded.
+                            MediaPlayer.Pause();
                             // Advance to the next highlight; wrap around if at the end.
                             if (HasNextHighlight)
                                 NextHighlightRequested?.Invoke();
@@ -1735,11 +1916,15 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
                         case LoopMode.Off:
                         default:
-                            // Advance to the next highlight, or stop if there is none.
-                            if (HasNextHighlight)
-                                NextHighlightRequested?.Invoke();
-                            else
-                                MediaPlayer.Pause();
+                            // Pause and seek back to highlight start so that pressing play
+                            // restarts the current highlight rather than continuing into the clip.
+                            MediaPlayer.Pause();
+                            _ignoreTimeChangedBeforeMs = (long)WatchStart.TotalMilliseconds - 200;
+                            MediaPlayer.Time = (long)WatchStart.TotalMilliseconds;
+                            _isUpdatingFromPlayer = true;
+                            PositionSeconds = 0;
+                            PositionDisplay = FormatTime(TimeSpan.Zero);
+                            _isUpdatingFromPlayer = false;
                             break;
                     }
                     return;
@@ -1835,6 +2020,21 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
                 return;
             }
 
+            // In watch mode with LoopOff: the clip reached its natural end at WatchEnd.
+            // Seek back to WatchStart then pause so the user can replay the highlight.
+            if (_watchModeEndPending)
+            {
+                _watchModeEndPending = false;
+                _ignoreTimeChangedBeforeMs = (long)WatchStart.TotalMilliseconds - 200;
+                MediaPlayer.Time = (long)WatchStart.TotalMilliseconds;
+                MediaPlayer.Pause();
+                _isUpdatingFromPlayer = true;
+                PositionSeconds = 0;
+                PositionDisplay = FormatTime(TimeSpan.Zero);
+                _isUpdatingFromPlayer = false;
+                return;
+            }
+
             // In watch mode: seek to the highlight start as soon as playback starts.
             if (_watchModeSeekPending)
             {
@@ -1860,21 +2060,19 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
                 switch (LoopMode)
                 {
                     case LoopMode.Off:
-                        // Advance to next highlight (or stop if none).
-                        if (HasNextHighlight)
-                            NextHighlightRequested?.Invoke();
+                        // Clip reached its natural end exactly at WatchEnd. Restart media so we
+                        // can seek back to WatchStart and then pause, ready for the user to replay.
+                        _watchModeEndPending = true;
+                        MediaPlayer.Stop();
+                        MediaPlayer.Play();
                         return;
 
                     case LoopMode.LoopAll:
+                        // Player has already stopped; advance to the next highlight.
                         if (HasNextHighlight)
-                        {
                             NextHighlightRequested?.Invoke();
-                        }
                         else
-                        {
-                            // Wrap to first highlight.
                             PreviousHighlightRequested?.Invoke(); // cycle handled by caller
-                        }
                         return;
 
                     default: // LoopThis

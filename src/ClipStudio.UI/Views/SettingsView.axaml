@@ -348,6 +348,21 @@
                                       OffContent="Text only"
                                       FontSize="12"/>
                     </StackPanel>
+
+                    <!-- Sound effects toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="UI sound effects"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, short audio cues play for events such as import notifications and confirmations."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding SoundEffectsEnabled}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- Divider -->
@@ -469,16 +484,10 @@
                                    FontSize="11"
                                    Opacity="0.5"
                                    TextWrapping="Wrap"/>
-                        <ComboBox SelectedItem="{Binding MinimumLogLevel}"
+                        <ComboBox ItemsSource="{x:Static vm:SettingsViewModel.LogLevels}"
+                                  SelectedItem="{Binding MinimumLogLevel}"
                                   FontSize="12"
-                                  Width="160">
-                            <ComboBoxItem>Verbose</ComboBoxItem>
-                            <ComboBoxItem>Debug</ComboBoxItem>
-                            <ComboBoxItem>Information</ComboBoxItem>
-                            <ComboBoxItem>Warning</ComboBoxItem>
-                            <ComboBoxItem>Error</ComboBoxItem>
-                            <ComboBoxItem>Fatal</ComboBoxItem>
-                        </ComboBox>
+                                  Width="160"/>
                     </StackPanel>
 
                     <Button Command="{Binding OpenLogsFolderCommand}"

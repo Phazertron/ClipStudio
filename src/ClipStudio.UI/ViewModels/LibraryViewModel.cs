@@ -138,6 +138,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Gets or sets whether the "remove game from selection" confirmation strip is visible.</summary>
     [ObservableProperty] private bool _isRemoveAllGameConfirmVisible;
 
+    /// <summary>Gets or sets whether the "clear all data from selection" confirmation strip is visible.</summary>
+    [ObservableProperty] private bool _isBulkClearAllDataConfirmVisible;
+
     /// <summary>Gets or sets a value indicating that the library is currently loading.</summary>
     [ObservableProperty] private bool _isLoading;
 
@@ -343,6 +346,15 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Gets the command that removes the game tag from all selected clips after confirmation.</summary>
     public IAsyncRelayCommand ConfirmRemoveAllGameCommand { get; }
 
+    /// <summary>Gets the command that shows the "clear all data" confirmation strip.</summary>
+    public IRelayCommand ShowBulkClearAllDataConfirmCommand { get; }
+
+    /// <summary>
+    /// Gets the command that clears all tags, players, rating and resets the status to Unreviewed
+    /// for all selected clips after confirmation.
+    /// </summary>
+    public IAsyncRelayCommand ConfirmBulkClearAllDataCommand { get; }
+
     // ---- Copy-format commands ----
 
     /// <summary>
@@ -415,6 +427,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
         ConfirmRemoveAllPlayersCommand     = new AsyncRelayCommand(RemoveAllPlayersFromSelectedAsync);
         ShowRemoveAllGameConfirmCommand    = new RelayCommand(() => IsRemoveAllGameConfirmVisible    = !IsRemoveAllGameConfirmVisible);
         ConfirmRemoveAllGameCommand        = new AsyncRelayCommand(RemoveAllGameFromSelectedAsync);
+        ShowBulkClearAllDataConfirmCommand = new RelayCommand(() => IsBulkClearAllDataConfirmVisible = !IsBulkClearAllDataConfirmVisible);
+        ConfirmBulkClearAllDataCommand     = new AsyncRelayCommand(BulkClearAllDataAsync);
 
         StartCopyFormatCommand        = new RelayCommand(StartCopyFormat);
         ExitCopyFormatCommand         = new RelayCommand(ExitCopyFormat);
@@ -547,6 +561,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         IsRemoveAllTagsConfirmVisible    = false;
         IsRemoveAllPlayersConfirmVisible  = false;
         IsRemoveAllGameConfirmVisible     = false;
+        IsBulkClearAllDataConfirmVisible  = false;
         CancelBulkEdits();
         ExitCopyFormat();
     }
@@ -922,6 +937,29 @@ public sealed partial class LibraryViewModel : ViewModelBase
         if (SelectedClips.Count == 0) return;
         var ids = SelectedClips.Select(c => c.ClipId).ToList();
         await _clipService.BulkClearGameAsync(ids);
+        CancelBulkEdits();
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Clears all tags and players, resets the rating to zero, and sets the status to Unreviewed
+    /// for all selected clips. This is a destructive operation called only after confirmation.
+    /// </summary>
+    private async Task BulkClearAllDataAsync()
+    {
+        IsBulkClearAllDataConfirmVisible = false;
+        if (SelectedClips.Count == 0) return;
+
+        var ids = SelectedClips.Select(c => c.ClipId).ToList();
+
+        foreach (var id in ids)
+        {
+            await _clipService.ClearTagsAsync(id);
+            await _playerService.UntagAllAsync(id);
+            await _clipService.SetRatingAsync(id, 0);
+            await _clipService.SetStatusAsync(id, ClipStudio.Core.Enums.ClipStatus.Unreviewed);
+        }
+
         CancelBulkEdits();
         await LoadAsync();
     }

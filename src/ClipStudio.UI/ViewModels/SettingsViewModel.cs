@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -122,6 +123,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _minimumLogLevel = "Error";
 
+    /// <summary>
+    /// Gets or sets whether UI sound effects are played.
+    /// </summary>
+    [ObservableProperty]
+    private bool _soundEffectsEnabled = true;
+
     // ---- State ----
 
     /// <summary>Gets or sets a value indicating whether a background operation is running.</summary>
@@ -174,6 +181,14 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public Action? UnreviewedCountRefreshRequested { get; set; }
 
     // ---- App info ----
+
+    /// <summary>
+    /// Gets the list of available log levels for the minimum log level ComboBox.
+    /// Exposed as a static list so the AXAML ComboBox can bind to it as ItemsSource,
+    /// allowing <see cref="MinimumLogLevel"/> (a plain string) to match correctly.
+    /// </summary>
+    public static IReadOnlyList<string> LogLevels { get; } =
+        new[] { "Verbose", "Debug", "Information", "Warning", "Error", "Fatal" };
 
     /// <summary>
     /// Gets a human-readable application version string derived from the assembly version.
@@ -283,6 +298,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             AutoApplyMePlayerOnImport      = s.AutoApplyMePlayerOnImport;
             ShowImagesInLists              = s.ShowImagesInLists;
             MinimumLogLevel                = s.MinimumLogLevel;
+            SoundEffectsEnabled            = s.SoundEffectsEnabled;
         }
         finally
         {
@@ -308,6 +324,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
             FolderError = "Directory does not exist.";
             return;
         }
+
+        // Strip any trailing directory separators before normalising so that "E:\Foo\" and
+        // "E:\Foo" are treated as the same folder.
+        path = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         // Prevent duplicate source folders (case-insensitive, normalised path comparison).
         var normalised = Path.GetFullPath(path);
@@ -371,6 +391,21 @@ public sealed partial class SettingsViewModel : ViewModelBase
         await clipService.WipeBySourceFolderAsync(row.FolderId);
         _watcher.StopWatching(row.Path);
         await folderRepo.DeleteAsync(row.FolderId);
+
+        // Also delete the .clipstudio_trash subdirectory that lives inside the source folder,
+        // since the clip DB records have been wiped and the physical trash files are now orphaned.
+        try
+        {
+            var trashDir = Path.Combine(row.Path, ".clipstudio_trash");
+            if (Directory.Exists(trashDir))
+                Directory.Delete(trashDir, recursive: true);
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal: log and continue so the folder record is still removed.
+            System.Diagnostics.Debug.WriteLine($"[ClipStudio] Could not delete .clipstudio_trash: {ex.Message}");
+        }
+
         UnreviewedCountRefreshRequested?.Invoke();
         await LoadAsync();
     }
@@ -490,6 +525,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         s.AutoApplyMePlayerOnImport      = AutoApplyMePlayerOnImport;
         s.ShowImagesInLists              = ShowImagesInLists;
         s.MinimumLogLevel                = MinimumLogLevel;
+        s.SoundEffectsEnabled            = SoundEffectsEnabled;
         await _settings.SaveAsync();
 
         // Re-apply FFmpeg binary path immediately so scans after saving use the new value.

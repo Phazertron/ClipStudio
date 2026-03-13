@@ -103,4 +103,10 @@ public sealed class AppSettings
     /// Defaults to "Error" so the log stays quiet during normal use.
     /// </summary>
     public string MinimumLogLevel { get; set; } = "Error";
+
+    /// <summary>
+    /// Gets or sets whether UI sound effects (e.g. notification chimes) are played.
+    /// Defaults to <c>true</c>.
+    /// </summary>
+    public bool SoundEffectsEnabled { get; set; } = true;
 }

@@ -1,5 +1,6 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace ClipStudio.UI.ViewModels;
 
@@ -62,13 +63,17 @@ public sealed partial class AudioTrackViewModel : ViewModelBase
         double volume,
         Action? onChanged = null)
     {
-        _trackIndex       = trackIndex;
-        FfmpegStreamIndex = ffmpegStreamIndex;
-        _displayName      = displayName;
-        _isIncluded       = isIncluded;
-        _volume           = volume;
-        _onChanged        = onChanged;
+        _trackIndex              = trackIndex;
+        FfmpegStreamIndex        = ffmpegStreamIndex;
+        _displayName             = displayName;
+        _isIncluded              = isIncluded;
+        _volume                  = volume;
+        _onChanged               = onChanged;
+        SetVolumeToUnityCommand  = new RelayCommand(() => Volume = 1.0);
     }
+
+    /// <summary>Gets the command that resets this track's volume multiplier to 1.0 (100 %).</summary>
+    public IRelayCommand SetVolumeToUnityCommand { get; }
 
     /// <summary>Notifies the parent when the include toggle changes.</summary>
     partial void OnIsIncludedChanged(bool value) => _onChanged?.Invoke();

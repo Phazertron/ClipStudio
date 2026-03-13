@@ -3,6 +3,7 @@
              xmlns:vm="using:ClipStudio.UI.ViewModels"
              xmlns:icons="using:Material.Icons.Avalonia"
              xmlns:vlc="using:LibVLCSharp.Avalonia"
+             xmlns:conv="using:ClipStudio.UI.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="750"
@@ -18,7 +19,7 @@
                 BorderThickness="0,0,0,1">
         <StackPanel>
 
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto"
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto"
               Margin="8,6">
 
             <!-- Back button -->
@@ -141,6 +142,15 @@
                 <icons:MaterialIcon Kind="TrashCanOutline" Width="20" Height="20"/>
             </Button>
 
+            <!-- Clear all data -->
+            <Button Grid.Column="7"
+                    Command="{Binding ShowClearAllDataConfirmCommand}"
+                    ToolTip.Tip="Reset clip: remove all tags, players, rating and set back to Unreviewed"
+                    Margin="0,0,0,6"
+                    IsVisible="{Binding !IsWatchMode}">
+                <icons:MaterialIcon Kind="Eraser" Width="20" Height="20"/>
+            </Button>
+
         </Grid>
 
         <!-- Delete confirmation strip -->
@@ -158,6 +168,27 @@
                         FontSize="12"
                         Padding="8,3"/>
                 <Button Command="{Binding CancelDeleteCommand}"
+                        Content="Cancel"
+                        FontSize="12"
+                        Padding="8,3"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Clear-all-data confirmation strip -->
+        <Border IsVisible="{Binding IsClearAllDataConfirmVisible}"
+                Background="#8B4513"
+                Padding="12,6">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <icons:MaterialIcon Kind="AlertCircleOutline" Width="16" Height="16"
+                                    VerticalAlignment="Center"/>
+                <TextBlock Text="Reset clip? This removes all tags, players, rating and sets status to Unreviewed."
+                           FontSize="12"
+                           VerticalAlignment="Center"/>
+                <Button Command="{Binding ConfirmClearAllDataCommand}"
+                        Content="Reset"
+                        FontSize="12"
+                        Padding="8,3"/>
+                <Button Command="{Binding CancelClearAllDataConfirmCommand}"
                         Content="Cancel"
                         FontSize="12"
                         Padding="8,3"/>
@@ -296,17 +327,31 @@
                         Spacing="4"
                         Margin="8,0,0,0"
                         ToolTip.Tip="Master volume (affects VLC playback)">
-                <icons:MaterialIcon Kind="VolumeHigh" Width="16" Height="16" Opacity="0.65"/>
+                <Button Command="{Binding ToggleMuteCommand}"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="2"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="Mute / Unmute">
+                    <icons:MaterialIcon Kind="{Binding VolumeIconKind}" Width="16" Height="16" Opacity="0.65"/>
+                </Button>
                 <Slider Value="{Binding MasterVolume}"
                         Minimum="0"
                         Maximum="200"
                         Width="80"
+                        IsEnabled="{Binding !IsMuted}"
                         VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding MasterVolume, StringFormat='{}{0}%'}"
                            FontSize="11"
                            Opacity="0.65"
                            VerticalAlignment="Center"
                            Width="36"/>
+                <Button Command="{Binding SetMasterVolumeToFullCommand}"
+                        Content="100%"
+                        FontSize="10"
+                        Padding="4,2"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="Set to 100%"/>
             </StackPanel>
 
             <!-- Next clip (visible when HasNext) -->
@@ -716,7 +761,7 @@
                             </TextBlock>
 
                             <!-- Column headers -->
-                            <Grid ColumnDefinitions="*,Auto,90">
+                            <Grid ColumnDefinitions="*,Auto,90,Auto">
                                 <TextBlock Grid.Column="0" Text="Name" FontSize="11" Opacity="0.6"/>
                                 <TextBlock Grid.Column="1" Text="Include" FontSize="11" Opacity="0.6" Margin="6,0"/>
                                 <TextBlock Grid.Column="2" Text="Volume" FontSize="11" Opacity="0.6" Margin="6,0,0,0"/>
@@ -726,7 +771,7 @@
                             <ItemsControl ItemsSource="{Binding AudioTracks}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="vm:AudioTrackViewModel">
-                                        <Grid ColumnDefinitions="*,Auto,90" Margin="0,2">
+                                        <Grid ColumnDefinitions="*,Auto,90,Auto" Margin="0,2">
                                             <TextBox Grid.Column="0"
                                                      Text="{Binding DisplayName}"
                                                      FontSize="11"
@@ -744,6 +789,14 @@
                                                     VerticalAlignment="Center"
                                                     Margin="6,0,0,0"
                                                     ToolTip.Tip="Volume multiplier (0% – 200%)"/>
+                                            <Button Grid.Column="3"
+                                                    Command="{Binding SetVolumeToUnityCommand}"
+                                                    Content="100%"
+                                                    FontSize="10"
+                                                    Padding="4,2"
+                                                    Margin="4,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Set to 100%"/>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -1152,34 +1205,61 @@
                             <StackPanel Spacing="6"
                                         IsVisible="{Binding IsTrimming}">
 
-                                <Grid ColumnDefinitions="*,Auto"
-                                      RowDefinitions="Auto,Auto"
-                                      RowSpacing="4">
+                                <Grid ColumnDefinitions="Auto,*,Auto"
+                                      RowDefinitions="Auto,Auto,Auto,Auto"
+                                      RowSpacing="3">
+                                    <!-- Start row -->
                                     <TextBlock Grid.Row="0" Grid.Column="0"
                                                VerticalAlignment="Center"
-                                               FontSize="12">
-                                        <Run Text="Start: "/>
-                                        <Run Text="{Binding TrimStartDisplay}"
-                                             FontFamily="Consolas,Courier New,monospace"/>
-                                    </TextBlock>
-                                    <Button Grid.Row="0" Grid.Column="1"
+                                               FontSize="12"
+                                               Margin="0,0,6,0">Start:</TextBlock>
+                                    <TextBox x:Name="TrimStartTextBox"
+                                             Grid.Row="0" Grid.Column="1"
+                                             Text="{Binding TrimStartDisplay}"
+                                             FontFamily="Consolas,Courier New,monospace"
+                                             FontSize="12"
+                                             Padding="4,2"
+                                             LostFocus="OnTrimStartLostFocus"
+                                             KeyDown="OnTrimStartKeyDown"/>
+                                    <Button Grid.Row="0" Grid.Column="2"
                                             Command="{Binding MarkTrimStartCommand}"
-                                            Content="Mark Start"
+                                            Content="Mark"
                                             FontSize="11"
-                                            Padding="6,3"/>
-
-                                    <TextBlock Grid.Row="1" Grid.Column="0"
+                                            Padding="6,3"
+                                            Margin="4,0,0,0"/>
+                                    <!-- Start error -->
+                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="3"
+                                               Text="{Binding TrimStartError}"
+                                               FontSize="10"
+                                               Foreground="#E74C3C"
+                                               IsVisible="{Binding TrimStartError, Converter={x:Static conv:IsNotNullConverter.Instance}}"
+                                               Margin="0,0,0,2"/>
+                                    <!-- End row -->
+                                    <TextBlock Grid.Row="2" Grid.Column="0"
                                                VerticalAlignment="Center"
-                                               FontSize="12">
-                                        <Run Text="End:   "/>
-                                        <Run Text="{Binding TrimEndDisplay}"
-                                             FontFamily="Consolas,Courier New,monospace"/>
-                                    </TextBlock>
-                                    <Button Grid.Row="1" Grid.Column="1"
+                                               FontSize="12"
+                                               Margin="0,0,6,0">End:</TextBlock>
+                                    <TextBox x:Name="TrimEndTextBox"
+                                             Grid.Row="2" Grid.Column="1"
+                                             Text="{Binding TrimEndDisplay}"
+                                             FontFamily="Consolas,Courier New,monospace"
+                                             FontSize="12"
+                                             Padding="4,2"
+                                             LostFocus="OnTrimEndLostFocus"
+                                             KeyDown="OnTrimEndKeyDown"/>
+                                    <Button Grid.Row="2" Grid.Column="2"
                                             Command="{Binding MarkTrimEndCommand}"
-                                            Content="Mark End"
+                                            Content="Mark"
                                             FontSize="11"
-                                            Padding="6,3"/>
+                                            Padding="6,3"
+                                            Margin="4,0,0,0"/>
+                                    <!-- End error -->
+                                    <TextBlock Grid.Row="3" Grid.ColumnSpan="3"
+                                               Text="{Binding TrimEndError}"
+                                               FontSize="10"
+                                               Foreground="#E74C3C"
+                                               IsVisible="{Binding TrimEndError, Converter={x:Static conv:IsNotNullConverter.Instance}}"
+                                               Margin="0,0,0,2"/>
                                 </Grid>
 
                                 <!-- Output path with browse button -->

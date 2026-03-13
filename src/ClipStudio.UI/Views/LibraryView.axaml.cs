@@ -101,8 +101,12 @@ public partial class LibraryView : UserControl
 
         // After loading completes, defer column-width sync to after the layout pass so that
         // all data row grids are in the visual tree before the widths are applied.
+        // The double-post ensures a second layout pass has run and ItemsControl containers are
+        // fully realised before widths are applied.
         if (e.PropertyName == nameof(LibraryViewModel.IsLoading) && _vm is { IsLoading: false })
-            Dispatcher.UIThread.Post(ApplyPersistedColumnWidthsToDataRows, DispatcherPriority.Loaded);
+            Dispatcher.UIThread.Post(
+                () => Dispatcher.UIThread.Post(ApplyPersistedColumnWidthsToDataRows, DispatcherPriority.Loaded),
+                DispatcherPriority.Loaded);
     }
 
     /// <summary>

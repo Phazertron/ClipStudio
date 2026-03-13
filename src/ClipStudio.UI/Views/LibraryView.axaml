@@ -193,7 +193,7 @@
                                   Padding="8,4"
                                   ToolTip.Tip="Show only favourites">
                         <StackPanel Orientation="Horizontal" Spacing="4">
-                            <icons:MaterialIcon Kind="StarCircle" Width="14" Height="14"/>
+                            <icons:MaterialIcon Kind="Heart" Width="14" Height="14" Foreground="#E74C3C"/>
                             <TextBlock Text="Favourites" FontSize="12"/>
                         </StackPanel>
                     </ToggleButton>
@@ -595,9 +595,10 @@
                                                 </Panel>
                                             </StackPanel>
                                             <icons:MaterialIcon Grid.Column="9"
-                                                                Kind="StarCircle"
+                                                                Kind="Heart"
                                                                 Width="14" Height="14"
-                                                                Opacity="0.8"
+                                                                Foreground="#E74C3C"
+                                                                Opacity="0.85"
                                                                 VerticalAlignment="Center"
                                                                 IsVisible="{Binding IsFavourite}"/>
                                         </Grid>
@@ -1230,6 +1231,53 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
+
+                            <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                            <!-- Clear All Data -->
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0"
+                                           Text="Reset clips"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Command="{Binding ShowBulkClearAllDataConfirmCommand}"
+                                        ToolTip.Tip="Remove all tags/players, reset rating and status to Unreviewed for selected clips"
+                                        Padding="6,3"
+                                        FontSize="11">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <icons:MaterialIcon Kind="Eraser" Width="12" Height="12" Foreground="#E74C3C"/>
+                                        <TextBlock Text="Clear All Data"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <!-- Clear-all-data confirmation strip -->
+                            <Border IsVisible="{Binding IsBulkClearAllDataConfirmVisible}"
+                                    Background="#608B4513"
+                                    CornerRadius="4"
+                                    Padding="8,6">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Reset ALL selected clips? This removes all tags, players, rating and sets status to Unreviewed."
+                                               FontSize="11"
+                                               TextWrapping="Wrap"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button Command="{Binding ConfirmBulkClearAllDataCommand}"
+                                                FontSize="11"
+                                                Padding="8,3"
+                                                Background="#E74C3C"
+                                                Foreground="White">
+                                            Reset all
+                                        </Button>
+                                        <Button Command="{Binding ShowBulkClearAllDataConfirmCommand}"
+                                                FontSize="11"
+                                                Padding="8,3">
+                                            Cancel
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
                     </StackPanel>
                 </ScrollViewer>

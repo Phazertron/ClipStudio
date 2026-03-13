@@ -88,8 +88,11 @@ public partial class HighlightsPageView : UserControl
         if (e.PropertyName == nameof(HighlightsPageViewModel.IsLoading) &&
             _vm is { IsLoading: false })
         {
-            // Defer to after the layout pass so all row grids are in the visual tree.
-            Dispatcher.UIThread.Post(ApplyPersistedColumnWidthsToDataRows, DispatcherPriority.Loaded);
+            // Double-post to ensure a second layout pass has run and all row containers are
+            // fully realised in the visual tree before applying persisted column widths.
+            Dispatcher.UIThread.Post(
+                () => Dispatcher.UIThread.Post(ApplyPersistedColumnWidthsToDataRows, DispatcherPriority.Loaded),
+                DispatcherPriority.Loaded);
         }
     }
 

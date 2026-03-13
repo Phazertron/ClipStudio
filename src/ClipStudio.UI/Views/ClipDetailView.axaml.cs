@@ -636,6 +636,50 @@ public partial class ClipDetailView : UserControl
             _ = hvm.AddTagDirectlyAsync(tag);
     }
 
+    // ---- Trim timestamp text boxes ----
+
+    /// <summary>
+    /// Commits the trim start value when the user leaves the start TextBox.
+    /// </summary>
+    private void OnTrimStartLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is ClipDetailViewModel vm)
+            vm.CommitTrimStartCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Commits the trim end value when the user leaves the end TextBox.
+    /// </summary>
+    private void OnTrimEndLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is ClipDetailViewModel vm)
+            vm.CommitTrimEndCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Commits the trim start value when the user presses Enter in the start TextBox.
+    /// </summary>
+    private void OnTrimStartKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && DataContext is ClipDetailViewModel vm)
+        {
+            vm.CommitTrimStartCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Commits the trim end value when the user presses Enter in the end TextBox.
+    /// </summary>
+    private void OnTrimEndKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && DataContext is ClipDetailViewModel vm)
+        {
+            vm.CommitTrimEndCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
     // ---- Trim output browse ----
 
     /// <summary>
