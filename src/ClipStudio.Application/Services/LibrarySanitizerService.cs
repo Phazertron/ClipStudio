@@ -267,35 +267,39 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         }
 
         // ---- Audio-cache orphan cleanup ----
-        // Valid audio previews are named clip_{id}_audio_preview.mkv.  Any .mkv file whose ID is
-        // not in the active clip set is an orphan left behind by deleted or hard-deleted clips.
+        // The audio cache directory is exclusively used for files named clip_{id}_audio_preview.mkv.
+        // Delete every file that either does not match that pattern or whose clip ID is not in the
+        // active clip set (covers renamed copies, stale files, and clips that have been deleted).
         var audioCacheDir  = GetAudioCacheDirectory();
         var validClipIds   = new HashSet<int>(allClips.Select(c => c.Id));
         var audioCleaned   = 0;
         if (Directory.Exists(audioCacheDir))
         {
-            foreach (var file in Directory.EnumerateFiles(audioCacheDir, "*.mkv"))
+            foreach (var file in Directory.EnumerateFiles(audioCacheDir))
             {
                 ct.ThrowIfCancellationRequested();
 
                 var name = System.IO.Path.GetFileNameWithoutExtension(file);
-                // Expected pattern: clip_{id}_audio_preview
+                // Expected pattern: clip_{id}_audio_preview — any other file is an orphan.
+                var isValidPattern = false;
                 if (name.StartsWith("clip_", StringComparison.OrdinalIgnoreCase)
-                    && name.EndsWith("_audio_preview", StringComparison.OrdinalIgnoreCase))
+                    && name.EndsWith("_audio_preview", StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(name["clip_".Length..^"_audio_preview".Length], out var clipId))
                 {
-                    var middle = name["clip_".Length..^"_audio_preview".Length];
-                    if (int.TryParse(middle, out var clipId) && !validClipIds.Contains(clipId))
+                    isValidPattern = validClipIds.Contains(clipId);
+                }
+
+                if (!isValidPattern)
+                {
+                    try
                     {
-                        try
-                        {
-                            File.Delete(file);
-                            audioCleaned++;
-                            _logger.LogDebug("Deleted orphan audio cache file: {File}", file);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to delete orphan audio cache file: {File}", file);
-                        }
+                        File.Delete(file);
+                        audioCleaned++;
+                        _logger.LogDebug("Deleted orphan audio cache file: {File}", file);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to delete orphan audio cache file: {File}", file);
                     }
                 }
             }

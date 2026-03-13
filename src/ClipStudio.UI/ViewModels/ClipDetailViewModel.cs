@@ -118,6 +118,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// </summary>
     private bool _watchModeSeekPending;
 
+    /// <summary>
+    /// When true, the next <see cref="OnPlayerPlaying"/> callback should immediately pause
+    /// and reset position to 0 (set after end-of-clip with loop off, so the user can replay).
+    /// </summary>
+    private bool _replayAfterEnd;
+
     // ---- Player state ----
 
     /// <summary>
@@ -385,6 +391,46 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// When set, this is displayed in the header instead of the clip file name.
     /// </summary>
     public string? WatchHighlightLabel { get; set; }
+
+    /// <summary>
+    /// Gets or sets the database ID of the highlight currently being watched.
+    /// Set by <see cref="MainWindowViewModel"/> when entering watch mode.
+    /// Null when not in watch mode or when watching a range without an ID.
+    /// </summary>
+    public int? WatchHighlightId { get; set; }
+
+    /// <summary>Gets or sets the star rating (0-5) of the watched highlight.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WatchIsRated1OrMore))]
+    [NotifyPropertyChangedFor(nameof(WatchIsRated2OrMore))]
+    [NotifyPropertyChangedFor(nameof(WatchIsRated3OrMore))]
+    [NotifyPropertyChangedFor(nameof(WatchIsRated4OrMore))]
+    [NotifyPropertyChangedFor(nameof(WatchIsRated5OrMore))]
+    private int _watchHighlightRating;
+
+    /// <summary>Gets or sets a value indicating whether the watched highlight is marked as a favourite.</summary>
+    [ObservableProperty] private bool _watchHighlightIsFavorite;
+
+    /// <summary>Gets whether the watched highlight rating is at least 1.</summary>
+    public bool WatchIsRated1OrMore => WatchHighlightRating >= 1;
+
+    /// <summary>Gets whether the watched highlight rating is at least 2.</summary>
+    public bool WatchIsRated2OrMore => WatchHighlightRating >= 2;
+
+    /// <summary>Gets whether the watched highlight rating is at least 3.</summary>
+    public bool WatchIsRated3OrMore => WatchHighlightRating >= 3;
+
+    /// <summary>Gets whether the watched highlight rating is at least 4.</summary>
+    public bool WatchIsRated4OrMore => WatchHighlightRating >= 4;
+
+    /// <summary>Gets whether the watched highlight rating is at least 5.</summary>
+    public bool WatchIsRated5OrMore => WatchHighlightRating >= 5;
+
+    /// <summary>Gets the command that sets the star rating of the currently watched highlight.</summary>
+    public IRelayCommand SetWatchRatingCommand { get; private set; } = null!;
+
+    /// <summary>Gets the command that toggles the favourite state of the currently watched highlight.</summary>
+    public IRelayCommand ToggleWatchFavoriteCommand { get; private set; } = null!;
 
     /// <summary>
     /// Gets the command that opens the original (full) clip from watch mode.
@@ -657,6 +703,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         SaveAudioSettingsCommand           = new AsyncRelayCommand(SaveAudioSettingsAsync);
         ApplyAudioMixCommand               = new AsyncRelayCommand(ApplyAudioMixAsync);
         SetRatingCommand          = new AsyncRelayCommand<string>(s => SetRatingAsync(int.TryParse(s, out var r) ? r : 0));
+        SetWatchRatingCommand     = new RelayCommand<string>(s => _ = SetWatchRatingAsync(int.TryParse(s, out var r) ? r : 0));
+        ToggleWatchFavoriteCommand = new RelayCommand(() => _ = ToggleWatchFavoriteAsync());
         DeleteClipCommand         = new RelayCommand(() => IsDeleteConfirmVisible = true);
         ConfirmDeleteCommand      = new AsyncRelayCommand(ConfirmDeleteAsync);
         CancelDeleteCommand       = new RelayCommand(() => IsDeleteConfirmVisible = false);
@@ -1388,6 +1436,22 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         Rating = rating;
     }
 
+    /// <summary>Sets the star rating of the currently watched highlight.</summary>
+    private async Task SetWatchRatingAsync(int rating)
+    {
+        if (WatchHighlightId is null) return;
+        await _highlightService.SetRatingAsync(WatchHighlightId.Value, rating);
+        WatchHighlightRating = rating;
+    }
+
+    /// <summary>Toggles the favourite state of the currently watched highlight.</summary>
+    private async Task ToggleWatchFavoriteAsync()
+    {
+        if (WatchHighlightId is null) return;
+        await _highlightService.ToggleFavoriteAsync(WatchHighlightId.Value);
+        WatchHighlightIsFavorite = !WatchHighlightIsFavorite;
+    }
+
     // ---- Tag operations ----
 
     /// <summary>
@@ -1650,11 +1714,34 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
             if (IsWatchMode)
             {
-                // Loop back to the start of the highlight when the end is reached.
+                // When the watched highlight's end is reached, behaviour depends on LoopMode.
                 if (ts >= WatchEnd)
                 {
-                    _ignoreTimeChangedBeforeMs = (long)WatchStart.TotalMilliseconds - 200;
-                    MediaPlayer.Time = (long)WatchStart.TotalMilliseconds;
+                    switch (LoopMode)
+                    {
+                        case LoopMode.LoopThis:
+                            // Loop back to the start of this highlight.
+                            _ignoreTimeChangedBeforeMs = (long)WatchStart.TotalMilliseconds - 200;
+                            MediaPlayer.Time = (long)WatchStart.TotalMilliseconds;
+                            break;
+
+                        case LoopMode.LoopAll:
+                            // Advance to the next highlight; wrap around if at the end.
+                            if (HasNextHighlight)
+                                NextHighlightRequested?.Invoke();
+                            else
+                                PreviousHighlightRequested?.Invoke(); // wraps to first via MainWindowViewModel
+                            break;
+
+                        case LoopMode.Off:
+                        default:
+                            // Advance to the next highlight, or stop if there is none.
+                            if (HasNextHighlight)
+                                NextHighlightRequested?.Invoke();
+                            else
+                                MediaPlayer.Pause();
+                            break;
+                    }
                     return;
                 }
 
@@ -1672,8 +1759,10 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             PositionDisplay = FormatTime(ts);
             _isUpdatingFromPlayer = false;
 
-            // Highlight loop: if a highlight is locked and the position has passed its end, seek back.
-            if (LockedHighlight is not null && ts >= LockedHighlight.EndTime)
+            // Highlight loop: if a highlight is locked and the position has passed its end,
+            // seek back only when looping is enabled.
+            if (LockedHighlight is not null && ts >= LockedHighlight.EndTime
+                && LoopMode != LoopMode.Off)
                 MediaPlayer.Time = (long)LockedHighlight.StartTime.TotalMilliseconds;
         });
     }
@@ -1732,6 +1821,19 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             // Only populate audio tracks on first play of this clip.
             if (AudioTracks.Count == 0)
                 _ = RefreshAudioTracksAsync();
+
+            // After end-of-clip with loop off: immediately pause at position 0 so the user
+            // can replay by pressing play or scrubbing without needing to reload the clip.
+            if (_replayAfterEnd)
+            {
+                _replayAfterEnd = false;
+                MediaPlayer.Pause();
+                _isUpdatingFromPlayer = true;
+                PositionSeconds = 0;
+                PositionDisplay = FormatTime(TimeSpan.Zero);
+                _isUpdatingFromPlayer = false;
+                return;
+            }
 
             // In watch mode: seek to the highlight start as soon as playback starts.
             if (_watchModeSeekPending)
@@ -1796,7 +1898,11 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
                     break;
 
                 default: // Off
-                    // Stay paused; don't advance.
+                    // Restart then immediately pause at position 0 so the user can replay
+                    // by pressing play or scrubbing without needing to reload the clip.
+                    _replayAfterEnd = true;
+                    MediaPlayer.Stop();
+                    MediaPlayer.Play();
                     break;
             }
         });

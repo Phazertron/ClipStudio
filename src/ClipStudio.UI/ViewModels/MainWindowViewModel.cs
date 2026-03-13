@@ -252,7 +252,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         CurrentPage = _currentDetailVm;
 
-        _ = _currentDetailVm.LoadAsync(clipId);
+        // Defer LoadAsync until after the layout pass so that the VideoView can attach its
+        // window handle to the new MediaPlayer before playback begins. Without this deferral,
+        // LibVLC opens a standalone window on Windows when Play() is called without an HWND.
+        var vmToLoad = _currentDetailVm;
+        Dispatcher.UIThread.Post(
+            () => _ = vmToLoad.LoadAsync(clipId),
+            DispatcherPriority.Loaded);
     }
 
     /// <summary>
@@ -283,9 +289,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _currentDetailVm.IsWatchMode         = true;
         _currentDetailVm.WatchStart          = start;
         _currentDetailVm.WatchEnd            = end;
-        _currentDetailVm.WatchHighlightLabel = (sequence is not null && sequenceIndex >= 0)
-            ? sequence[sequenceIndex].Label
-            : null;
+
+        var currentRow = (sequence is not null && sequenceIndex >= 0) ? sequence[sequenceIndex] : null;
+        _currentDetailVm.WatchHighlightLabel      = currentRow?.Label;
+        _currentDetailVm.WatchHighlightId         = currentRow?.HighlightId;
+        _currentDetailVm.WatchHighlightRating     = currentRow?.Rating ?? 0;
+        _currentDetailVm.WatchHighlightIsFavorite = currentRow?.IsFavorite ?? false;
+
         _currentDetailVm.LoopMode            = LoopMode.LoopThis;   // default to looping the highlight
         _currentDetailVm.BackRequested       = CloseClipDetail;
 
@@ -319,7 +329,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         CurrentPage = _currentDetailVm;
 
-        _ = _currentDetailVm.LoadAsync(clipId);
+        // Defer LoadAsync until after the layout pass so the VideoView attaches its HWND first.
+        var vmToLoad = _currentDetailVm;
+        Dispatcher.UIThread.Post(
+            () => _ = vmToLoad.LoadAsync(clipId),
+            DispatcherPriority.Loaded);
     }
 
     /// <summary>

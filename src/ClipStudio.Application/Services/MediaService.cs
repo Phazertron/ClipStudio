@@ -27,13 +27,28 @@ public sealed class MediaService : IMediaService
         var analysis = await FFProbe.AnalyseAsync(filePath, cancellationToken: cancellationToken);
         var video = analysis.VideoStreams.FirstOrDefault();
 
+        // Parse the embedded creation_time tag from the format tags (e.g., from OBS mkv/mp4 containers).
+        DateTime? embeddedCreationTime = null;
+        if (analysis.Format?.Tags is not null
+            && analysis.Format.Tags.TryGetValue("creation_time", out var creationTimeStr)
+            && DateTime.TryParse(creationTimeStr,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind,
+                out var parsedTime))
+        {
+            embeddedCreationTime = parsedTime.Kind == DateTimeKind.Utc
+                ? parsedTime
+                : parsedTime.ToUniversalTime();
+        }
+
         return new MediaMetadata
         {
             Duration = analysis.Duration,
             Width = video?.Width ?? 0,
             Height = video?.Height ?? 0,
             Codec = video?.CodecName ?? string.Empty,
-            FileSizeBytes = new FileInfo(filePath).Length
+            FileSizeBytes = new FileInfo(filePath).Length,
+            EmbeddedCreationTime = embeddedCreationTime
         };
     }
 

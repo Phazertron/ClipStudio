@@ -79,7 +79,11 @@ public sealed class ImportService : IImportService
                 filePath, dataDirectory, _settings.Current.PreviewStripFrameCount, cancellationToken);
 
             var suggestedGameName = ClipFileNameParser.ExtractGameName(filePath);
+
+            // Timestamp priority: (1) OBS filename pattern, (2) embedded FFProbe creation_time,
+            // (3) OS file creation time (least reliable — may be "now" after a file copy).
             var recordedAt = ClipFileNameParser.ExtractTimestamp(filePath)
+                             ?? metadata.EmbeddedCreationTime
                              ?? File.GetCreationTimeUtc(filePath);
 
             var clip = new Clip

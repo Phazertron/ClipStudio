@@ -20,6 +20,12 @@ public sealed class MediaMetadata
     /// <summary>Gets or sets the file size in bytes.</summary>
     public long FileSizeBytes { get; set; }
 
+    /// <summary>
+    /// Gets or sets the <c>creation_time</c> metadata tag embedded in the video container,
+    /// parsed from the FFprobe format tags. <c>null</c> when the tag is absent or cannot be parsed.
+    /// </summary>
+    public DateTime? EmbeddedCreationTime { get; set; }
+
     /// <summary>Gets a formatted resolution string (e.g., "1920x1080").</summary>
     public string Resolution => $"{Width}x{Height}";
 }

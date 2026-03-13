@@ -18,6 +18,7 @@ public sealed partial class GamesViewModel : ViewModelBase
 {
     private readonly ITagService _tagService;
     private readonly IGameSearchService _searchService;
+    private readonly IGameTagAliasService _aliasService;
 
     private static readonly HttpClient _http = new();
 
@@ -91,10 +92,12 @@ public sealed partial class GamesViewModel : ViewModelBase
     /// </summary>
     /// <param name="tagService">The application-layer tag service.</param>
     /// <param name="searchService">The game search service backed by the Steam Community API.</param>
-    public GamesViewModel(ITagService tagService, IGameSearchService searchService)
+    /// <param name="aliasService">The alias service used to load and delete auto-detect mappings.</param>
+    public GamesViewModel(ITagService tagService, IGameSearchService searchService, IGameTagAliasService aliasService)
     {
         _tagService    = tagService;
         _searchService = searchService;
+        _aliasService  = aliasService;
 
         LoadCommand        = new AsyncRelayCommand(LoadAsync);
         BeginCreateCommand = new RelayCommand(BeginCreate);
@@ -127,6 +130,9 @@ public sealed partial class GamesViewModel : ViewModelBase
 
             foreach (var tag in filtered.OrderBy(t => t.Name))
                 Games.Add(new GameRowViewModel(tag, BeginEdit, DeleteGameAsync));
+
+            // Load aliases for all rows in parallel and populate their Aliases collections.
+            await Task.WhenAll(Games.Select(LoadAliasesForRowAsync));
 
             _ = Task.WhenAll(Games.Select(r => r.LoadCoverAsync(_http)));
         }
@@ -310,6 +316,42 @@ public sealed partial class GamesViewModel : ViewModelBase
         catch (Exception)
         {
             // Preload is best-effort; failures are silently ignored.
+        }
+    }
+
+    // ---- Alias management ----
+
+    private async Task LoadAliasesForRowAsync(GameRowViewModel row)
+    {
+        try
+        {
+            var aliases = await _aliasService.GetByTagIdAsync(row.TagId);
+            row.Aliases.Clear();
+            foreach (var alias in aliases)
+                row.Aliases.Add(new GameAliasChipViewModel(alias.Id, alias.AliasString, UnlinkAlias));
+            OnPropertyChanged(nameof(row.HasAliases));
+        }
+        catch (Exception)
+        {
+            // Non-fatal: alias loading failure does not block game list rendering.
+        }
+    }
+
+    private async void UnlinkAlias(GameAliasChipViewModel chip)
+    {
+        try
+        {
+            await _aliasService.DeleteAsync(chip.AliasId);
+            // Find the parent row and remove the chip directly for immediate feedback.
+            foreach (var row in Games)
+            {
+                if (row.Aliases.Remove(chip))
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            SaveError = ex.Message;
         }
     }
 

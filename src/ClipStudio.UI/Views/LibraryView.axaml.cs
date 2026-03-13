@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Enums;
@@ -71,10 +72,9 @@ public partial class LibraryView : UserControl
         {
             _vm.PropertyChanged += OnVmPropertyChanged;
 
-            // Apply any persisted column widths to the header grid immediately,
-            // and also to data rows so header and rows are always in sync before the first load.
+            // Apply any persisted column widths to the header grid immediately.
+            // Data rows are applied after the first load completes (via IsLoading → false).
             ApplyPersistedColumnWidthsToHeader();
-            ApplyPersistedColumnWidthsToDataRows();
 
             _vm.LoadCommand.Execute(null);
         }
@@ -99,9 +99,10 @@ public partial class LibraryView : UserControl
                 SortComboBox.SelectedIndex = idx;
         }
 
-        // After loading completes, sync column widths to all rendered data rows.
+        // After loading completes, defer column-width sync to after the layout pass so that
+        // all data row grids are in the visual tree before the widths are applied.
         if (e.PropertyName == nameof(LibraryViewModel.IsLoading) && _vm is { IsLoading: false })
-            ApplyPersistedColumnWidthsToDataRows();
+            Dispatcher.UIThread.Post(ApplyPersistedColumnWidthsToDataRows, DispatcherPriority.Loaded);
     }
 
     /// <summary>

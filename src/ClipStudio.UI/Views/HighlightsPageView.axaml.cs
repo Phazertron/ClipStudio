@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.UI.ViewModels;
@@ -49,8 +50,8 @@ public partial class HighlightsPageView : UserControl
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
         ApplyPersistedColumnWidthsToHeader();
-        // Apply to data rows immediately too so header and rows start in sync before the first load.
-        ApplyPersistedColumnWidthsToDataRows();
+        // Data row widths are applied after load completes (via IsLoading → false) so the rows
+        // are in the visual tree. No early call here.
 
         // Use AddHandler with handledEventsToo=true so that taps absorbed by child controls
         // (text, icons, etc.) still bubble up and open the row in watch mode.
@@ -87,7 +88,8 @@ public partial class HighlightsPageView : UserControl
         if (e.PropertyName == nameof(HighlightsPageViewModel.IsLoading) &&
             _vm is { IsLoading: false })
         {
-            ApplyPersistedColumnWidthsToDataRows();
+            // Defer to after the layout pass so all row grids are in the visual tree.
+            Dispatcher.UIThread.Post(ApplyPersistedColumnWidthsToDataRows, DispatcherPriority.Loaded);
         }
     }
 

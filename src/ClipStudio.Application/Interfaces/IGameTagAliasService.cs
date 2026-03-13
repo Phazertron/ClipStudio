@@ -26,4 +26,16 @@ public interface IGameTagAliasService
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>The created or existing <see cref="GameTagAlias"/>.</returns>
     Task<GameTagAlias> EnsureAliasAsync(string aliasString, int tagId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all <see cref="GameTagAlias"/> records associated with the given <paramref name="tagId"/>.
+    /// </summary>
+    /// <param name="tagId">The identifier of the Game-type tag.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    Task<IReadOnlyList<GameTagAlias>> GetByTagIdAsync(int tagId, CancellationToken cancellationToken = default);
+
+    /// <summary>Permanently removes the alias record with the given <paramref name="aliasId"/>.</summary>
+    /// <param name="aliasId">The identifier of the alias to delete.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    Task DeleteAsync(int aliasId, CancellationToken cancellationToken = default);
 }

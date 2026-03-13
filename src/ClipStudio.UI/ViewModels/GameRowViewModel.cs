@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -46,6 +47,12 @@ public sealed partial class GameRowViewModel : ViewModelBase
 
     /// <summary>Gets the command that deletes this game tag after delegating to the parent VM.</summary>
     public IAsyncRelayCommand DeleteCommand { get; }
+
+    /// <summary>Gets the auto-detect alias chips associated with this game tag.</summary>
+    public ObservableCollection<GameAliasChipViewModel> Aliases { get; } = new();
+
+    /// <summary>Gets a value indicating whether any auto-detect aliases are linked to this game tag.</summary>
+    public bool HasAliases => Aliases.Count > 0;
 
     /// <summary>
     /// Initialises a new <see cref="GameRowViewModel"/> from an entity and parent callbacks.

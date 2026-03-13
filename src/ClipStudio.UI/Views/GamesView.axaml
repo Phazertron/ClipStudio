@@ -94,7 +94,7 @@
                                                                 IsVisible="{Binding CoverBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
                                         </Panel>
 
-                                        <!-- Name + Steam badge -->
+                                        <!-- Name + Steam badge + aliases -->
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                             <TextBlock Text="{Binding Name}"
                                                        FontSize="13"
@@ -105,6 +105,42 @@
                                                 <TextBlock Text="Steam"
                                                            FontSize="11"
                                                            Opacity="0.5"/>
+                                            </StackPanel>
+                                            <!-- Auto-detect alias chips -->
+                                            <StackPanel Orientation="Horizontal" Spacing="4" FlowDirection="LeftToRight"
+                                                        IsVisible="{Binding HasAliases}">
+                                                <icons:MaterialIcon Kind="LinkVariant" Width="11" Height="11" Opacity="0.5" VerticalAlignment="Center"/>
+                                                <ItemsControl ItemsSource="{Binding Aliases}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel Orientation="Horizontal"/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="vm:GameAliasChipViewModel">
+                                                            <Border Margin="0,1,4,1"
+                                                                    Padding="5,2"
+                                                                    CornerRadius="4"
+                                                                    Background="{DynamicResource SystemChromeLowColor}"
+                                                                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                                                    BorderThickness="1">
+                                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                    <TextBlock Text="{Binding AliasString}"
+                                                                               FontSize="10"
+                                                                               Opacity="0.75"
+                                                                               VerticalAlignment="Center"/>
+                                                                    <Button Command="{Binding UnlinkCommand}"
+                                                                            Padding="1"
+                                                                            ToolTip.Tip="Remove auto-detect alias"
+                                                                            Background="Transparent"
+                                                                            BorderThickness="0">
+                                                                        <icons:MaterialIcon Kind="Close" Width="10" Height="10" Opacity="0.6"/>
+                                                                    </Button>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
                                             </StackPanel>
                                         </StackPanel>
 

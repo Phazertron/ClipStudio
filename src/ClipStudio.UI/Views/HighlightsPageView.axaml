@@ -466,7 +466,12 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Width="36" Height="36" CornerRadius="18" ClipToBounds="True" Margin="1">
-                                                        <Image Source="{Binding}" Stretch="UniformToFill"/>
+                                                        <Panel>
+                                                            <Image Source="{Binding}" Stretch="UniformToFill"
+                                                                   IsVisible="{Binding ., Converter={x:Static conv:IsNotNullConverter.Instance}}"/>
+                                                            <icons:MaterialIcon Kind="AccountCircle" Width="36" Height="36" Opacity="0.5"
+                                                                                IsVisible="{Binding ., Converter={x:Static conv:IsNullConverter.Instance}}"/>
+                                                        </Panel>
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>

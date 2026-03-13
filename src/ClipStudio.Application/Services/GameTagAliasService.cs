@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Interfaces;
@@ -38,5 +40,19 @@ public sealed class GameTagAliasService : IGameTagAliasService
         await _aliases.AddAsync(alias, cancellationToken);
         _logger.LogInformation("Game alias '{Alias}' → tag {TagId} created.", aliasString, tagId);
         return alias;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<GameTagAlias>> GetByTagIdAsync(int tagId, CancellationToken cancellationToken = default)
+    {
+        var all = await _aliases.GetAllAsync(cancellationToken);
+        return all.Where(a => a.TagId == tagId).ToList();
+    }
+
+    /// <inheritdoc/>
+    public Task DeleteAsync(int aliasId, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Game alias {AliasId} deleted.", aliasId);
+        return _aliases.DeleteAsync(aliasId, cancellationToken);
     }
 }

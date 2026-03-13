@@ -182,15 +182,19 @@ public sealed partial class ClipCardViewModel : ViewModelBase
 
     /// <summary>
     /// Gets or sets the list of player icon bitmaps loaded asynchronously.
-    /// Contains only bitmaps for players that have a valid icon file.
+    /// Contains one entry per player: the loaded <see cref="Bitmap"/> when an icon file is
+    /// available, or <c>null</c> to render a default placeholder icon.
     /// Empty until <see cref="LoadImagesAsync"/> completes.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPlayerIconBitmaps))]
     private IReadOnlyList<Bitmap?> _playerIconBitmaps = Array.Empty<Bitmap?>();
 
-    /// <summary>Gets whether at least one player icon bitmap has been loaded.</summary>
-    public bool HasPlayerIconBitmaps => PlayerIconBitmaps.Count > 0;
+    /// <summary>
+    /// Gets whether at least one player has a custom icon bitmap.
+    /// When true the icon strip is shown; when false plain text is used.
+    /// </summary>
+    public bool HasPlayerIconBitmaps => PlayerIconBitmaps.Any(b => b is not null);
 
     /// <summary>
     /// Gets the game name suggested by the OBS filename parser, or null if none was detected.
@@ -349,12 +353,15 @@ public sealed partial class ClipCardViewModel : ViewModelBase
             }
         }
 
-        // Player icon bitmaps.
+        // Player icon bitmaps: one entry per player (null = no icon, renders as placeholder).
         var icons = new List<Bitmap?>();
         foreach (var iconPath in _playerIconPaths)
         {
             if (string.IsNullOrEmpty(iconPath) || !File.Exists(iconPath))
+            {
+                icons.Add(null);
                 continue;
+            }
             try
             {
                 var bmp = await Task.Run(() => new Bitmap(iconPath));
@@ -362,7 +369,8 @@ public sealed partial class ClipCardViewModel : ViewModelBase
             }
             catch
             {
-                // Icon decode failure is non-fatal.
+                // Icon decode failure is non-fatal; add placeholder for this player.
+                icons.Add(null);
             }
         }
         PlayerIconBitmaps = icons;
