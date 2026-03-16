@@ -44,6 +44,10 @@ public partial class LibraryView : UserControl
     // ---- Active drag state ----
 
     private bool _isResizing;
+
+    // Scroll offset captured at the moment a load begins, before the clips collection is
+    // cleared (which would reset the ScrollViewer to 0 and overwrite the saved position).
+    private double _savedScrollY;
     private int _resizeColIndex;
     private double _resizeDragStartX;
     private double _resizeStartWidth;
@@ -80,9 +84,6 @@ public partial class LibraryView : UserControl
             // Data rows are applied after the first load completes (via IsLoading → false).
             ApplyPersistedColumnWidthsToHeader();
 
-            // Subscribe to scroll changes to track position.
-            TilesScrollViewer.ScrollChanged += OnTilesScrollChanged;
-
             _vm.LoadCommand.Execute(null);
         }
     }
@@ -96,7 +97,6 @@ public partial class LibraryView : UserControl
             _vm = null;
         }
 
-        TilesScrollViewer.ScrollChanged -= OnTilesScrollChanged;
     }
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -108,6 +108,11 @@ public partial class LibraryView : UserControl
             if (idx >= 0 && SortComboBox.SelectedIndex != idx)
                 SortComboBox.SelectedIndex = idx;
         }
+
+        // Capture the current scroll offset the moment a load begins — before Clips.Clear()
+        // resets the ScrollViewer to 0 (which would overwrite the saved position).
+        if (e.PropertyName == nameof(LibraryViewModel.IsLoading) && _vm is { IsLoading: true })
+            _savedScrollY = TilesScrollViewer.Offset.Y;
 
         // After loading completes, defer column-width sync and scroll restore to after the layout
         // pass so that all data row grids are in the visual tree before the widths are applied.
@@ -129,15 +134,14 @@ public partial class LibraryView : UserControl
     {
         ApplyPersistedColumnWidthsToDataRows();
 
-        if (_vm is not null && _vm.TilesScrollOffsetY > 0)
-            TilesScrollViewer.Offset = new Vector(0, _vm.TilesScrollOffsetY);
-    }
-
-    /// <summary>Saves the current scroll position to the view model whenever the user scrolls.</summary>
-    private void OnTilesScrollChanged(object? sender, ScrollChangedEventArgs e)
-    {
-        if (_vm is not null)
-            _vm.TilesScrollOffsetY = TilesScrollViewer.Offset.Y;
+        if (_savedScrollY > 0)
+        {
+            var targetY = _savedScrollY;
+            _savedScrollY = 0;
+            Dispatcher.UIThread.Post(
+                () => TilesScrollViewer.Offset = new Vector(0, targetY),
+                DispatcherPriority.Background);
+        }
     }
 
     /// <summary>

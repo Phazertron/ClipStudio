@@ -81,7 +81,61 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     /// Gets or sets the row height in pixels for the details-view row.
     /// Set by <see cref="LibraryViewModel"/> from persisted settings.
     /// </summary>
-    [ObservableProperty] private int _detailsRowHeight = 52;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DetailsThumbnailHeight))]
+    [NotifyPropertyChangedFor(nameof(DetailsFontSize))]
+    [NotifyPropertyChangedFor(nameof(DetailsIconSize))]
+    [NotifyPropertyChangedFor(nameof(DetailsIconRadius))]
+    [NotifyPropertyChangedFor(nameof(DetailsStarSize))]
+    [NotifyPropertyChangedFor(nameof(PlayerIconSlots))]
+    private int _detailsRowHeight = 52;
+
+    /// <summary>
+    /// Gets the thumbnail panel height derived from <see cref="DetailsRowHeight"/>.
+    /// Ensures the thumbnail fills most of the row while leaving a small margin.
+    /// </summary>
+    public int DetailsThumbnailHeight => Math.Max(24, DetailsRowHeight - 4);
+
+    /// <summary>
+    /// Gets the font size for detail-row text labels, scaled with <see cref="DetailsRowHeight"/>.
+    /// </summary>
+    public int DetailsFontSize => DetailsRowHeight switch
+    {
+        <= 38 => 10,
+        <= 50 => 11,
+        <= 62 => 12,
+        <= 80 => 13,
+        _     => 14,
+    };
+
+    /// <summary>
+    /// Gets the player icon diameter in pixels, scaled with <see cref="DetailsRowHeight"/>.
+    /// </summary>
+    public int DetailsIconSize => DetailsRowHeight switch
+    {
+        <= 38 => 18,
+        <= 52 => 22,
+        <= 72 => 28,
+        <= 100 => 34,
+        _      => 40,
+    };
+
+    /// <summary>
+    /// Gets the corner radius for circular player icon borders (half of <see cref="DetailsIconSize"/>).
+    /// </summary>
+    public int DetailsIconRadius => DetailsIconSize / 2;
+
+    /// <summary>
+    /// Gets the rating star and favourite heart icon size in pixels, scaled with <see cref="DetailsRowHeight"/>.
+    /// </summary>
+    public int DetailsStarSize => DetailsRowHeight switch
+    {
+        <= 38 => 10,
+        <= 52 => 12,
+        <= 72 => 15,
+        <= 100 => 18,
+        _      => 22,
+    };
 
     /// <summary>
     /// Gets whether the selection checkbox should be visible.
@@ -200,6 +254,7 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPlayerIconBitmaps))]
+    [NotifyPropertyChangedFor(nameof(PlayerIconSlots))]
     private IReadOnlyList<Bitmap?> _playerIconBitmaps = Array.Empty<Bitmap?>();
 
     /// <summary>
@@ -207,6 +262,14 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     /// When true the icon strip is shown; when false plain text is used.
     /// </summary>
     public bool HasPlayerIconBitmaps => PlayerIconBitmaps.Any(b => b is not null);
+
+    /// <summary>
+    /// Gets the player icon slots for the details-row icon strip, each pairing a bitmap
+    /// with the current <see cref="DetailsIconSize"/> so the template can use typed bindings.
+    /// Re-evaluated whenever <see cref="PlayerIconBitmaps"/> or <see cref="DetailsIconSize"/> changes.
+    /// </summary>
+    public IReadOnlyList<PlayerIconSlotViewModel> PlayerIconSlots =>
+        PlayerIconBitmaps.Select(b => new PlayerIconSlotViewModel(b, DetailsIconSize)).ToList();
 
     /// <summary>
     /// Gets the game name suggested by the OBS filename parser, or null if none was detected.

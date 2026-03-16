@@ -376,7 +376,7 @@
                                         IsHitTestVisible="False"/>
                                 <!-- Last-visited subtle glow (shown on return from detail view) -->
                                 <Border CornerRadius="8"
-                                        BorderBrush="#60FFFFFF"
+                                        BorderBrush="#80FFD700"
                                         BorderThickness="2"
                                         IsVisible="{Binding IsLastVisited}"
                                         IsHitTestVisible="False"/>
@@ -519,24 +519,24 @@
                                             <!-- Last-visited subtle highlight -->
                                             <Border Grid.ColumnSpan="10"
                                                     IsVisible="{Binding IsLastVisited}"
-                                                    Background="#12FFFFFF"
+                                                    Background="#18FFD700"
                                                     IsHitTestVisible="False"
-                                                    BorderBrush="#40FFFFFF"
+                                                    BorderBrush="#80FFD700"
                                                     BorderThickness="3,0,0,0"/>
                                             <CheckBox Grid.Column="0"
                                                       IsChecked="{Binding IsSelected, Mode=OneWay}"
                                                       VerticalAlignment="Center"
                                                       Click="OnClipCheckBoxClicked"/>
-                                            <Panel Grid.Column="1" Height="48" Margin="0,2,8,2">
+                                            <Panel Grid.Column="1" Height="{Binding DetailsThumbnailHeight}" Margin="0,2,8,2">
                                                 <Image Source="{Binding ThumbnailBitmap}"
-                                                       Stretch="UniformToFill"
+                                                       Stretch="Uniform"
                                                        IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                                                 <Border Background="{DynamicResource SystemChromeLowColor}"
                                                         IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
                                             </Panel>
                                             <TextBlock Grid.Column="2"
                                                        Text="{Binding FileName}"
-                                                       FontSize="12"
+                                                       FontSize="{Binding DetailsFontSize}"
                                                        FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis"
                                                        VerticalAlignment="Center"
@@ -544,26 +544,26 @@
                                             <!-- Game: cover image when available, text fallback -->
                                             <Panel Grid.Column="3" VerticalAlignment="Center" ClipToBounds="True">
                                                 <Image Source="{Binding GameCoverBitmap}"
-                                                       Height="40"
+                                                       Height="{Binding DetailsThumbnailHeight}"
                                                        Stretch="Uniform"
                                                        HorizontalAlignment="Left"
                                                        IsVisible="{Binding HasGameCoverBitmap}"
                                                        ToolTip.Tip="{Binding GameName}"/>
                                                 <TextBlock Text="{Binding GameName}"
-                                                           FontSize="12"
+                                                           FontSize="{Binding DetailsFontSize}"
                                                            Opacity="0.7"
                                                            TextTrimming="CharacterEllipsis"
                                                            IsVisible="{Binding !HasGameCoverBitmap}"/>
                                             </Panel>
                                             <TextBlock Grid.Column="4"
                                                        Text="{Binding TagsDisplay}"
-                                                       FontSize="11"
+                                                       FontSize="{Binding DetailsFontSize}"
                                                        Opacity="0.7"
                                                        TextWrapping="Wrap"
                                                        VerticalAlignment="Center"/>
                                             <!-- Players: icons when available, text fallback -->
                                             <Panel Grid.Column="5" VerticalAlignment="Center">
-                                                <ItemsControl ItemsSource="{Binding PlayerIconBitmaps}"
+                                                <ItemsControl ItemsSource="{Binding PlayerIconSlots}"
                                                               IsVisible="{Binding HasPlayerIconBitmaps}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
@@ -571,60 +571,66 @@
                                                         </ItemsPanelTemplate>
                                                     </ItemsControl.ItemsPanel>
                                                     <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Border Width="22" Height="22" CornerRadius="11" ClipToBounds="True">
+                                                        <DataTemplate DataType="vm:PlayerIconSlotViewModel">
+                                                            <Border Width="{Binding Size}"
+                                                                    Height="{Binding Size}"
+                                                                    CornerRadius="{Binding Radius}"
+                                                                    ClipToBounds="True">
                                                                 <Panel>
-                                                                    <Image Source="{Binding}" Stretch="UniformToFill"
-                                                                           IsVisible="{Binding ., Converter={x:Static conv:IsNotNullConverter.Instance}}"/>
-                                                                    <icons:MaterialIcon Kind="AccountCircle" Width="22" Height="22" Opacity="0.5"
-                                                                                        IsVisible="{Binding ., Converter={x:Static conv:IsNullConverter.Instance}}"/>
+                                                                    <Image Source="{Binding Icon}" Stretch="UniformToFill"
+                                                                           IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                                                    <icons:MaterialIcon Kind="AccountCircle"
+                                                                                        Width="{Binding Size}"
+                                                                                        Height="{Binding Size}"
+                                                                                        Opacity="0.5"
+                                                                                        IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNull}}"/>
                                                                 </Panel>
                                                             </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
                                                 <TextBlock Text="{Binding PlayersDisplay}"
-                                                           FontSize="11"
+                                                           FontSize="{Binding DetailsFontSize}"
                                                            Opacity="0.7"
                                                            TextWrapping="Wrap"
                                                            IsVisible="{Binding !HasPlayerIconBitmaps}"/>
                                             </Panel>
                                             <TextBlock Grid.Column="6"
                                                        Text="{Binding RecordedAtDisplay}"
-                                                       FontSize="11"
+                                                       FontSize="{Binding DetailsFontSize}"
                                                        Opacity="0.7"
                                                        VerticalAlignment="Center"/>
                                             <TextBlock Grid.Column="7"
                                                        Text="{Binding DurationDisplay}"
-                                                       FontSize="11"
+                                                       FontSize="{Binding DetailsFontSize}"
                                                        Opacity="0.7"
                                                        VerticalAlignment="Center"/>
                                             <!-- Rating: coloured stars -->
                                             <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="1" VerticalAlignment="Center">
                                                 <Panel>
-                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated1OrMore}"/>
-                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated1OrMore}"/>
+                                                    <icons:MaterialIcon Kind="Star"       Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#FFD700" IsVisible="{Binding IsRated1OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#505050" IsVisible="{Binding !IsRated1OrMore}"/>
                                                 </Panel>
                                                 <Panel>
-                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated2OrMore}"/>
-                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated2OrMore}"/>
+                                                    <icons:MaterialIcon Kind="Star"       Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#FFD700" IsVisible="{Binding IsRated2OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#505050" IsVisible="{Binding !IsRated2OrMore}"/>
                                                 </Panel>
                                                 <Panel>
-                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated3OrMore}"/>
-                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated3OrMore}"/>
+                                                    <icons:MaterialIcon Kind="Star"       Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#FFD700" IsVisible="{Binding IsRated3OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#505050" IsVisible="{Binding !IsRated3OrMore}"/>
                                                 </Panel>
                                                 <Panel>
-                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated4OrMore}"/>
-                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated4OrMore}"/>
+                                                    <icons:MaterialIcon Kind="Star"       Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#FFD700" IsVisible="{Binding IsRated4OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#505050" IsVisible="{Binding !IsRated4OrMore}"/>
                                                 </Panel>
                                                 <Panel>
-                                                    <icons:MaterialIcon Kind="Star"       Width="12" Height="12" Foreground="#FFD700" IsVisible="{Binding IsRated5OrMore}"/>
-                                                    <icons:MaterialIcon Kind="StarBorder" Width="12" Height="12" Foreground="#505050" IsVisible="{Binding !IsRated5OrMore}"/>
+                                                    <icons:MaterialIcon Kind="Star"       Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#FFD700" IsVisible="{Binding IsRated5OrMore}"/>
+                                                    <icons:MaterialIcon Kind="StarBorder" Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#505050" IsVisible="{Binding !IsRated5OrMore}"/>
                                                 </Panel>
                                             </StackPanel>
                                             <icons:MaterialIcon Grid.Column="9"
                                                                 Kind="Heart"
-                                                                Width="14" Height="14"
+                                                                Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}"
                                                                 Foreground="#E74C3C"
                                                                 Opacity="0.85"
                                                                 VerticalAlignment="Center"

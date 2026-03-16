@@ -32,6 +32,7 @@ public partial class ClipDetailView : UserControl
         DetachedFromVisualTree += (_, _) => UnsubscribeVm();
 
         HighlightHandleCanvas.SizeChanged += (_, _) => UpdateHandlePositions();
+        TrimHandleCanvas.SizeChanged      += (_, _) => UpdateTrimHandlePositions();
 
         // The Slider template marks pointer events as Handled internally (thumb capture, track click).
         // Register with handledEventsToo: true so our BeginScrub/EndScrub handlers always fire.
@@ -111,6 +112,11 @@ public partial class ClipDetailView : UserControl
         {
             UpdateHandlePositions();
         }
+        else if (e.PropertyName is nameof(ClipDetailViewModel.TrimStartFraction)
+                                or nameof(ClipDetailViewModel.TrimEndFraction))
+        {
+            UpdateTrimHandlePositions();
+        }
     }
 
     private void UpdateHandlePositions()
@@ -120,8 +126,19 @@ public partial class ClipDetailView : UserControl
         var width = HighlightHandleCanvas.Bounds.Width;
         if (width <= 0) return;
 
-        Canvas.SetLeft(HandleStart, _vm.HighlightStartFraction * width - 6);
-        Canvas.SetLeft(HandleEnd,   _vm.HighlightEndFraction   * width - 6);
+        Canvas.SetLeft(HandleStart, _vm.HighlightStartFraction * width - 8);
+        Canvas.SetLeft(HandleEnd,   _vm.HighlightEndFraction   * width - 8);
+    }
+
+    private void UpdateTrimHandlePositions()
+    {
+        if (_vm is null) return;
+
+        var width = TrimHandleCanvas.Bounds.Width;
+        if (width <= 0) return;
+
+        Canvas.SetLeft(TrimHandleStart, _vm.TrimStartFraction * width - 8);
+        Canvas.SetLeft(TrimHandleEnd,   _vm.TrimEndFraction   * width - 8);
     }
 
     // ---- Keyboard shortcuts ----
@@ -718,6 +735,85 @@ public partial class ClipDetailView : UserControl
 
         if (result is not null)
             vm.TrimOutputPath = result.Path.LocalPath;
+    }
+
+    // ---- Highlight handle drag ----
+
+    private string? _draggingHighlightHandle;
+    private string? _draggingTrimHandle;
+
+    /// <summary>Begins dragging the highlight start handle.</summary>
+    private void OnHighlightHandleStartPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _draggingHighlightHandle = "start";
+        e.Pointer.Capture(HighlightHandleCanvas);
+        e.Handled = true;
+    }
+
+    /// <summary>Begins dragging the highlight end handle.</summary>
+    private void OnHighlightHandleEndPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _draggingHighlightHandle = "end";
+        e.Pointer.Capture(HighlightHandleCanvas);
+        e.Handled = true;
+    }
+
+    /// <summary>Updates the highlight start or end fraction while dragging.</summary>
+    private void OnHighlightCanvasPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_draggingHighlightHandle is null || _vm is null) return;
+        var width = HighlightHandleCanvas.Bounds.Width;
+        if (width <= 0) return;
+        var fraction = Math.Clamp(e.GetPosition(HighlightHandleCanvas).X / width, 0.0, 1.0);
+        if (_draggingHighlightHandle == "start")
+            _vm.SetHighlightStartFromFraction(fraction);
+        else
+            _vm.SetHighlightEndFromFraction(fraction);
+    }
+
+    /// <summary>Ends the highlight handle drag and releases pointer capture.</summary>
+    private void OnHighlightCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _draggingHighlightHandle = null;
+        e.Pointer.Capture(null);
+    }
+
+    // ---- Trim handle drag ----
+
+    /// <summary>Begins dragging the trim start handle.</summary>
+    private void OnTrimHandleStartPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _draggingTrimHandle = "start";
+        e.Pointer.Capture(TrimHandleCanvas);
+        e.Handled = true;
+    }
+
+    /// <summary>Begins dragging the trim end handle.</summary>
+    private void OnTrimHandleEndPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _draggingTrimHandle = "end";
+        e.Pointer.Capture(TrimHandleCanvas);
+        e.Handled = true;
+    }
+
+    /// <summary>Updates the trim start or end fraction while dragging.</summary>
+    private void OnTrimCanvasPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_draggingTrimHandle is null || _vm is null) return;
+        var width = TrimHandleCanvas.Bounds.Width;
+        if (width <= 0) return;
+        var fraction = Math.Clamp(e.GetPosition(TrimHandleCanvas).X / width, 0.0, 1.0);
+        if (_draggingTrimHandle == "start")
+            _vm.SetTrimStartFromFraction(fraction);
+        else
+            _vm.SetTrimEndFromFraction(fraction);
+    }
+
+    /// <summary>Ends the trim handle drag and releases pointer capture.</summary>
+    private void OnTrimCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _draggingTrimHandle = null;
+        e.Pointer.Capture(null);
     }
 
     // ---- Slider scrub support ----

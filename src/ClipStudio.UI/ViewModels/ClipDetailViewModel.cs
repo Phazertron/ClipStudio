@@ -281,6 +281,20 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
     // ---- Trim & Export ----
 
+    /// <summary>
+    /// Gets the proportional position (0.0-1.0) of the trim start mark within the clip.
+    /// Used to position the trim-start handle on the timeline overlay.
+    /// </summary>
+    public double TrimStartFraction =>
+        DurationSeconds > 0 ? _trimStart.TotalSeconds / DurationSeconds : 0;
+
+    /// <summary>
+    /// Gets the proportional position (0.0-1.0) of the trim end mark within the clip.
+    /// Used to position the trim-end handle on the timeline overlay.
+    /// </summary>
+    public double TrimEndFraction =>
+        DurationSeconds > 0 ? _trimEnd.TotalSeconds / DurationSeconds : 0;
+
     /// <summary>Gets or sets a value indicating whether the Trim and Export form is expanded.</summary>
     [ObservableProperty] private bool _isTrimming;
 
@@ -305,6 +319,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// Shown highlighted in red when true to warn the user of the irreversible action.
     /// </summary>
     [ObservableProperty] private bool _isTrimDestructive;
+
+    /// <summary>
+    /// Gets or sets a warning message shown when a destructive trim would clip highlights that fall
+    /// outside the selected trim range. Non-null triggers a confirmation UI. Cleared on confirm or cancel.
+    /// </summary>
+    [ObservableProperty] private string? _trimDestructiveWarning;
 
     private TimeSpan _trimStart = TimeSpan.Zero;
     private TimeSpan _trimEnd   = TimeSpan.Zero;
@@ -595,6 +615,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Gets the command that queues a trim export job for the current range.</summary>
     public IAsyncRelayCommand QueueTrimExportCommand { get; }
 
+    /// <summary>
+    /// Gets the command that confirms a destructive trim after the user acknowledges the warning
+    /// that highlights fall outside the trim range. Bypasses the warning check and queues immediately.
+    /// </summary>
+    public IAsyncRelayCommand ConfirmDestructiveTrimCommand { get; }
+
     /// <summary>Gets the command that releases the active highlight loop lock.</summary>
     public IRelayCommand UnlockHighlightCommand { get; }
 
@@ -730,7 +756,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         SkipForwardCommand        = new RelayCommand(() => SeekRelative(TimeSpan.FromSeconds(10)));
         FrameBackCommand          = new RelayCommand(() => SeekRelative(TimeSpan.FromSeconds(-FrameDuration)));
         FrameForwardCommand       = new RelayCommand(() => SeekRelative(TimeSpan.FromSeconds(FrameDuration)));
-        BeginAddHighlightCommand  = new RelayCommand(() => IsAddingHighlight = true);
+        BeginAddHighlightCommand  = new RelayCommand(BeginAddHighlight);
         CancelAddHighlightCommand = new RelayCommand(ResetHighlightForm);
         MarkHighlightStartCommand = new RelayCommand(MarkHighlightStart);
         MarkHighlightEndCommand   = new RelayCommand(MarkHighlightEnd);
@@ -751,7 +777,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         MarkTrimEndCommand        = new RelayCommand(MarkTrimEnd);
         CommitTrimStartCommand    = new RelayCommand(CommitTrimStart);
         CommitTrimEndCommand      = new RelayCommand(CommitTrimEnd);
-        QueueTrimExportCommand    = new AsyncRelayCommand(QueueTrimExportAsync);
+        QueueTrimExportCommand          = new AsyncRelayCommand(QueueTrimExportAsync);
+        ConfirmDestructiveTrimCommand   = new AsyncRelayCommand(ConfirmDestructiveTrimAsync);
         UnlockHighlightCommand    = new RelayCommand(() => LockedHighlight = null);
         ToggleRepeatCommand       = new RelayCommand(CycleLoopMode);
         PreviousCommand                   = new RelayCommand(() => PreviousClipRequested?.Invoke());
@@ -1435,6 +1462,18 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _isUpdatingFromPlayer = false;
     }
 
+    private void BeginAddHighlight()
+    {
+        // Mutual exclusion: close the trim form so both handle-sets never appear simultaneously.
+        if (IsTrimming)
+        {
+            IsTrimming             = false;
+            TrimDestructiveWarning = null;
+        }
+
+        IsAddingHighlight = true;
+    }
+
     private void MarkHighlightStart()
     {
         _highlightStart       = TimeSpan.FromMilliseconds(MediaPlayer.Time);
@@ -1447,6 +1486,56 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _highlightEnd       = TimeSpan.FromMilliseconds(MediaPlayer.Time);
         HighlightEndDisplay = FormatTime(_highlightEnd);
         OnPropertyChanged(nameof(HighlightEndFraction));
+    }
+
+    /// <summary>
+    /// Sets the highlight start time from a proportional canvas position dragged by the user.
+    /// Called from the view code-behind drag handler for the start handle.
+    /// </summary>
+    /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
+    public void SetHighlightStartFromFraction(double fraction)
+    {
+        _highlightStart       = TimeSpan.FromSeconds(Math.Clamp(fraction * DurationSeconds, 0, DurationSeconds));
+        HighlightStartDisplay = FormatTime(_highlightStart);
+        OnPropertyChanged(nameof(HighlightStartFraction));
+    }
+
+    /// <summary>
+    /// Sets the highlight end time from a proportional canvas position dragged by the user.
+    /// Called from the view code-behind drag handler for the end handle.
+    /// </summary>
+    /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
+    public void SetHighlightEndFromFraction(double fraction)
+    {
+        _highlightEnd       = TimeSpan.FromSeconds(Math.Clamp(fraction * DurationSeconds, 0, DurationSeconds));
+        HighlightEndDisplay = FormatTime(_highlightEnd);
+        OnPropertyChanged(nameof(HighlightEndFraction));
+    }
+
+    /// <summary>
+    /// Sets the trim start time from a proportional canvas position dragged by the user.
+    /// Called from the view code-behind drag handler for the trim-start handle.
+    /// </summary>
+    /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
+    public void SetTrimStartFromFraction(double fraction)
+    {
+        _trimStart       = TimeSpan.FromSeconds(Math.Clamp(fraction * DurationSeconds, 0, DurationSeconds));
+        TrimStartDisplay = FormatTime(_trimStart);
+        TrimStartError   = null;
+        OnPropertyChanged(nameof(TrimStartFraction));
+    }
+
+    /// <summary>
+    /// Sets the trim end time from a proportional canvas position dragged by the user.
+    /// Called from the view code-behind drag handler for the trim-end handle.
+    /// </summary>
+    /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
+    public void SetTrimEndFromFraction(double fraction)
+    {
+        _trimEnd       = TimeSpan.FromSeconds(Math.Clamp(fraction * DurationSeconds, 0, DurationSeconds));
+        TrimEndDisplay = FormatTime(_trimEnd);
+        TrimEndError   = null;
+        OnPropertyChanged(nameof(TrimEndFraction));
     }
 
     private void ResetHighlightForm()
@@ -1715,6 +1804,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     {
         if (IsWatchMode) return;
 
+        // Mutual exclusion: close the highlight form so both handle-sets never appear simultaneously.
+        if (IsAddingHighlight) ResetHighlightForm();
+
         if (_clip is not null && string.IsNullOrEmpty(TrimOutputPath))
         {
             var dir      = Path.GetDirectoryName(_clip.FilePath) ?? string.Empty;
@@ -1727,6 +1819,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _trimEnd         = _clip?.Duration ?? TimeSpan.Zero;
         TrimStartDisplay = FormatTime(_trimStart);
         TrimEndDisplay   = FormatTime(_trimEnd);
+        OnPropertyChanged(nameof(TrimStartFraction));
+        OnPropertyChanged(nameof(TrimEndFraction));
         IsTrimming       = true;
     }
 
@@ -1734,12 +1828,14 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     {
         _trimStart       = TimeSpan.FromMilliseconds(MediaPlayer.Time);
         TrimStartDisplay = FormatTime(_trimStart);
+        OnPropertyChanged(nameof(TrimStartFraction));
     }
 
     private void MarkTrimEnd()
     {
         _trimEnd       = TimeSpan.FromMilliseconds(MediaPlayer.Time);
         TrimEndDisplay = FormatTime(_trimEnd);
+        OnPropertyChanged(nameof(TrimEndFraction));
     }
 
     /// <summary>
@@ -1753,6 +1849,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             _trimStart      = ts;
             TrimStartError  = null;
             TrimStartDisplay = FormatTime(_trimStart);
+            OnPropertyChanged(nameof(TrimStartFraction));
         }
         else
         {
@@ -1772,6 +1869,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             _trimEnd      = ts;
             TrimEndError  = null;
             TrimEndDisplay = FormatTime(_trimEnd);
+            OnPropertyChanged(nameof(TrimEndFraction));
         }
         else
         {
@@ -1809,6 +1907,45 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         if (_clip is null || _trimStart >= _trimEnd || string.IsNullOrWhiteSpace(TrimOutputPath))
             return;
 
+        // CE4: warn when destructive trim would clip highlights that fall outside the trim range.
+        if (IsTrimDestructive)
+        {
+            var outside = Highlights
+                .Where(h => h.StartTime < _trimStart || h.EndTime > _trimEnd)
+                .ToList();
+
+            if (outside.Count > 0)
+            {
+                var names = string.Join(", ", outside.Take(3).Select(h => $"\"{h.Label}\""));
+                if (outside.Count > 3) names += $" and {outside.Count - 3} more";
+                TrimDestructiveWarning =
+                    $"{outside.Count} highlight{(outside.Count == 1 ? "" : "s")} " +
+                    $"fall{(outside.Count == 1 ? "s" : "")} outside the trim range and will be clipped: {names}. Queue anyway?";
+                return;
+            }
+        }
+
+        await ExecuteQueueTrimAsync();
+    }
+
+    /// <summary>
+    /// Confirms a destructive trim export after the user acknowledges the highlight-outside-range warning.
+    /// Bypasses the warning check and proceeds to queue immediately.
+    /// </summary>
+    private async Task ConfirmDestructiveTrimAsync()
+    {
+        TrimDestructiveWarning = null;
+        await ExecuteQueueTrimAsync();
+    }
+
+    /// <summary>
+    /// Queues the trim export unconditionally. Called by <see cref="QueueTrimExportAsync"/>
+    /// when no warning applies, and by <see cref="ConfirmDestructiveTrimAsync"/> after user confirmation.
+    /// </summary>
+    private async Task ExecuteQueueTrimAsync()
+    {
+        if (_clip is null) return;
+
         var trimMode = IsTrimDestructive ? TrimMode.Destructive : TrimMode.NonDestructive;
         await _exportService.QueueAsync(
             _clip.Id,
@@ -1820,6 +1957,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             _trimEnd);
 
         IsTrimming = false;
+    }
+
+    /// <summary>Clears the destructive-trim warning whenever the trim form is closed.</summary>
+    partial void OnIsTrimmingChanged(bool value)
+    {
+        if (!value) TrimDestructiveWarning = null;
     }
 
     // ---- Delete / trash ----
