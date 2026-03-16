@@ -752,20 +752,32 @@
                                                        TextTrimming="CharacterEllipsis"
                                                        VerticalAlignment="Center"
                                                        ToolTip.Tip="{Binding FileName}"/>
-                                            <!-- Game: cover image when available, text fallback -->
-                                            <Panel Grid.Column="3" VerticalAlignment="Center" ClipToBounds="True">
-                                                <Image Source="{Binding GameCoverBitmap}"
-                                                       Height="{Binding DetailsThumbnailHeight}"
-                                                       Stretch="Uniform"
-                                                       HorizontalAlignment="Left"
-                                                       IsVisible="{Binding HasGameCoverBitmap}"
-                                                       ToolTip.Tip="{Binding GameName}"/>
-                                                <TextBlock Text="{Binding GameName}"
-                                                           FontSize="{Binding DetailsFontSize}"
-                                                           Opacity="0.7"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           IsVisible="{Binding !HasGameCoverBitmap}"/>
-                                            </Panel>
+                                            <!-- Game: cover image when available, text fallback; click to quick-filter -->
+                                            <Button Grid.Column="3"
+                                                    Command="{Binding QuickFilterByGameCommand}"
+                                                    ToolTip.Tip="Filter by this game"
+                                                    Cursor="Hand"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="0"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Stretch"
+                                                    IsEnabled="{Binding GameTagId, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                                <Panel ClipToBounds="True">
+                                                    <Image Source="{Binding GameCoverBitmap}"
+                                                           Height="{Binding DetailsThumbnailHeight}"
+                                                           Stretch="Uniform"
+                                                           HorizontalAlignment="Left"
+                                                           IsVisible="{Binding HasGameCoverBitmap}"
+                                                           ToolTip.Tip="{Binding GameName}"/>
+                                                    <TextBlock Text="{Binding GameName}"
+                                                               FontSize="{Binding DetailsFontSize}"
+                                                               Opacity="0.7"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               IsVisible="{Binding !HasGameCoverBitmap}"/>
+                                                </Panel>
+                                            </Button>
                                             <TextBlock Grid.Column="4"
                                                        Text="{Binding TagsDisplay}"
                                                        FontSize="{Binding DetailsFontSize}"
@@ -783,20 +795,28 @@
                                                     </ItemsControl.ItemsPanel>
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate DataType="vm:PlayerIconSlotViewModel">
-                                                            <Border Width="{Binding Size}"
-                                                                    Height="{Binding Size}"
-                                                                    CornerRadius="{Binding Radius}"
-                                                                    ClipToBounds="True">
-                                                                <Panel>
-                                                                    <Image Source="{Binding Icon}" Stretch="UniformToFill"
-                                                                           IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"/>
-                                                                    <icons:MaterialIcon Kind="AccountCircle"
-                                                                                        Width="{Binding Size}"
-                                                                                        Height="{Binding Size}"
-                                                                                        Opacity="0.5"
-                                                                                        IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNull}}"/>
-                                                                </Panel>
-                                                            </Border>
+                                                            <Button Command="{Binding QuickFilterCommand}"
+                                                                    ToolTip.Tip="Filter by this player"
+                                                                    Cursor="Hand"
+                                                                    Background="Transparent"
+                                                                    BorderThickness="0"
+                                                                    Padding="0"
+                                                                    IsEnabled="{Binding QuickFilterCommand, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                                                <Border Width="{Binding Size}"
+                                                                        Height="{Binding Size}"
+                                                                        CornerRadius="{Binding Radius}"
+                                                                        ClipToBounds="True">
+                                                                    <Panel>
+                                                                        <Image Source="{Binding Icon}" Stretch="UniformToFill"
+                                                                               IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                                                        <icons:MaterialIcon Kind="AccountCircle"
+                                                                                            Width="{Binding Size}"
+                                                                                            Height="{Binding Size}"
+                                                                                            Opacity="0.5"
+                                                                                            IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                                                    </Panel>
+                                                                </Border>
+                                                            </Button>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
