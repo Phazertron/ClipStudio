@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IGameTagAliasService, GameTagAliasService>();
         services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<ITagSuggestionService, TagSuggestionService>();
+        services.AddScoped<IFilterPresetService, FilterPresetService>();
         services.AddSingleton<IRecycleBinService, RecycleBinService>();
 
         // Steam game search: credential-free, uses a named HttpClient.

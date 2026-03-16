@@ -98,6 +98,7 @@
                 BorderBrush="{DynamicResource SystemChromeHighColor}"
                 BorderThickness="0,0,0,1"
                 Background="{DynamicResource SystemChromeMediumLowColor}">
+            <StackPanel Spacing="0">
             <WrapPanel Orientation="Horizontal">
 
                 <!-- Status filter -->
@@ -125,9 +126,9 @@
                     <TextBlock Text="Game:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
                     <ComboBox ItemsSource="{Binding AvailableGameTags}"
                               SelectedItem="{Binding FilterGameTag}"
-                              PlaceholderText="All games"
+                              PlaceholderText="Add game filter..."
                               FontSize="12"
-                              MinWidth="120">
+                              MinWidth="140">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Name}" FontSize="12"/>
@@ -136,8 +137,8 @@
                     </ComboBox>
                     <Button Command="{Binding ClearGameFilterCommand}"
                             Padding="3"
-                            ToolTip.Tip="Clear game filter"
-                            IsVisible="{Binding FilterGameTag, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            ToolTip.Tip="Clear all game chips"
+                            IsVisible="{Binding FilterGameChips.Count, Converter={x:Static conv:IsPositiveConverter.Instance}}">
                         <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
                     </Button>
                 </StackPanel>
@@ -147,9 +148,9 @@
                     <TextBlock Text="Tag:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
                     <ComboBox ItemsSource="{Binding AvailableTags}"
                               SelectedItem="{Binding SelectedFilterTag}"
-                              PlaceholderText="All tags"
+                              PlaceholderText="Add tag filter..."
                               FontSize="12"
-                              MinWidth="120">
+                              MinWidth="140">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Name}" FontSize="12"/>
@@ -158,8 +159,8 @@
                     </ComboBox>
                     <Button Command="{Binding ClearTagFilterCommand}"
                             Padding="3"
-                            ToolTip.Tip="Clear tag filter"
-                            IsVisible="{Binding SelectedFilterTag, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            ToolTip.Tip="Clear all tag chips"
+                            IsVisible="{Binding FilterTagChips.Count, Converter={x:Static conv:IsPositiveConverter.Instance}}">
                         <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
                     </Button>
                 </StackPanel>
@@ -169,9 +170,9 @@
                     <TextBlock Text="Player:" FontSize="12" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,2,0"/>
                     <ComboBox ItemsSource="{Binding AvailablePlayers}"
                               SelectedItem="{Binding SelectedFilterPlayer}"
-                              PlaceholderText="All players"
+                              PlaceholderText="Add player filter..."
                               FontSize="12"
-                              MinWidth="120">
+                              MinWidth="140">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding DisplayName}" FontSize="12"/>
@@ -180,8 +181,8 @@
                     </ComboBox>
                     <Button Command="{Binding ClearPlayerFilterCommand}"
                             Padding="3"
-                            ToolTip.Tip="Clear player filter"
-                            IsVisible="{Binding SelectedFilterPlayer, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            ToolTip.Tip="Clear all player chips"
+                            IsVisible="{Binding FilterPlayerChips.Count, Converter={x:Static conv:IsPositiveConverter.Instance}}">
                         <icons:MaterialIcon Kind="Close" Width="10" Height="10"/>
                     </Button>
                 </StackPanel>
@@ -241,6 +242,196 @@
                         VerticalAlignment="Center"/>
 
             </WrapPanel>
+
+            <!-- Active filter chips -->
+            <StackPanel Spacing="4" Margin="0,6,0,0"
+                        IsVisible="{Binding FilterGameChips.Count, Converter={x:Static conv:IsPositiveConverter.Instance}}">
+                <TextBlock Text="GAME" FontSize="10" Opacity="0.5" FontWeight="SemiBold"/>
+                <ItemsControl ItemsSource="{Binding FilterGameChips}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FilterChipViewModel">
+                            <Border CornerRadius="12"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                    Margin="0,0,4,4"
+                                    Padding="6,2">
+                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                    <icons:MaterialIcon Kind="Cancel"
+                                                        Width="11" Height="11"
+                                                        Foreground="#E74C3C"
+                                                        IsVisible="{Binding IsExcluded}"
+                                                        VerticalAlignment="Center"/>
+                                    <Button Command="{Binding ToggleExcludeCommand}"
+                                            ToolTip.Tip="{Binding TooltipText}"
+                                            Padding="0"
+                                            Background="Transparent"
+                                            BorderThickness="0">
+                                        <TextBlock Text="{Binding Name}" FontSize="11"/>
+                                    </Button>
+                                    <Button Command="{Binding RemoveCommand}"
+                                            Padding="1"
+                                            Background="Transparent"
+                                            BorderThickness="0">
+                                        <icons:MaterialIcon Kind="Close" Width="9" Height="9"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <StackPanel Spacing="4" Margin="0,6,0,0"
+                        IsVisible="{Binding FilterTagChips.Count, Converter={x:Static conv:IsPositiveConverter.Instance}}">
+                <TextBlock Text="TAGS" FontSize="10" Opacity="0.5" FontWeight="SemiBold"/>
+                <ItemsControl ItemsSource="{Binding FilterTagChips}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FilterChipViewModel">
+                            <Border CornerRadius="12"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                    Margin="0,0,4,4"
+                                    Padding="6,2">
+                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                    <icons:MaterialIcon Kind="Cancel"
+                                                        Width="11" Height="11"
+                                                        Foreground="#E74C3C"
+                                                        IsVisible="{Binding IsExcluded}"
+                                                        VerticalAlignment="Center"/>
+                                    <Button Command="{Binding ToggleExcludeCommand}"
+                                            ToolTip.Tip="{Binding TooltipText}"
+                                            Padding="0"
+                                            Background="Transparent"
+                                            BorderThickness="0">
+                                        <TextBlock Text="{Binding Name}" FontSize="11"/>
+                                    </Button>
+                                    <Button Command="{Binding RemoveCommand}"
+                                            Padding="1"
+                                            Background="Transparent"
+                                            BorderThickness="0">
+                                        <icons:MaterialIcon Kind="Close" Width="9" Height="9"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <StackPanel Spacing="4" Margin="0,6,0,0"
+                        IsVisible="{Binding FilterPlayerChips.Count, Converter={x:Static conv:IsPositiveConverter.Instance}}">
+                <TextBlock Text="PLAYERS" FontSize="10" Opacity="0.5" FontWeight="SemiBold"/>
+                <ItemsControl ItemsSource="{Binding FilterPlayerChips}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FilterChipViewModel">
+                            <Border CornerRadius="12"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                    Margin="0,0,4,4"
+                                    Padding="6,2">
+                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                    <icons:MaterialIcon Kind="Cancel"
+                                                        Width="11" Height="11"
+                                                        Foreground="#E74C3C"
+                                                        IsVisible="{Binding IsExcluded}"
+                                                        VerticalAlignment="Center"/>
+                                    <Button Command="{Binding ToggleExcludeCommand}"
+                                            ToolTip.Tip="{Binding TooltipText}"
+                                            Padding="0"
+                                            Background="Transparent"
+                                            BorderThickness="0">
+                                        <TextBlock Text="{Binding Name}" FontSize="11"/>
+                                    </Button>
+                                    <Button Command="{Binding RemoveCommand}"
+                                            Padding="1"
+                                            Background="Transparent"
+                                            BorderThickness="0">
+                                        <icons:MaterialIcon Kind="Close" Width="9" Height="9"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Preset save / load -->
+            <Border Margin="0,8,0,0"
+                    Padding="8,6"
+                    CornerRadius="4"
+                    Background="{DynamicResource SystemChromeMediumColor}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="FILTER PRESETS" FontSize="10" Opacity="0.5" FontWeight="SemiBold"/>
+                    <!-- Save row -->
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBox Text="{Binding SavePresetName}"
+                                 Watermark="Preset name..."
+                                 FontSize="12"
+                                 Width="180"
+                                 Padding="6,3"/>
+                        <Button Command="{Binding SaveFilterPresetCommand}"
+                                FontSize="12"
+                                Padding="8,3"
+                                ToolTip.Tip="Save current filters as a preset">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <icons:MaterialIcon Kind="ContentSave" Width="13" Height="13"/>
+                                <TextBlock Text="Save" FontSize="12"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <!-- Saved presets list -->
+                    <ItemsControl ItemsSource="{Binding SavedPresets}"
+                                  IsVisible="{Binding SavedPresets.Count, Converter={x:Static conv:IsPositiveConverter.Instance}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:FilterPresetRowViewModel">
+                                <Border CornerRadius="4"
+                                        BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                        BorderThickness="1"
+                                        Margin="0,0,4,4"
+                                        Padding="6,3">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <Button Command="{Binding LoadCommand}"
+                                                Padding="0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                ToolTip.Tip="Apply this preset">
+                                            <TextBlock Text="{Binding Name}" FontSize="11"/>
+                                        </Button>
+                                        <Button Command="{Binding DeleteCommand}"
+                                                Padding="1"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                ToolTip.Tip="Delete preset">
+                                            <icons:MaterialIcon Kind="TrashCanOutline" Width="11" Height="11"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+            </StackPanel>
         </Border>
 
         <!-- ===== Main content: clips + bulk edit panel ===== -->

@@ -25,6 +25,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
     private readonly IClipService _clipService;
     private readonly ITagService _tagService;
     private readonly IPlayerService _playerService;
+    private readonly IFilterPresetService _filterPresetService;
 
     // ---- Copy-format source ----
     private ClipCardViewModel? _copyFormatSource;
@@ -233,6 +234,28 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Gets the selected player identifiers used to filter clips by player.</summary>
     public ObservableCollection<int> SelectedPlayerIds { get; } = new();
 
+    // ---- Multi-value chip filters ----
+
+    /// <summary>Gets the active tag filter chips (each can be include or exclude).</summary>
+    public ObservableCollection<FilterChipViewModel> FilterTagChips { get; } = new();
+
+    /// <summary>Gets the active game filter chips (each can be include or exclude).</summary>
+    public ObservableCollection<FilterChipViewModel> FilterGameChips { get; } = new();
+
+    /// <summary>Gets the active player filter chips (each can be include or exclude).</summary>
+    public ObservableCollection<FilterChipViewModel> FilterPlayerChips { get; } = new();
+
+    // ---- Filter presets ----
+
+    /// <summary>Gets the list of saved filter presets.</summary>
+    public ObservableCollection<FilterPresetRowViewModel> SavedPresets { get; } = new();
+
+    /// <summary>Gets or sets the name entered by the user for a new preset to save.</summary>
+    [ObservableProperty] private string _savePresetName = string.Empty;
+
+    /// <summary>Gets the command that saves the current filter state as a named preset.</summary>
+    public IAsyncRelayCommand SaveFilterPresetCommand { get; }
+
     // ---- Picker data ----
 
     /// <summary>Gets the list of all general tags available for filtering and bulk editing.</summary>
@@ -421,24 +444,27 @@ public sealed partial class LibraryViewModel : ViewModelBase
     public LibraryViewModel(
         IClipService clipService,
         ITagService tagService,
-        IPlayerService playerService)
+        IPlayerService playerService,
+        IFilterPresetService filterPresetService)
     {
-        _clipService   = clipService;
-        _tagService    = tagService;
-        _playerService = playerService;
+        _clipService          = clipService;
+        _tagService           = tagService;
+        _playerService        = playerService;
+        _filterPresetService  = filterPresetService;
 
         LoadCommand                = new AsyncRelayCommand(LoadAsync);
         ToggleFilterPanelCommand   = new RelayCommand(() => IsFilterPanelOpen = !IsFilterPanelOpen);
         ClearFiltersCommand        = new RelayCommand(ClearFilters);
         ToggleViewModeCommand      = new RelayCommand(() => ViewMode = IsTilesView ? "Details" : "Tiles");
         ClearStatusFilterCommand   = new RelayCommand(() => FilterStatus     = null);
-        ClearGameFilterCommand     = new RelayCommand(() => FilterGameTag    = null);
+        ClearGameFilterCommand     = new RelayCommand(() => { FilterGameChips.Clear(); FilterGameTag = null; });
         ClearDateFromCommand       = new RelayCommand(() => FilterDateFrom   = null);
         ClearDateToCommand         = new RelayCommand(() => FilterDateTo     = null);
         ClearFavouriteFilterCommand = new RelayCommand(() => FilterIsFavourite  = null);
-        ClearTagFilterCommand       = new RelayCommand(() => SelectedFilterTag    = null);
-        ClearPlayerFilterCommand    = new RelayCommand(() => SelectedFilterPlayer = null);
+        ClearTagFilterCommand       = new RelayCommand(() => { FilterTagChips.Clear(); SelectedFilterTag = null; });
+        ClearPlayerFilterCommand    = new RelayCommand(() => { FilterPlayerChips.Clear(); SelectedFilterPlayer = null; });
         SetSortCommand              = new RelayCommand<string>(SetSort);
+        SaveFilterPresetCommand     = new AsyncRelayCommand(SaveFilterPresetAsync);
 
         SelectAllCommand           = new RelayCommand(SelectAll);
         DeselectAllCommand         = new RelayCommand(DeselectAll);
@@ -473,7 +499,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
         DecreaseRowHeightCommand  = new RelayCommand(DecreaseRowHeight);
         ResetColumnWidthsCommand  = new RelayCommand(() => ColumnWidthsResetRequested?.Invoke());
 
-        SelectedClips.CollectionChanged += OnSelectedClipsChanged;
+        SelectedClips.CollectionChanged     += OnSelectedClipsChanged;
+        FilterTagChips.CollectionChanged    += OnFilterChipsChanged;
+        FilterGameChips.CollectionChanged   += OnFilterChipsChanged;
+        FilterPlayerChips.CollectionChanged += OnFilterChipsChanged;
     }
 
     private void OnSelectedClipsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -584,10 +613,34 @@ public sealed partial class LibraryViewModel : ViewModelBase
     partial void OnFilterStatusChanged(ClipStatus? value)   { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
     partial void OnFilterDateFromChanged(DateTime? value)   { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
     partial void OnFilterDateToChanged(DateTime? value)     { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
-    partial void OnFilterGameTagChanged(Tag? value)         { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
     partial void OnFilterIsFavouriteChanged(bool? value)    { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
-    partial void OnSelectedFilterTagChanged(Tag? value)     { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
-    partial void OnSelectedFilterPlayerChanged(Player? value) { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
+
+    partial void OnFilterGameTagChanged(Tag? value)
+    {
+        if (_suppressFilterChanges || value is null) return;
+        AddFilterChip(FilterGameChips, value.Id, value.Name);
+        FilterGameTag = null; // clear the picker after adding chip
+    }
+
+    partial void OnSelectedFilterTagChanged(Tag? value)
+    {
+        if (_suppressFilterChanges || value is null) return;
+        AddFilterChip(FilterTagChips, value.Id, value.Name);
+        SelectedFilterTag = null; // clear the picker after adding chip
+    }
+
+    partial void OnSelectedFilterPlayerChanged(Player? value)
+    {
+        if (_suppressFilterChanges || value is null) return;
+        AddFilterChip(FilterPlayerChips, value.Id, value.DisplayName);
+        SelectedFilterPlayer = null; // clear the picker after adding chip
+    }
+
+    private void OnFilterChipsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (!_suppressFilterChanges)
+            LoadCommand.Execute(null);
+    }
 
     // ---- Multi-select helpers ----
 
@@ -1067,26 +1120,29 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     private ClipSearchQuery BuildQuery()
     {
-        var tagIds = SelectedTagIds.ToList();
-        if (FilterGameTag is not null)
-            tagIds.Add(FilterGameTag.Id);
-        if (SelectedFilterTag is not null)
-            tagIds.Add(SelectedFilterTag.Id);
+        var includedTagIds = FilterTagChips.Where(c => !c.IsExcluded).Select(c => c.Id)
+            .Concat(FilterGameChips.Where(c => !c.IsExcluded).Select(c => c.Id))
+            .ToList();
 
-        var playerIds = SelectedPlayerIds.ToList();
-        if (SelectedFilterPlayer is not null)
-            playerIds.Add(SelectedFilterPlayer.Id);
+        var excludedTagIds = FilterTagChips.Where(c => c.IsExcluded).Select(c => c.Id)
+            .Concat(FilterGameChips.Where(c => c.IsExcluded).Select(c => c.Id))
+            .ToList();
+
+        var includedPlayerIds = FilterPlayerChips.Where(c => !c.IsExcluded).Select(c => c.Id).ToList();
+        var excludedPlayerIds = FilterPlayerChips.Where(c => c.IsExcluded).Select(c => c.Id).ToList();
 
         return new ClipSearchQuery
         {
-            SearchText      = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim(),
-            Status          = FilterStatus,
-            ExcludeArchived = false,
-            CreatedFrom     = FilterDateFrom.HasValue ? DateTime.SpecifyKind(FilterDateFrom.Value.Date, DateTimeKind.Local).ToUniversalTime() : null,
-            CreatedTo       = FilterDateTo.HasValue ? DateTime.SpecifyKind(FilterDateTo.Value.Date.AddDays(1), DateTimeKind.Local).ToUniversalTime() : null,
-            IsFavourite     = FilterIsFavourite,
-            TagIds          = tagIds,
-            PlayerIds       = playerIds,
+            SearchText        = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim(),
+            Status            = FilterStatus,
+            ExcludeArchived   = false,
+            CreatedFrom       = FilterDateFrom.HasValue ? DateTime.SpecifyKind(FilterDateFrom.Value.Date, DateTimeKind.Local).ToUniversalTime() : null,
+            CreatedTo         = FilterDateTo.HasValue ? DateTime.SpecifyKind(FilterDateTo.Value.Date.AddDays(1), DateTimeKind.Local).ToUniversalTime() : null,
+            IsFavourite       = FilterIsFavourite,
+            TagIds            = includedTagIds,
+            PlayerIds         = includedPlayerIds,
+            ExcludedTagIds    = excludedTagIds,
+            ExcludedPlayerIds = excludedPlayerIds,
         };
     }
 
@@ -1115,10 +1171,6 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     private async Task LoadPickersAsync()
     {
-        var savedGameTag      = FilterGameTag;
-        var savedFilterTag    = SelectedFilterTag;
-        var savedFilterPlayer = SelectedFilterPlayer;
-
         _suppressFilterChanges = true;
         try
         {
@@ -1137,26 +1189,22 @@ public sealed partial class LibraryViewModel : ViewModelBase
             foreach (var p in players)
                 AvailablePlayers.Add(p);
 
-            FilterGameTag        = savedGameTag      is not null ? AvailableGameTags.FirstOrDefault(t => t.Id == savedGameTag.Id)       : null;
-            SelectedFilterTag    = savedFilterTag    is not null ? AvailableTags.FirstOrDefault(t => t.Id == savedFilterTag.Id)          : null;
-            SelectedFilterPlayer = savedFilterPlayer is not null ? AvailablePlayers.FirstOrDefault(p => p.Id == savedFilterPlayer.Id)    : null;
-
-            // Apply one-shot presets set by PresetFilters() (only overrides if currently unset).
+            // Apply one-shot chips set by PresetFilters() (called from MainWindowViewModel navigation).
             var presetApplied = false;
-            if (_presetGameTagId.HasValue && FilterGameTag is null)
+            if (_presetGameTagId.HasValue && !FilterGameChips.Any(c => c.Id == _presetGameTagId.Value))
             {
-                FilterGameTag   = AvailableGameTags.FirstOrDefault(t => t.Id == _presetGameTagId.Value);
-                presetApplied   = FilterGameTag is not null;
+                var gameTag = AvailableGameTags.FirstOrDefault(t => t.Id == _presetGameTagId.Value);
+                if (gameTag is not null) { AddFilterChip(FilterGameChips, gameTag.Id, gameTag.Name); presetApplied = true; }
             }
-            if (_presetTagId.HasValue && SelectedFilterTag is null)
+            if (_presetTagId.HasValue && !FilterTagChips.Any(c => c.Id == _presetTagId.Value))
             {
-                SelectedFilterTag = AvailableTags.FirstOrDefault(t => t.Id == _presetTagId.Value);
-                presetApplied     = presetApplied || SelectedFilterTag is not null;
+                var tag = AvailableTags.FirstOrDefault(t => t.Id == _presetTagId.Value);
+                if (tag is not null) { AddFilterChip(FilterTagChips, tag.Id, tag.Name); presetApplied = true; }
             }
-            if (_presetPlayerId.HasValue && SelectedFilterPlayer is null)
+            if (_presetPlayerId.HasValue && !FilterPlayerChips.Any(c => c.Id == _presetPlayerId.Value))
             {
-                SelectedFilterPlayer = AvailablePlayers.FirstOrDefault(p => p.Id == _presetPlayerId.Value);
-                presetApplied        = presetApplied || SelectedFilterPlayer is not null;
+                var player = AvailablePlayers.FirstOrDefault(p => p.Id == _presetPlayerId.Value);
+                if (player is not null) { AddFilterChip(FilterPlayerChips, player.Id, player.DisplayName); presetApplied = true; }
             }
             if (presetApplied)
                 IsFilterPanelOpen = true;
@@ -1164,6 +1212,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
             _presetGameTagId = null;
             _presetTagId     = null;
             _presetPlayerId  = null;
+
+            await LoadPresetsAsync();
         }
         finally
         {
@@ -1182,6 +1232,136 @@ public sealed partial class LibraryViewModel : ViewModelBase
         SelectedFilterPlayer = null;
         SelectedTagIds.Clear();
         SelectedPlayerIds.Clear();
+        FilterTagChips.Clear();
+        FilterGameChips.Clear();
+        FilterPlayerChips.Clear();
+    }
+
+    // ---- Filter chip helpers ----
+
+    /// <summary>
+    /// Adds a filter chip to <paramref name="collection"/> if one with the same <paramref name="id"/> does not
+    /// already exist. The chip fires the <see cref="OnFilterChipsChanged"/> handler when removed
+    /// or when its include/exclude state is toggled.
+    /// </summary>
+    private void AddFilterChip(ObservableCollection<FilterChipViewModel> collection, int id, string name, bool isExcluded = false)
+    {
+        if (collection.Any(c => c.Id == id)) return;
+        var chip = new FilterChipViewModel(id, name,
+            onRemove: c => collection.Remove(c),
+            onChange: _ => { if (!_suppressFilterChanges) LoadCommand.Execute(null); });
+        if (isExcluded) chip.IsExcluded = true;
+        collection.Add(chip);
+    }
+
+    // ---- Filter preset persistence ----
+
+    private async Task LoadPresetsAsync()
+    {
+        var presets = await _filterPresetService.GetAllAsync();
+        SavedPresets.Clear();
+        foreach (var p in presets)
+        {
+            var captured = p;
+            SavedPresets.Add(new FilterPresetRowViewModel(
+                captured.Id,
+                captured.Name,
+                onLoad: () => ApplyPreset(captured),
+                onDeleteAsync: async () =>
+                {
+                    await _filterPresetService.DeleteAsync(captured.Id);
+                    await LoadPresetsAsync();
+                }));
+        }
+    }
+
+    private void ApplyPreset(FilterPreset preset)
+    {
+        _suppressFilterChanges = true;
+        try
+        {
+            ClearFilters();
+
+            if (!string.IsNullOrEmpty(preset.Status) && Enum.TryParse<ClipStatus>(preset.Status, out var status))
+                FilterStatus = status;
+            FilterIsFavourite = preset.IsFavourite;
+
+            foreach (var id in ParseIds(preset.IncludedTagIds))
+            {
+                var tag = AvailableTags.FirstOrDefault(t => t.Id == id);
+                if (tag is not null)
+                    AddFilterChip(FilterTagChips, tag.Id, tag.Name);
+                else
+                {
+                    var gameTag = AvailableGameTags.FirstOrDefault(t => t.Id == id);
+                    if (gameTag is not null) AddFilterChip(FilterGameChips, gameTag.Id, gameTag.Name);
+                }
+            }
+            foreach (var id in ParseIds(preset.ExcludedTagIds))
+            {
+                var tag = AvailableTags.FirstOrDefault(t => t.Id == id);
+                if (tag is not null)
+                    AddFilterChip(FilterTagChips, tag.Id, tag.Name, isExcluded: true);
+                else
+                {
+                    var gameTag = AvailableGameTags.FirstOrDefault(t => t.Id == id);
+                    if (gameTag is not null) AddFilterChip(FilterGameChips, gameTag.Id, gameTag.Name, isExcluded: true);
+                }
+            }
+            foreach (var id in ParseIds(preset.IncludedPlayerIds))
+            {
+                var player = AvailablePlayers.FirstOrDefault(p => p.Id == id);
+                if (player is not null) AddFilterChip(FilterPlayerChips, player.Id, player.DisplayName);
+            }
+            foreach (var id in ParseIds(preset.ExcludedPlayerIds))
+            {
+                var player = AvailablePlayers.FirstOrDefault(p => p.Id == id);
+                if (player is not null) AddFilterChip(FilterPlayerChips, player.Id, player.DisplayName, isExcluded: true);
+            }
+
+            IsFilterPanelOpen = true;
+        }
+        finally
+        {
+            _suppressFilterChanges = false;
+            LoadCommand.Execute(null);
+        }
+    }
+
+    private async Task SaveFilterPresetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SavePresetName)) return;
+
+        var allIncludedTagIds = FilterTagChips.Where(c => !c.IsExcluded).Select(c => c.Id)
+            .Concat(FilterGameChips.Where(c => !c.IsExcluded).Select(c => c.Id)).ToList();
+        var allExcludedTagIds = FilterTagChips.Where(c => c.IsExcluded).Select(c => c.Id)
+            .Concat(FilterGameChips.Where(c => c.IsExcluded).Select(c => c.Id)).ToList();
+        var includedPlayerIds = FilterPlayerChips.Where(c => !c.IsExcluded).Select(c => c.Id).ToList();
+        var excludedPlayerIds = FilterPlayerChips.Where(c => c.IsExcluded).Select(c => c.Id).ToList();
+
+        var preset = new FilterPreset
+        {
+            Name              = SavePresetName.Trim(),
+            IncludedTagIds    = allIncludedTagIds.Count > 0 ? string.Join(",", allIncludedTagIds) : null,
+            ExcludedTagIds    = allExcludedTagIds.Count > 0 ? string.Join(",", allExcludedTagIds) : null,
+            IncludedPlayerIds = includedPlayerIds.Count > 0 ? string.Join(",", includedPlayerIds) : null,
+            ExcludedPlayerIds = excludedPlayerIds.Count > 0 ? string.Join(",", excludedPlayerIds) : null,
+            Status            = FilterStatus?.ToString(),
+            IsFavourite       = FilterIsFavourite,
+        };
+
+        await _filterPresetService.SaveAsync(preset);
+        SavePresetName = string.Empty;
+        await LoadPresetsAsync();
+    }
+
+    private static IReadOnlyList<int> ParseIds(string? csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) return [];
+        return csv.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s.Trim(), out var id) ? id : -1)
+            .Where(id => id > 0)
+            .ToList();
     }
 
     // ---- Preset filters (called by MainWindowViewModel before navigating to Library) ----
