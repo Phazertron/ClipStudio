@@ -592,6 +592,21 @@ public sealed partial class LibraryViewModel : ViewModelBase
                 var card = new ClipCardViewModel(clip);
                 card.DetailsRowHeight = DetailsRowHeight;
                 card.IsLastVisited    = clip.Id == _lastOpenedClipId;
+
+                // Wire quick-filter callbacks so clicking game/player in the details row adds a chip.
+                card.QuickFilterGameRequested = id =>
+                {
+                    var name = AvailableGameTags.FirstOrDefault(t => t.Id == id)?.Name ?? "?";
+                    AddFilterChip(FilterGameChips, id, name);
+                    IsFilterPanelOpen = true;
+                };
+                card.QuickFilterPlayerRequested = id =>
+                {
+                    var name = AvailablePlayers.FirstOrDefault(p => p.Id == id)?.DisplayName ?? "?";
+                    AddFilterChip(FilterPlayerChips, id, name);
+                    IsFilterPanelOpen = true;
+                };
+
                 Clips.Add(card);
             }
 

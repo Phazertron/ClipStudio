@@ -9,6 +9,7 @@ using Avalonia.Media.Imaging;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace ClipStudio.UI.ViewModels;
 
@@ -275,7 +276,32 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     /// Re-evaluated whenever <see cref="PlayerIconBitmaps"/> or <see cref="DetailsIconSize"/> changes.
     /// </summary>
     public IReadOnlyList<PlayerIconSlotViewModel> PlayerIconSlots =>
-        PlayerIconBitmaps.Select(b => new PlayerIconSlotViewModel(b, DetailsIconSize)).ToList();
+        PlayerIconBitmaps
+            .Select((b, i) => new PlayerIconSlotViewModel(
+                b, DetailsIconSize,
+                i < PlayerTagIds.Count ? PlayerTagIds[i] : 0,
+                QuickFilterPlayerRequested))
+            .ToList();
+
+    // ---- Quick-filter callbacks (set by LibraryViewModel after card creation) ----
+
+    /// <summary>
+    /// Optional callback invoked when the user clicks the game element in the details row to
+    /// add that game as a library filter chip. Set by <see cref="LibraryViewModel"/> after creation.
+    /// </summary>
+    public Action<int>? QuickFilterGameRequested { get; set; }
+
+    /// <summary>
+    /// Optional callback invoked when the user clicks a player icon in the details row to
+    /// add that player as a library filter chip. Set by <see cref="LibraryViewModel"/> after creation.
+    /// </summary>
+    public Action<int>? QuickFilterPlayerRequested { get; set; }
+
+    /// <summary>
+    /// Gets the command that adds this clip's game to the library filter chip list.
+    /// Enabled only when a game tag is set.
+    /// </summary>
+    public IRelayCommand QuickFilterByGameCommand { get; }
 
     /// <summary>
     /// Gets the game name suggested by the OBS filename parser, or null if none was detected.
@@ -354,6 +380,10 @@ public sealed partial class ClipCardViewModel : ViewModelBase
         PlayersDisplay = string.Join(", ", clip.ClipPlayers
             .Where(cp => cp.Player is not null)
             .Select(cp => cp.Player.DisplayName));
+
+        QuickFilterByGameCommand = new RelayCommand(
+            () => QuickFilterGameRequested?.Invoke(GameTagId!.Value),
+            () => GameTagId.HasValue);
     }
 
     /// <summary>
