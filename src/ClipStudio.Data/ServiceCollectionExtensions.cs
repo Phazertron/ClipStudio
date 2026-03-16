@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPlayerRepository, PlayerRepository>();
         services.AddScoped<IAudioTrackRepository, AudioTrackRepository>();
         services.AddScoped<IGameTagAliasRepository, GameTagAliasRepository>();
+        services.AddScoped<IFilterPresetRepository, FilterPresetRepository>();
 
         return services;
     }

@@ -70,6 +70,11 @@ public sealed class ClipService : IClipService
                             h.Label != null && h.Label.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase)))
             .Where(c => query.PlayerIds.Count == 0 ||
                         c.ClipPlayers.Any(cp => query.PlayerIds.Contains(cp.PlayerId)))
+            .Where(c => query.ExcludedTagIds.Count == 0 ||
+                        (!c.ClipTags.Any(ct => query.ExcludedTagIds.Contains(ct.TagId)) &&
+                         !c.Highlights.Any(h => h.HighlightTags.Any(ht => query.ExcludedTagIds.Contains(ht.TagId)))))
+            .Where(c => query.ExcludedPlayerIds.Count == 0 ||
+                        !c.ClipPlayers.Any(cp => query.ExcludedPlayerIds.Contains(cp.PlayerId)))
             .ToList();
     }
 

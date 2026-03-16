@@ -62,4 +62,18 @@ public sealed class ClipSearchQuery
     /// Empty list means no player filter is applied.
     /// </summary>
     public IList<int> PlayerIds { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets tag identifiers to exclude.
+    /// A clip is hidden if it (or any of its highlights) carries any of the listed tags.
+    /// Empty list means no tag exclusions are applied.
+    /// </summary>
+    public IList<int> ExcludedTagIds { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets player identifiers to exclude.
+    /// A clip is hidden if it is tagged with any of the listed players.
+    /// Empty list means no player exclusions are applied.
+    /// </summary>
+    public IList<int> ExcludedPlayerIds { get; set; } = [];
 }

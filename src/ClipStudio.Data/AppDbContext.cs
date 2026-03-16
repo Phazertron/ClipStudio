@@ -58,6 +58,9 @@ public sealed class AppDbContext : DbContext
     /// <summary>Gets or sets the game-tag alias mappings (OBS string → Game Tag).</summary>
     public DbSet<GameTagAlias> GameTagAliases => Set<GameTagAlias>();
 
+    /// <summary>Gets or sets the saved library filter presets.</summary>
+    public DbSet<FilterPreset> FilterPresets => Set<FilterPreset>();
+
     /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -75,6 +78,7 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ClipPlayerConfiguration());
         modelBuilder.ApplyConfiguration(new AudioTrackSettingConfiguration());
         modelBuilder.ApplyConfiguration(new GameTagAliasConfiguration());
+        modelBuilder.ApplyConfiguration(new FilterPresetConfiguration());
 
         // SQLite stores DateTime as text and returns it without a Kind.
         // Apply value converters globally so that every DateTime read from the DB has
