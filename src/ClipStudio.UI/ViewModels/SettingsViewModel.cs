@@ -33,6 +33,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly ILibraryWatcherService _watcher;
     private readonly IImportService _importService;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ClipStudio.UI.Services.ISoundService _soundService;
 
     /// <summary>Tracks the number of folder scans currently in progress.</summary>
     /// <summary>Set to <see langword=true/> while a library repair is running.
@@ -239,13 +240,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         ISourceFolderRepository folders,
         ILibraryWatcherService watcher,
         IImportService importService,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        ClipStudio.UI.Services.ISoundService soundService)
     {
         _settings      = settings;
         _folders       = folders;
         _watcher       = watcher;
         _importService = importService;
         _scopeFactory  = scopeFactory;
+        _soundService  = soundService;
 
         LoadCommand                  = new AsyncRelayCommand(LoadAsync);
         AddFolderCommand             = new AsyncRelayCommand(AddFolderAsync);
@@ -483,6 +486,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
             row.LastScanSummary = $"{imported} imported, {skipped} already in library"
                 + (failed > 0 ? $", {failed} failed" : string.Empty);
 
+            if (imported > 0)
+                _soundService.Play(SoundEffect.ImportComplete);
+
             foreach (var result in results.Where(r => !r.Success))
                 row.ScanErrorMessages.Add(result.Message);
 
@@ -506,6 +512,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             await ScanFolderAsync(row);
 
         StatusMessage = "All folders scanned.";
+        _soundService.Play(SoundEffect.ImportComplete);
     }
 
     // ---- Save preferences ----

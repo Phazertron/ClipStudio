@@ -13,6 +13,7 @@ using ClipStudio.Application;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Interfaces;
 using ClipStudio.Data;
+using ClipStudio.UI.Services;
 using ClipStudio.UI.ViewModels;
 using ClipStudio.UI.ViewModels.WizardSteps;
 using ClipStudio.UI.Views;
@@ -297,6 +298,9 @@ public partial class App : AvaloniaApp
 
         // LibVLC — single shared instance for the lifetime of the app
         services.AddSingleton<LibVLC>(_ => new LibVLC(enableDebugLogs: false));
+
+        // Sound effects — singleton so the SoundPlayer instance is reused across calls
+        services.AddSingleton<ISoundService, SoundService>();
 
         // ViewModels — setup wizard
         services.AddTransient<SetupWizardViewModel>();

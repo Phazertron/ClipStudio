@@ -36,6 +36,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     private readonly IAudioTrackService _audioTrackService;
     private readonly ClipStudio.Application.Interfaces.IMixedAudioService _mixedAudioService;
     private readonly ClipStudio.Application.Interfaces.IGameTagAliasService _gameTagAliasService;
+    private readonly ClipStudio.UI.Services.ISoundService _soundService;
 
     private Clip? _clip;
     private Media? _media;
@@ -696,7 +697,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         IPlayerService playerService,
         IAudioTrackService audioTrackService,
         ClipStudio.Application.Interfaces.IMixedAudioService mixedAudioService,
-        ClipStudio.Application.Interfaces.IGameTagAliasService gameTagAliasService)
+        ClipStudio.Application.Interfaces.IGameTagAliasService gameTagAliasService,
+        ClipStudio.UI.Services.ISoundService soundService)
     {
         _libVlc               = libVlc;
         _clipService          = clipService;
@@ -709,6 +711,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _audioTrackService    = audioTrackService;
         _mixedAudioService    = mixedAudioService;
         _gameTagAliasService  = gameTagAliasService;
+        _soundService         = soundService;
 
         MediaPlayer = new MediaPlayer(_libVlc);
         // _masterVolume field initialiser bypasses the generated setter, so OnMasterVolumeChanged
@@ -910,6 +913,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     {
         if (_clip is null) return;
 
+        var lockedId = LockedHighlight?.HighlightId;
+
         var highlights = await _highlightService.GetByClipAsync(_clip.Id);
         Highlights.Clear();
         foreach (var h in highlights)
@@ -927,11 +932,17 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
                 onSetRating:      async (hvm, r) => await _highlightService.SetRatingAsync(hvm.HighlightId, r),
                 onToggleFavorite: async (hvm)    => await _highlightService.ToggleFavoriteAsync(hvm.HighlightId)));
         }
+
+        // Re-apply locked state to the refreshed view models.
+        if (lockedId.HasValue)
+            LockedHighlight = Highlights.FirstOrDefault(h => h.HighlightId == lockedId.Value);
     }
 
     private async Task UpdateHighlightLabelAsync(HighlightViewModel hvm, string newLabel, TimeSpan newStart, TimeSpan newEnd)
     {
         await _highlightService.UpdateAsync(hvm.HighlightId, newStart, newEnd, newLabel, null);
+        // Rebuild the highlights list from DB so the renamed label is immediately visible.
+        await RefreshHighlightsAsync();
     }
 
     private async Task ExportHighlightAsync(HighlightViewModel highlight)
@@ -1463,6 +1474,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
         ResetHighlightForm();
         await RefreshHighlightsAsync();
+        _soundService.Play(SoundEffect.HighlightCreated);
     }
 
     private void JumpToHighlight(HighlightViewModel highlight)
@@ -1833,6 +1845,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        _soundService.Play(SoundEffect.ClipTrashed);
         ClipStatusChanged?.Invoke();
         BackRequested?.Invoke();
     }
@@ -1907,11 +1920,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
                             // Pause immediately so VLC does not continue playing past the
                             // highlight end while the next highlight is being loaded.
                             MediaPlayer.Pause();
-                            // Advance to the next highlight; wrap around if at the end.
-                            if (HasNextHighlight)
-                                NextHighlightRequested?.Invoke();
-                            else
-                                PreviousHighlightRequested?.Invoke(); // wraps to first via MainWindowViewModel
+                            // Always invoke NextHighlightRequested; the MainWindowViewModel
+                            // lambda handles wrap-around from the last highlight to the first.
+                            NextHighlightRequested?.Invoke();
                             break;
 
                         case LoopMode.Off:
@@ -2068,11 +2079,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
                         return;
 
                     case LoopMode.LoopAll:
-                        // Player has already stopped; advance to the next highlight.
-                        if (HasNextHighlight)
-                            NextHighlightRequested?.Invoke();
-                        else
-                            PreviousHighlightRequested?.Invoke(); // cycle handled by caller
+                        // Always invoke NextHighlightRequested; the lambda handles wrap-around
+                        // from the last highlight back to the first.
+                        NextHighlightRequested?.Invoke();
                         return;
 
                     default: // LoopThis
