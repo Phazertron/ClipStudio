@@ -37,6 +37,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     private readonly ClipStudio.Application.Interfaces.IMixedAudioService _mixedAudioService;
     private readonly ClipStudio.Application.Interfaces.IGameTagAliasService _gameTagAliasService;
     private readonly ClipStudio.UI.Services.ISoundService _soundService;
+    private readonly ClipStudio.Application.Interfaces.ITagSuggestionService _tagSuggestionService;
 
     private Clip? _clip;
     private Media? _media;
@@ -215,6 +216,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
     /// <summary>Gets the collection of general tags currently applied to the clip.</summary>
     public ObservableCollection<TagChipViewModel> ClipTags { get; } = new();
+
+    /// <summary>
+    /// Gets the list of suggested tags computed by <see cref="ClipStudio.Application.Interfaces.ITagSuggestionService"/>
+    /// for the current clip. Populated after load; empty in watch mode.
+    /// </summary>
+    public ObservableCollection<TagSuggestionChipViewModel> TagSuggestions { get; } = new();
 
     /// <summary>Gets or sets the current game tag chip for this clip, or null if none is set.</summary>
     [ObservableProperty] private TagChipViewModel? _clipGameTag;
@@ -709,6 +716,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     public IAsyncRelayCommand<string> SetRatingCommand { get; }
 
     /// <summary>
+    /// Gets the command that accepts a tag suggestion and applies the suggested tag to the current clip.
+    /// Accepts the tag ID as an <see cref="int"/> parameter.
+    /// </summary>
+    public IAsyncRelayCommand<int> AcceptSuggestionCommand { get; }
+
+    /// <summary>
     /// Initialises a new <see cref="ClipDetailViewModel"/> and creates the underlying
     /// <see cref="LibVLCSharp.Shared.MediaPlayer"/>.
     /// </summary>
@@ -724,7 +737,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         IAudioTrackService audioTrackService,
         ClipStudio.Application.Interfaces.IMixedAudioService mixedAudioService,
         ClipStudio.Application.Interfaces.IGameTagAliasService gameTagAliasService,
-        ClipStudio.UI.Services.ISoundService soundService)
+        ClipStudio.UI.Services.ISoundService soundService,
+        ClipStudio.Application.Interfaces.ITagSuggestionService tagSuggestionService)
     {
         _libVlc               = libVlc;
         _clipService          = clipService;
@@ -738,6 +752,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _mixedAudioService    = mixedAudioService;
         _gameTagAliasService  = gameTagAliasService;
         _soundService         = soundService;
+        _tagSuggestionService = tagSuggestionService;
 
         MediaPlayer = new MediaPlayer(_libVlc);
         // _masterVolume field initialiser bypasses the generated setter, so OnMasterVolumeChanged
@@ -795,6 +810,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         SaveAudioSettingsCommand           = new AsyncRelayCommand(SaveAudioSettingsAsync);
         ApplyAudioMixCommand               = new AsyncRelayCommand(ApplyAudioMixAsync);
         SetRatingCommand          = new AsyncRelayCommand<string>(s => SetRatingAsync(int.TryParse(s, out var r) ? r : 0));
+        AcceptSuggestionCommand   = new AsyncRelayCommand<int>(AcceptSuggestionAsync);
         SetWatchRatingCommand     = new RelayCommand<string>(s => _ = SetWatchRatingAsync(int.TryParse(s, out var r) ? r : 0));
         ToggleWatchFavoriteCommand = new RelayCommand(() => _ = ToggleWatchFavoriteAsync());
         DeleteClipCommand         = new RelayCommand(() => IsDeleteConfirmVisible = true);
@@ -872,6 +888,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             await LoadTagPickersAsync();
             await RefreshPlayersAsync();
             await LoadPlayerPickerAsync();
+            _ = _clipService.IncrementPlayCountAsync(clipId);
+            _ = LoadTagSuggestionsAsync(clipId);
         }
 
         if (IsWatchMode || _settingsService.Current.AutoPlayOnOpen)
@@ -990,6 +1008,44 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             outputPath,
             settings.DefaultTrimMode,
             settings.DeleteOriginalAfterDestructiveTrim);
+    }
+
+    private async Task LoadTagSuggestionsAsync(int clipId)
+    {
+        try
+        {
+            var suggestions = await _tagSuggestionService.GetSuggestionsAsync(clipId);
+
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                TagSuggestions.Clear();
+                foreach (var s in suggestions)
+                    TagSuggestions.Add(new TagSuggestionChipViewModel(s, AcceptSuggestionAsync));
+            });
+        }
+        catch
+        {
+            // Non-fatal: suggestions are a convenience feature.
+        }
+    }
+
+    private async Task AcceptSuggestionAsync(int tagId)
+    {
+        if (_clip is null) return;
+
+        var tag = await _tagService.GetByIdAsync(tagId);
+        if (tag is null) return;
+
+        await _clipService.AddTagAsync(_clip.Id, tag.Id);
+        _clip = await _clipService.GetByIdAsync(_clip.Id);
+        RefreshTags();
+
+        // Remove accepted suggestion from the list.
+        var accepted = TagSuggestions.FirstOrDefault(s => s.TagId == tagId);
+        if (accepted is not null)
+            TagSuggestions.Remove(accepted);
+
+        await AutoMarkReviewedIfEnabledAsync();
     }
 
     private void RefreshTags()

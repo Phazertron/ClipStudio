@@ -107,4 +107,10 @@ public class Clip
     /// automatically by the library sanitiser when the file is found to exist again.
     /// </summary>
     public bool IsBroken { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the number of times this clip has been opened for playback in the detail view.
+    /// Incremented each time the user navigates to the clip player.
+    /// </summary>
+    public int PlayCount { get; set; } = 0;
 }

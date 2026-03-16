@@ -91,6 +91,16 @@ internal sealed class ClipRepository : IClipRepository
                 cancellationToken);
 
     /// <inheritdoc/>
+    public async Task IncrementPlayCountAsync(int clipId, CancellationToken cancellationToken = default)
+    {
+        var clip = await _context.Clips.FindAsync([clipId], cancellationToken);
+        if (clip is null)
+            return;
+        clip.PlayCount++;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task AddAsync(Clip clip, CancellationToken cancellationToken = default)
     {
         await _context.Clips.AddAsync(clip, cancellationToken);

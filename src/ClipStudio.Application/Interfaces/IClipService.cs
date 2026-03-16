@@ -143,4 +143,11 @@ public interface IClipService
     /// </param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     Task SetBrokenByFilePathAsync(string filePath, bool isBroken, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Increments the <see cref="ClipStudio.Core.Entities.Clip.PlayCount"/> of the specified clip by one.
+    /// </summary>
+    /// <param name="clipId">The identifier of the clip to update.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    Task IncrementPlayCountAsync(int clipId, CancellationToken cancellationToken = default);
 }

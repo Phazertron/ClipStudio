@@ -402,6 +402,10 @@ public sealed class ClipService : IClipService
             clip.Id, clip.FileName, isBroken ? "broken" : "repaired");
     }
 
+    /// <inheritdoc/>
+    public Task IncrementPlayCountAsync(int clipId, CancellationToken cancellationToken = default)
+        => _clips.IncrementPlayCountAsync(clipId, cancellationToken);
+
     private void TryDeleteFile(string? path)
     {
         if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;

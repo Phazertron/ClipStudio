@@ -656,6 +656,50 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- ===== Tag suggestions strip ===== -->
+                    <Border Padding="14,10"
+                            BorderBrush="{DynamicResource SystemChromeHighColor}"
+                            BorderThickness="0,0,0,1"
+                            IsVisible="{Binding TagSuggestions.Count, Converter={x:Static conv:IsPositiveConverter.Instance}}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="SUGGESTED TAGS"
+                                       FontSize="10"
+                                       Opacity="0.5"
+                                       FontWeight="SemiBold"/>
+                            <ItemsControl ItemsSource="{Binding TagSuggestions}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TagSuggestionChipViewModel">
+                                        <Button Command="{Binding AcceptCommand}"
+                                                Margin="0,0,6,6"
+                                                Padding="8,4"
+                                                CornerRadius="12"
+                                                Background="#22A855F7"
+                                                BorderBrush="#66A855F7"
+                                                BorderThickness="1"
+                                                Cursor="Hand"
+                                                ToolTip.Tip="{Binding Reason}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <icons:MaterialIcon Kind="TagPlusOutline"
+                                                                    Width="12" Height="12"
+                                                                    Foreground="#A855F7"
+                                                                    VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="11"
+                                                           Foreground="#A855F7"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
                     <!-- ===== Players section ===== -->
                     <Border Padding="14,12"
                             BorderBrush="{DynamicResource SystemChromeHighColor}"
