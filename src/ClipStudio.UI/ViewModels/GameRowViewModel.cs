@@ -48,6 +48,9 @@ public sealed partial class GameRowViewModel : ViewModelBase
     /// <summary>Gets the command that deletes this game tag after delegating to the parent VM.</summary>
     public IAsyncRelayCommand DeleteCommand { get; }
 
+    /// <summary>Gets the command that navigates to the Library page pre-filtered by this game tag.</summary>
+    public IRelayCommand ViewInLibraryCommand { get; }
+
     /// <summary>Gets the auto-detect alias chips associated with this game tag.</summary>
     public ObservableCollection<GameAliasChipViewModel> Aliases { get; } = new();
 
@@ -60,7 +63,9 @@ public sealed partial class GameRowViewModel : ViewModelBase
     /// <param name="tag">The Game-type tag entity to project.</param>
     /// <param name="onEdit">Callback invoked when the user clicks Edit.</param>
     /// <param name="onDelete">Callback invoked when the user confirms deletion.</param>
-    public GameRowViewModel(Tag tag, Action<GameRowViewModel> onEdit, Func<GameRowViewModel, Task> onDelete)
+    /// <param name="onViewInLibrary">Callback invoked when the user clicks "View in Library". Receives the tag ID.</param>
+    public GameRowViewModel(Tag tag, Action<GameRowViewModel> onEdit, Func<GameRowViewModel, Task> onDelete,
+                            Action<int>? onViewInLibrary = null)
     {
         TagId          = tag.Id;
         Name           = tag.Name;
@@ -69,8 +74,10 @@ public sealed partial class GameRowViewModel : ViewModelBase
         GameCoverUrl   = tag.GameCoverUrl;
         GameStoreAppId = tag.GameStoreAppId;
 
-        EditCommand   = new RelayCommand(() => onEdit(this));
-        DeleteCommand = new AsyncRelayCommand(() => onDelete(this));
+        EditCommand          = new RelayCommand(() => onEdit(this));
+        DeleteCommand        = new AsyncRelayCommand(() => onDelete(this));
+        ViewInLibraryCommand = new RelayCommand(() => onViewInLibrary?.Invoke(TagId),
+                                                canExecute: () => onViewInLibrary is not null);
     }
 
     /// <summary>

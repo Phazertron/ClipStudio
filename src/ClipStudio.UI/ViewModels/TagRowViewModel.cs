@@ -54,6 +54,9 @@ public sealed class TagRowViewModel : ViewModelBase
     /// <summary>Gets the command that deletes this tag after delegating to the parent VM.</summary>
     public IAsyncRelayCommand DeleteCommand { get; }
 
+    /// <summary>Gets the command that navigates to the Library page pre-filtered by this tag.</summary>
+    public IRelayCommand ViewInLibraryCommand { get; }
+
     /// <summary>
     /// Initialises a new <see cref="TagRowViewModel"/> from an entity and parent callbacks.
     /// </summary>
@@ -61,8 +64,9 @@ public sealed class TagRowViewModel : ViewModelBase
     /// <param name="onEdit">Callback invoked when the user clicks Edit.</param>
     /// <param name="onDelete">Callback invoked when the user confirms deletion.</param>
     /// <param name="indentLevel">Nesting depth in the tag hierarchy (0 for root tags).</param>
+    /// <param name="onViewInLibrary">Callback invoked when the user clicks "View in Library". Receives the tag ID.</param>
     public TagRowViewModel(Tag tag, Action<TagRowViewModel> onEdit, Func<TagRowViewModel, Task> onDelete,
-                           int indentLevel = 0)
+                           int indentLevel = 0, Action<int>? onViewInLibrary = null)
     {
         TagId       = tag.Id;
         Name        = tag.Name;
@@ -73,7 +77,9 @@ public sealed class TagRowViewModel : ViewModelBase
         ClipCount   = tag.ClipTags.Count;
         IndentLevel = indentLevel;
 
-        EditCommand   = new RelayCommand(() => onEdit(this));
-        DeleteCommand = new AsyncRelayCommand(() => onDelete(this));
+        EditCommand          = new RelayCommand(() => onEdit(this));
+        DeleteCommand        = new AsyncRelayCommand(() => onDelete(this));
+        ViewInLibraryCommand = new RelayCommand(() => onViewInLibrary?.Invoke(TagId),
+                                                canExecute: () => onViewInLibrary is not null);
     }
 }

@@ -88,6 +88,12 @@ public sealed partial class GamesViewModel : ViewModelBase
     public IAsyncRelayCommand SearchCommand { get; }
 
     /// <summary>
+    /// Optional callback set by <see cref="MainWindowViewModel"/> to navigate to the Library
+    /// page pre-filtered by a given game tag ID.
+    /// </summary>
+    public Action<int>? ViewInLibraryRequested { get; set; }
+
+    /// <summary>
     /// Initialises a new <see cref="GamesViewModel"/>.
     /// </summary>
     /// <param name="tagService">The application-layer tag service.</param>
@@ -129,7 +135,7 @@ public sealed partial class GamesViewModel : ViewModelBase
                               && t.Name.Contains(filter, StringComparison.OrdinalIgnoreCase));
 
             foreach (var tag in filtered.OrderBy(t => t.Name))
-                Games.Add(new GameRowViewModel(tag, BeginEdit, DeleteGameAsync));
+                Games.Add(new GameRowViewModel(tag, BeginEdit, DeleteGameAsync, ViewInLibraryRequested));
 
             // Load aliases for all rows in parallel and populate their Aliases collections.
             await Task.WhenAll(Games.Select(LoadAliasesForRowAsync));

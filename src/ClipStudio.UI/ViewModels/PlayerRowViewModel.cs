@@ -40,13 +40,18 @@ public sealed partial class PlayerRowViewModel : ViewModelBase
     /// <summary>Gets the command that deletes this player after delegating to the parent VM.</summary>
     public IAsyncRelayCommand DeleteCommand { get; }
 
+    /// <summary>Gets the command that navigates to the Library page pre-filtered by this player.</summary>
+    public IRelayCommand ViewInLibraryCommand { get; }
+
     /// <summary>
     /// Initialises a new <see cref="PlayerRowViewModel"/> from an entity and parent callbacks.
     /// </summary>
     /// <param name="player">The player entity to project.</param>
     /// <param name="onEdit">Callback invoked when the user clicks Edit.</param>
     /// <param name="onDelete">Async callback invoked when the user confirms deletion.</param>
-    public PlayerRowViewModel(Player player, Action<PlayerRowViewModel> onEdit, Func<PlayerRowViewModel, Task> onDelete)
+    /// <param name="onViewInLibrary">Callback invoked when the user clicks "View in Library". Receives the player ID.</param>
+    public PlayerRowViewModel(Player player, Action<PlayerRowViewModel> onEdit, Func<PlayerRowViewModel, Task> onDelete,
+                              Action<int>? onViewInLibrary = null)
     {
         PlayerId      = player.Id;
         Name          = player.DisplayName;
@@ -56,8 +61,10 @@ public sealed partial class PlayerRowViewModel : ViewModelBase
             ? string.Join(", ", player.Aliases.Select(a => a.Alias))
             : string.Empty;
 
-        EditCommand   = new RelayCommand(() => onEdit(this));
-        DeleteCommand = new AsyncRelayCommand(() => onDelete(this));
+        EditCommand          = new RelayCommand(() => onEdit(this));
+        DeleteCommand        = new AsyncRelayCommand(() => onDelete(this));
+        ViewInLibraryCommand = new RelayCommand(() => onViewInLibrary?.Invoke(PlayerId),
+                                                canExecute: () => onViewInLibrary is not null);
     }
 
     /// <summary>

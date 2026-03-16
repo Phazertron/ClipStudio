@@ -81,7 +81,7 @@
                                         BorderThickness="1"
                                         Cursor="Hand"
                                         Tapped="OnPlayerRowTapped">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
 
                                         <!-- Icon or fallback -->
                                         <Panel Grid.Column="0" Width="36" Margin="0,0,8,0" VerticalAlignment="Center">
@@ -116,8 +116,16 @@
                                                        IsVisible="{Binding AliasesDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                                         </StackPanel>
 
-                                        <!-- Delete -->
+                                        <!-- View in Library -->
                                         <Button Grid.Column="2"
+                                                Command="{Binding ViewInLibraryCommand}"
+                                                ToolTip.Tip="View clips in Library filtered by this player"
+                                                Padding="5">
+                                            <icons:MaterialIcon Kind="LibraryMovie" Width="15" Height="15"/>
+                                        </Button>
+
+                                        <!-- Delete -->
+                                        <Button Grid.Column="3"
                                                 Command="{Binding DeleteCommand}"
                                                 ToolTip.Tip="Delete player"
                                                 Padding="5">

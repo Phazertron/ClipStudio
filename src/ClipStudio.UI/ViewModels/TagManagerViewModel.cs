@@ -95,6 +95,12 @@ public sealed partial class TagManagerViewModel : ViewModelBase
     public IAsyncRelayCommand SaveCommand { get; }
 
     /// <summary>
+    /// Optional callback set by <see cref="MainWindowViewModel"/> to navigate to the Library
+    /// page pre-filtered by a given tag ID.
+    /// </summary>
+    public Action<int>? ViewInLibraryRequested { get; set; }
+
+    /// <summary>
     /// Initialises a new <see cref="TagManagerViewModel"/>.
     /// </summary>
     /// <param name="tagService">The application-layer tag service.</param>
@@ -139,7 +145,7 @@ public sealed partial class TagManagerViewModel : ViewModelBase
 
             void AddWithChildren(Tag tag, int depth)
             {
-                Tags.Add(new TagRowViewModel(tag, BeginEdit, DeleteTagAsync, depth));
+                Tags.Add(new TagRowViewModel(tag, BeginEdit, DeleteTagAsync, depth, ViewInLibraryRequested));
                 foreach (var child in generalTags
                              .Where(t => t.ParentTagId == tag.Id)
                              .OrderBy(t => t.Name))

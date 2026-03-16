@@ -70,11 +70,18 @@ public partial class LibraryView : UserControl
         _vm = DataContext as LibraryViewModel;
         if (_vm is not null)
         {
-            _vm.PropertyChanged += OnVmPropertyChanged;
+            _vm.PropertyChanged           += OnVmPropertyChanged;
+            _vm.ColumnWidthsResetRequested += OnColumnWidthsResetRequested;
+
+            // Load row height from persisted settings before the first load.
+            _vm.LoadRowHeightFromSettings();
 
             // Apply any persisted column widths to the header grid immediately.
             // Data rows are applied after the first load completes (via IsLoading → false).
             ApplyPersistedColumnWidthsToHeader();
+
+            // Subscribe to scroll changes to track position.
+            TilesScrollViewer.ScrollChanged += OnTilesScrollChanged;
 
             _vm.LoadCommand.Execute(null);
         }
@@ -84,9 +91,12 @@ public partial class LibraryView : UserControl
     {
         if (_vm is not null)
         {
-            _vm.PropertyChanged -= OnVmPropertyChanged;
+            _vm.PropertyChanged            -= OnVmPropertyChanged;
+            _vm.ColumnWidthsResetRequested -= OnColumnWidthsResetRequested;
             _vm = null;
         }
+
+        TilesScrollViewer.ScrollChanged -= OnTilesScrollChanged;
     }
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -99,14 +109,70 @@ public partial class LibraryView : UserControl
                 SortComboBox.SelectedIndex = idx;
         }
 
-        // After loading completes, defer column-width sync to after the layout pass so that
-        // all data row grids are in the visual tree before the widths are applied.
+        // After loading completes, defer column-width sync and scroll restore to after the layout
+        // pass so that all data row grids are in the visual tree before the widths are applied.
         // The double-post ensures a second layout pass has run and ItemsControl containers are
         // fully realised before widths are applied.
         if (e.PropertyName == nameof(LibraryViewModel.IsLoading) && _vm is { IsLoading: false })
             Dispatcher.UIThread.Post(
-                () => Dispatcher.UIThread.Post(ApplyPersistedColumnWidthsToDataRows, DispatcherPriority.Loaded),
+                () => Dispatcher.UIThread.Post(OnLoadCompleted, DispatcherPriority.Loaded),
                 DispatcherPriority.Loaded);
+    }
+
+    // ---- Post-load and scroll helpers ----
+
+    /// <summary>
+    /// Called after a full load cycle completes. Applies persisted column widths to data rows
+    /// and restores the previously saved scroll position.
+    /// </summary>
+    private void OnLoadCompleted()
+    {
+        ApplyPersistedColumnWidthsToDataRows();
+
+        if (_vm is not null && _vm.TilesScrollOffsetY > 0)
+            TilesScrollViewer.Offset = new Vector(0, _vm.TilesScrollOffsetY);
+    }
+
+    /// <summary>Saves the current scroll position to the view model whenever the user scrolls.</summary>
+    private void OnTilesScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (_vm is not null)
+            _vm.TilesScrollOffsetY = TilesScrollViewer.Offset.Y;
+    }
+
+    /// <summary>
+    /// Resets all column widths to their AXAML defaults (by clearing persisted widths and
+    /// re-applying default GridLength values to the header and all data rows).
+    /// </summary>
+    private void OnColumnWidthsResetRequested()
+    {
+        var settings = App.Services.GetRequiredService<ISettingsService>();
+        settings.Current.LibraryColumnWidths = null;
+        _ = settings.SaveAsync();
+
+        // Reset header columns to AXAML defaults.
+        var defs = DetailsHeaderGrid.ColumnDefinitions;
+        defs[2].Width = new GridLength(1, GridUnitType.Star);
+        defs[3].Width = new GridLength(110);
+        defs[4].Width = new GridLength(130);
+        defs[5].Width = new GridLength(100);
+        defs[6].Width = new GridLength(140);
+        defs[7].Width = new GridLength(80);
+        defs[8].Width = new GridLength(60);
+
+        // Reset data-row columns to the same defaults.
+        foreach (var grid in DetailsItemsControl.GetVisualDescendants()
+                     .OfType<Grid>()
+                     .Where(g => g.Name == "DetailRowGrid"))
+        {
+            grid.ColumnDefinitions[2].Width = new GridLength(1, GridUnitType.Star);
+            grid.ColumnDefinitions[3].Width = new GridLength(110);
+            grid.ColumnDefinitions[4].Width = new GridLength(130);
+            grid.ColumnDefinitions[5].Width = new GridLength(100);
+            grid.ColumnDefinitions[6].Width = new GridLength(140);
+            grid.ColumnDefinitions[7].Width = new GridLength(80);
+            grid.ColumnDefinitions[8].Width = new GridLength(60);
+        }
     }
 
     /// <summary>

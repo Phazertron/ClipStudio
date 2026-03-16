@@ -43,6 +43,15 @@ public sealed partial class LibraryViewModel : ViewModelBase
     private CancellationTokenSource _loadCts = new();
     private bool _suppressFilterChanges;
 
+    // ---- Preset filter IDs applied on the next LoadAsync call ----
+    private int? _presetGameTagId;
+    private int? _presetTagId;
+    private int? _presetPlayerId;
+
+    // ---- Scroll + last-visited state (persists across detail-view navigation) ----
+    private int _lastOpenedClipId;
+    private double _tilesScrollOffsetY;
+
     /// <summary>Gets the observable collection of clip cards shown in the library.</summary>
     public ObservableCollection<ClipCardViewModel> Clips { get; } = new();
 
@@ -146,6 +155,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     /// <summary>Gets or sets the free-text search string used to filter displayed clips.</summary>
     [ObservableProperty] private string _searchText = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the row height in pixels applied to each details-view row.
+    /// Persisted to <see cref="ClipStudio.Application.Models.AppSettings.LibraryDetailsRowHeight"/>.
+    /// </summary>
+    [ObservableProperty] private int _detailsRowHeight = 52;
 
     // ---- View mode ----
 
@@ -281,6 +296,20 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Gets the command that sets the sort column, toggling between ascending and descending when the same column is clicked again.</summary>
     public IRelayCommand<string> SetSortCommand { get; }
 
+    // ---- Row height / column-width commands ----
+
+    /// <summary>Gets the command that increases the details row height by 8 pixels (up to 120).</summary>
+    public IRelayCommand IncreaseRowHeightCommand { get; }
+
+    /// <summary>Gets the command that decreases the details row height by 8 pixels (down to 32).</summary>
+    public IRelayCommand DecreaseRowHeightCommand { get; }
+
+    /// <summary>
+    /// Gets the command that resets the details column widths to their defaults.
+    /// Invoked from the column-header context menu in the view code-behind.
+    /// </summary>
+    public IRelayCommand ResetColumnWidthsCommand { get; }
+
     // ---- Bulk / multi-select commands ----
 
     /// <summary>Gets the command that selects all clips currently displayed in the library.</summary>
@@ -381,6 +410,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
     public Action<int, IReadOnlyList<int>, int>? ClipOpenRequested { get; set; }
 
     /// <summary>
+    /// Raised by <see cref="ResetColumnWidthsCommand"/> to ask the view code-behind to clear
+    /// persisted column widths and restore all columns to their AXAML defaults.
+    /// </summary>
+    public event Action? ColumnWidthsResetRequested;
+
+    /// <summary>
     /// Initialises a new <see cref="LibraryViewModel"/>.
     /// </summary>
     public LibraryViewModel(
@@ -434,6 +469,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
         ExitCopyFormatCommand         = new RelayCommand(ExitCopyFormat);
         PasteFormatToSelectionCommand = new AsyncRelayCommand(PasteFormatToSelectionAsync);
 
+        IncreaseRowHeightCommand  = new RelayCommand(IncreaseRowHeight);
+        DecreaseRowHeightCommand  = new RelayCommand(DecreaseRowHeight);
+        ResetColumnWidthsCommand  = new RelayCommand(() => ColumnWidthsResetRequested?.Invoke());
+
         SelectedClips.CollectionChanged += OnSelectedClipsChanged;
     }
 
@@ -471,6 +510,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
             OnClipSelectionChanged(card, !card.IsSelected);
             return;
         }
+
+        // Record this clip as the last opened before navigating away.
+        _lastOpenedClipId = card.ClipId;
 
         // Archived clips are not openable; exclude them from the navigation sequence.
         var sequence = Clips.Where(c => !c.IsArchived).Select(c => c.ClipId).ToList();
@@ -517,7 +559,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
             var sorted = ApplySort(results);
 
             foreach (var clip in sorted)
-                Clips.Add(new ClipCardViewModel(clip));
+            {
+                var card = new ClipCardViewModel(clip);
+                card.DetailsRowHeight = DetailsRowHeight;
+                card.IsLastVisited    = clip.Id == _lastOpenedClipId;
+                Clips.Add(card);
+            }
 
             _ = Task.WhenAll(Clips.Select(c => c.LoadThumbnailAsync()));
             if (App.Services.GetRequiredService<ISettingsService>().Current.ShowImagesInLists)
@@ -1093,6 +1140,30 @@ public sealed partial class LibraryViewModel : ViewModelBase
             FilterGameTag        = savedGameTag      is not null ? AvailableGameTags.FirstOrDefault(t => t.Id == savedGameTag.Id)       : null;
             SelectedFilterTag    = savedFilterTag    is not null ? AvailableTags.FirstOrDefault(t => t.Id == savedFilterTag.Id)          : null;
             SelectedFilterPlayer = savedFilterPlayer is not null ? AvailablePlayers.FirstOrDefault(p => p.Id == savedFilterPlayer.Id)    : null;
+
+            // Apply one-shot presets set by PresetFilters() (only overrides if currently unset).
+            var presetApplied = false;
+            if (_presetGameTagId.HasValue && FilterGameTag is null)
+            {
+                FilterGameTag   = AvailableGameTags.FirstOrDefault(t => t.Id == _presetGameTagId.Value);
+                presetApplied   = FilterGameTag is not null;
+            }
+            if (_presetTagId.HasValue && SelectedFilterTag is null)
+            {
+                SelectedFilterTag = AvailableTags.FirstOrDefault(t => t.Id == _presetTagId.Value);
+                presetApplied     = presetApplied || SelectedFilterTag is not null;
+            }
+            if (_presetPlayerId.HasValue && SelectedFilterPlayer is null)
+            {
+                SelectedFilterPlayer = AvailablePlayers.FirstOrDefault(p => p.Id == _presetPlayerId.Value);
+                presetApplied        = presetApplied || SelectedFilterPlayer is not null;
+            }
+            if (presetApplied)
+                IsFilterPanelOpen = true;
+
+            _presetGameTagId = null;
+            _presetTagId     = null;
+            _presetPlayerId  = null;
         }
         finally
         {
@@ -1111,5 +1182,66 @@ public sealed partial class LibraryViewModel : ViewModelBase
         SelectedFilterPlayer = null;
         SelectedTagIds.Clear();
         SelectedPlayerIds.Clear();
+    }
+
+    // ---- Preset filters (called by MainWindowViewModel before navigating to Library) ----
+
+    /// <summary>
+    /// Stores filter IDs to be applied on the next <see cref="LoadAsync"/> call.
+    /// Only one of the three parameters need be provided; the others remain unchanged.
+    /// </summary>
+    /// <param name="gameTagId">The ID of the game tag to pre-select in the filter panel, or null to leave unchanged.</param>
+    /// <param name="tagId">The ID of the general tag to pre-select in the filter panel, or null to leave unchanged.</param>
+    /// <param name="playerId">The ID of the player to pre-select in the filter panel, or null to leave unchanged.</param>
+    public void PresetFilters(int? gameTagId = null, int? tagId = null, int? playerId = null)
+    {
+        _presetGameTagId = gameTagId;
+        _presetTagId     = tagId;
+        _presetPlayerId  = playerId;
+    }
+
+    // ---- Scroll state (read/written by LibraryView code-behind) ----
+
+    /// <summary>Gets or sets the vertical scroll offset of the tiles / details ScrollViewer.
+    /// Persisted across detail-view navigation so the user returns to the same position.</summary>
+    public double TilesScrollOffsetY
+    {
+        get => _tilesScrollOffsetY;
+        set => _tilesScrollOffsetY = value;
+    }
+
+    // ---- Row height helpers ----
+
+    private void IncreaseRowHeight()
+    {
+        var newHeight = Math.Min(DetailsRowHeight + 8, 120);
+        ApplyDetailsRowHeight(newHeight);
+    }
+
+    private void DecreaseRowHeight()
+    {
+        var newHeight = Math.Max(DetailsRowHeight - 8, 32);
+        ApplyDetailsRowHeight(newHeight);
+    }
+
+    private void ApplyDetailsRowHeight(int height)
+    {
+        DetailsRowHeight = height;
+        foreach (var card in Clips)
+            card.DetailsRowHeight = height;
+
+        var settings = App.Services.GetRequiredService<ISettingsService>();
+        settings.Current.LibraryDetailsRowHeight = height;
+        _ = settings.SaveAsync();
+    }
+
+    /// <summary>
+    /// Initialises <see cref="DetailsRowHeight"/> from persisted settings.
+    /// Called by <see cref="Views.LibraryView"/> once when attached to the visual tree.
+    /// </summary>
+    public void LoadRowHeightFromSettings()
+    {
+        var settings = App.Services.GetRequiredService<ISettingsService>();
+        DetailsRowHeight = settings.Current.LibraryDetailsRowHeight;
     }
 }

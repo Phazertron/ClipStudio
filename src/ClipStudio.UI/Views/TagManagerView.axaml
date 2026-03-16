@@ -77,7 +77,7 @@
                                         BorderThickness="1"
                                         Cursor="Hand"
                                         Tapped="OnTagRowTapped">
-                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
 
                                         <!-- Tree connector icon (children only) + colour swatch (always) -->
                                         <StackPanel Grid.Column="0"
@@ -119,8 +119,16 @@
                                                        Opacity="0.7"/>
                                         </Border>
 
-                                        <!-- Delete -->
+                                        <!-- View in Library -->
                                         <Button Grid.Column="3"
+                                                Command="{Binding ViewInLibraryCommand}"
+                                                ToolTip.Tip="View clips in Library filtered by this tag"
+                                                Padding="5">
+                                            <icons:MaterialIcon Kind="LibraryMovie" Width="15" Height="15"/>
+                                        </Button>
+
+                                        <!-- Delete -->
+                                        <Button Grid.Column="4"
                                                 Command="{Binding DeleteCommand}"
                                                 ToolTip.Tip="Delete tag"
                                                 Padding="5">

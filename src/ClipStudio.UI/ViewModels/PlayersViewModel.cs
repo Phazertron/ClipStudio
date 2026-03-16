@@ -104,6 +104,12 @@ public sealed partial class PlayersViewModel : ViewModelBase
     public event Action? BrowseIconRequested;
 
     /// <summary>
+    /// Optional callback set by <see cref="MainWindowViewModel"/> to navigate to the Library
+    /// page pre-filtered by a given player ID.
+    /// </summary>
+    public Action<int>? ViewInLibraryRequested { get; set; }
+
+    /// <summary>
     /// Initialises a new <see cref="PlayersViewModel"/>.
     /// </summary>
     /// <param name="playerService">The application-layer player service.</param>
@@ -142,7 +148,7 @@ public sealed partial class PlayersViewModel : ViewModelBase
 
             Players.Clear();
             foreach (var player in filtered)
-                Players.Add(new PlayerRowViewModel(player, BeginEdit, DeletePlayerAsync));
+                Players.Add(new PlayerRowViewModel(player, BeginEdit, DeletePlayerAsync, ViewInLibraryRequested));
 
             _ = Task.WhenAll(Players.Select(r => r.LoadIconAsync()));
         }

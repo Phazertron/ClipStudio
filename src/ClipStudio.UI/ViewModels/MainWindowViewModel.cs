@@ -109,6 +109,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         highlights.HighlightWatchRequested = (clipId, start, end, sequence, idx) =>
             OpenHighlightWatchMode(clipId, start, end, sequence, idx);
 
+        // Wire "View in Library" navigation from Games / Players / Tags pages.
+        games.ViewInLibraryRequested      = id => NavigateToLibraryWithGameFilter(id);
+        players.ViewInLibraryRequested    = id => NavigateToLibraryWithPlayerFilter(id);
+        tagManager.ViewInLibraryRequested = id => NavigateToLibraryWithTagFilter(id);
+
         // Wire unreviewed-count refresh so Settings archive/wipe and queue bulk actions update the badge.
         settings.UnreviewedCountRefreshRequested      = () => _ = RefreshUnreviewedCountAsync();
         unreviewedQueue.UnreviewedCountRefreshRequested = () => _ = RefreshUnreviewedCountAsync();
@@ -425,5 +430,36 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             if (_libraryNavItem is not null)
                 _libraryNavItem.IsScanning = false;
         }
+    }
+
+    // ---- "View in Library" navigation helpers ----
+
+    /// <summary>Navigates to the Library page with the game filter pre-set to the given tag ID.</summary>
+    private void NavigateToLibraryWithGameFilter(int gameTagId)
+    {
+        _library?.PresetFilters(gameTagId: gameTagId);
+        NavigateToLibrary();
+    }
+
+    /// <summary>Navigates to the Library page with the player filter pre-set to the given player ID.</summary>
+    private void NavigateToLibraryWithPlayerFilter(int playerId)
+    {
+        _library?.PresetFilters(playerId: playerId);
+        NavigateToLibrary();
+    }
+
+    /// <summary>Navigates to the Library page with the tag filter pre-set to the given tag ID.</summary>
+    private void NavigateToLibraryWithTagFilter(int tagId)
+    {
+        _library?.PresetFilters(tagId: tagId);
+        NavigateToLibrary();
+    }
+
+    /// <summary>Selects the Library navigation item, which triggers a reload via the standard navigation flow.</summary>
+    private void NavigateToLibrary()
+    {
+        var libraryItem = NavigationItems.FirstOrDefault(n => n.Page is LibraryViewModel);
+        if (libraryItem is not null)
+            SelectedNavigationItem = libraryItem;
     }
 }

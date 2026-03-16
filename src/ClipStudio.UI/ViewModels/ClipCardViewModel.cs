@@ -72,6 +72,18 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     [ObservableProperty] private bool _isCopyFormatSource;
 
     /// <summary>
+    /// Gets or sets whether this card was the most recently opened clip.
+    /// Used to show a subtle highlight after the user returns from the detail view.
+    /// </summary>
+    [ObservableProperty] private bool _isLastVisited;
+
+    /// <summary>
+    /// Gets or sets the row height in pixels for the details-view row.
+    /// Set by <see cref="LibraryViewModel"/> from persisted settings.
+    /// </summary>
+    [ObservableProperty] private int _detailsRowHeight = 52;
+
+    /// <summary>
     /// Gets whether the selection checkbox should be visible.
     /// Visible while hovering (so users can discover multi-select) and while the card is selected
     /// (so selected state remains visible after the pointer leaves).
