@@ -247,7 +247,7 @@
         <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
 
             <!-- Left: clips scroll area -->
-            <ScrollViewer Grid.Column="0">
+            <ScrollViewer Grid.Column="0" x:Name="TilesScrollViewer">
                 <Panel Margin="12,12,12,24">
                     <!-- Empty state -->
                     <TextBlock Text="No clips found."
@@ -374,6 +374,12 @@
                                         BorderThickness="2"
                                         IsVisible="{Binding IsSelected}"
                                         IsHitTestVisible="False"/>
+                                <!-- Last-visited subtle glow (shown on return from detail view) -->
+                                <Border CornerRadius="8"
+                                        BorderBrush="#60FFFFFF"
+                                        BorderThickness="2"
+                                        IsVisible="{Binding IsLastVisited}"
+                                        IsHitTestVisible="False"/>
                                 </Panel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -390,6 +396,20 @@
                                 Background="{DynamicResource SystemChromeMediumLowColor}"
                                 BorderBrush="{DynamicResource SystemChromeHighColor}"
                                 BorderThickness="0,0,0,1">
+                            <Border.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Larger rows"  Command="{Binding IncreaseRowHeightCommand}">
+                                        <MenuItem.Icon><icons:MaterialIcon Kind="ArrowExpandVertical" Width="14" Height="14"/></MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="Smaller rows" Command="{Binding DecreaseRowHeightCommand}">
+                                        <MenuItem.Icon><icons:MaterialIcon Kind="ArrowCollapseVertical" Width="14" Height="14"/></MenuItem.Icon>
+                                    </MenuItem>
+                                    <Separator/>
+                                    <MenuItem Header="Reset column widths" Command="{Binding ResetColumnWidthsCommand}">
+                                        <MenuItem.Icon><icons:MaterialIcon Kind="TableColumnPlusAfter" Width="14" Height="14"/></MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Border.ContextMenu>
                             <Grid x:Name="DetailsHeaderGrid" ColumnDefinitions="24,80,*,110,130,100,140,80,60,20">
                                 <TextBlock Grid.Column="0" Text="" Width="24"/>
                                 <Button Grid.Column="2"
@@ -480,7 +500,8 @@
                                             BorderBrush="{DynamicResource SystemChromeHighColor}"
                                             BorderThickness="0,0,0,1"
                                             Tapped="OnClipCardTapped">
-                                        <Grid x:Name="DetailRowGrid" ColumnDefinitions="24,80,*,110,130,100,140,80,60,20">
+                                        <Grid x:Name="DetailRowGrid" ColumnDefinitions="24,80,*,110,130,100,140,80,60,20"
+                                              MinHeight="{Binding DetailsRowHeight}">
                                             <!-- Selection highlight (left accent border) -->
                                             <Border Grid.ColumnSpan="10"
                                                     IsVisible="{Binding IsSelected}"
@@ -494,6 +515,13 @@
                                                     Background="#22007AFF"
                                                     IsHitTestVisible="False"
                                                     BorderBrush="{DynamicResource SystemAccentColor}"
+                                                    BorderThickness="3,0,0,0"/>
+                                            <!-- Last-visited subtle highlight -->
+                                            <Border Grid.ColumnSpan="10"
+                                                    IsVisible="{Binding IsLastVisited}"
+                                                    Background="#12FFFFFF"
+                                                    IsHitTestVisible="False"
+                                                    BorderBrush="#40FFFFFF"
                                                     BorderThickness="3,0,0,0"/>
                                             <CheckBox Grid.Column="0"
                                                       IsChecked="{Binding IsSelected, Mode=OneWay}"

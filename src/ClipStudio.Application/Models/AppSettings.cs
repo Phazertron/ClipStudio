@@ -109,4 +109,10 @@ public sealed class AppSettings
     /// Defaults to <c>true</c>.
     /// </summary>
     public bool SoundEffectsEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the row height in pixels for the library details view.
+    /// Defaults to 52 pixels to comfortably show the thumbnail and metadata.
+    /// </summary>
+    public int LibraryDetailsRowHeight { get; set; } = 52;
 }
