@@ -20,6 +20,9 @@ public sealed class LibraryWatcherService : ILibraryWatcherService
     /// <inheritdoc/>
     public event EventHandler<FileDetectedEventArgs>? FileDetected;
 
+    /// <inheritdoc/>
+    public event EventHandler<FileDeletedEventArgs>? FileDeleted;
+
     /// <summary>Initializes a new instance of <see cref="LibraryWatcherService"/>.</summary>
     public LibraryWatcherService(ILogger<LibraryWatcherService> logger)
     {
@@ -52,7 +55,15 @@ public sealed class LibraryWatcherService : ILibraryWatcherService
             watcher.Filters.Add(ext);
 
         watcher.Created += (_, args) => OnFileCreated(args.FullPath, sourceFolderId);
-        watcher.Renamed += (_, args) => OnFileCreated(args.FullPath, sourceFolderId);
+        watcher.Renamed += (_, args) =>
+        {
+            // The old name is gone — treat as a deletion.
+            if (IsVideoFile(args.OldFullPath))
+                OnFileDeleted(args.OldFullPath);
+            // The new name has appeared — treat as a new file.
+            OnFileCreated(args.FullPath, sourceFolderId);
+        };
+        watcher.Deleted += (_, args) => OnFileDeleted(args.FullPath);
 
         _watchers[folderPath] = (watcher, sourceFolderId);
         _logger.LogInformation("Watching folder: {Path}", folderPath);
@@ -90,6 +101,24 @@ public sealed class LibraryWatcherService : ILibraryWatcherService
             _logger.LogInformation("New file detected: {FilePath}", filePath);
             FileDetected?.Invoke(this, new FileDetectedEventArgs(filePath, sourceFolderId));
         });
+    }
+
+    private void OnFileDeleted(string filePath)
+    {
+        _logger.LogInformation("File deleted or renamed away: {FilePath}", filePath);
+        FileDeleted?.Invoke(this, new FileDeletedEventArgs(filePath));
+    }
+
+    private static bool IsVideoFile(string path)
+    {
+        var ext = Path.GetExtension(path);
+        return ext.Equals(".mp4",  StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".mkv",  StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".mov",  StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".webm", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".avi",  StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".flv",  StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".ts",   StringComparison.OrdinalIgnoreCase);
     }
 
     /// <inheritdoc/>

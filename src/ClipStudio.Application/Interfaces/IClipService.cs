@@ -132,4 +132,15 @@ public interface IClipService
     /// Source video files on disk are not touched.
     /// </summary>
     Task WipeBySourceFolderAsync(int folderId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Marks or clears the broken state of a clip identified by its file path.
+    /// Has no effect if no clip with that path exists in the library.
+    /// </summary>
+    /// <param name="filePath">The absolute path of the video file.</param>
+    /// <param name="isBroken">
+    /// <see langword="true"/> to mark the clip as broken; <see langword="false"/> to clear the flag.
+    /// </param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    Task SetBrokenByFilePathAsync(string filePath, bool isBroken, CancellationToken cancellationToken = default);
 }

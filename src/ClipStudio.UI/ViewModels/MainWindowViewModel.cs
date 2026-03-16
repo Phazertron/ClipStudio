@@ -138,6 +138,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         CurrentPage = NavigationItems[0].Page;
 
         _watcher.FileDetected += OnFileDetected;
+        _watcher.FileDeleted  += OnFileDeleted;
 
         _ = RefreshUnreviewedCountAsync();
     }
@@ -409,6 +410,32 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         if (_libraryNavItem is not null)
             _libraryNavItem.IsScanning = true;
         _ = RefreshUnreviewedCountAsync();
+    }
+
+    private void OnFileDeleted(object? sender, FileDeletedEventArgs e)
+    {
+        _ = MarkClipBrokenByPathAsync(e.FilePath, isBroken: true);
+    }
+
+    private async Task MarkClipBrokenByPathAsync(string filePath, bool isBroken)
+    {
+        try
+        {
+            await _clipService.SetBrokenByFilePathAsync(filePath, isBroken);
+
+            // Reflect the change immediately in the library card without a full reload.
+            if (_library is not null)
+            {
+                var card = _library.Clips.FirstOrDefault(
+                    c => string.Equals(c.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+                if (card is not null)
+                    card.IsBroken = isBroken;
+            }
+        }
+        catch
+        {
+            // Logging is handled at the service layer.
+        }
     }
 
     private async Task RefreshUnreviewedCountAsync()

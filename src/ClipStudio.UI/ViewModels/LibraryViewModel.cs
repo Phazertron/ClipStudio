@@ -1244,4 +1244,17 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var settings = App.Services.GetRequiredService<ISettingsService>();
         DetailsRowHeight = settings.Current.LibraryDetailsRowHeight;
     }
+
+    /// <summary>
+    /// Finds the card with the given clip identifier and updates its <see cref="ClipCardViewModel.IsBroken"/> flag.
+    /// Called by <see cref="MainWindowViewModel"/> when the file-watcher fires a deletion event.
+    /// </summary>
+    /// <param name="clipId">The database identifier of the affected clip.</param>
+    /// <param name="isBroken"><see langword="true"/> to mark broken; <see langword="false"/> to clear.</param>
+    public void UpdateClipBrokenState(int clipId, bool isBroken)
+    {
+        var card = Clips.FirstOrDefault(c => c.ClipId == clipId);
+        if (card is not null)
+            card.IsBroken = isBroken;
+    }
 }

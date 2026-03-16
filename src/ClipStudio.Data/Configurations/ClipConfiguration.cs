@@ -65,6 +65,12 @@ internal sealed class ClipConfiguration : IEntityTypeConfiguration<Clip>
 
         builder.HasIndex(c => c.IsDeleted);
 
+        builder.Property(c => c.IsBroken)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.HasIndex(c => c.IsBroken);
+
         builder.HasOne(c => c.SourceFolder)
             .WithMany(sf => sf.Clips)
             .HasForeignKey(c => c.SourceFolderId)

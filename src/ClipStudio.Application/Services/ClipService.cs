@@ -386,6 +386,22 @@ public sealed class ClipService : IClipService
         _logger.LogInformation("Wiped {Count} clip(s) for source folder {FolderId}.", clips.Count, folderId);
     }
 
+    /// <inheritdoc/>
+    public async Task SetBrokenByFilePathAsync(string filePath, bool isBroken, CancellationToken cancellationToken = default)
+    {
+        var clip = await _clips.GetByFilePathAsync(filePath, cancellationToken);
+        if (clip is null)
+            return;
+
+        if (clip.IsBroken == isBroken)
+            return;
+
+        clip.IsBroken = isBroken;
+        await _clips.UpdateAsync(clip, cancellationToken);
+        _logger.LogInformation("Clip {ClipId} ({FileName}) marked as {State}.",
+            clip.Id, clip.FileName, isBroken ? "broken" : "repaired");
+    }
+
     private void TryDeleteFile(string? path)
     {
         if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
