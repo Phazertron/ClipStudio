@@ -215,25 +215,58 @@
                     Maximum="{Binding DurationSeconds}"
                     Value="{Binding PositionSeconds, Mode=TwoWay}"/>
 
-            <!-- Canvas overlay showing highlight start/end handle markers while adding a highlight -->
+            <!-- Trim handle canvas: pointing up, sits above the slider -->
+            <Canvas x:Name="TrimHandleCanvas"
+                    Background="Transparent"
+                    IsVisible="{Binding IsTrimming}"
+                    Height="16"
+                    VerticalAlignment="Top"
+                    Margin="7,-4,7,0"
+                    PointerMoved="OnTrimCanvasPointerMoved"
+                    PointerReleased="OnTrimCanvasPointerReleased">
+                <!-- Trim start handle (blue triangle pointing up) -->
+                <Path x:Name="TrimHandleStart"
+                      Fill="#2196F3"
+                      Cursor="SizeWestEast"
+                      Data="M0,16 L8,2 L-8,2 Z"
+                      Canvas.Left="0"
+                      Canvas.Top="0"
+                      PointerPressed="OnTrimHandleStartPressed"/>
+                <!-- Trim end handle (orange triangle pointing up) -->
+                <Path x:Name="TrimHandleEnd"
+                      Fill="#FF9800"
+                      Cursor="SizeWestEast"
+                      Data="M0,16 L8,2 L-8,2 Z"
+                      Canvas.Left="0"
+                      Canvas.Top="0"
+                      PointerPressed="OnTrimHandleEndPressed"/>
+            </Canvas>
+
+            <!-- Highlight handle canvas: pointing down, sits below the slider -->
             <Canvas x:Name="HighlightHandleCanvas"
-                    IsHitTestVisible="False"
+                    Background="Transparent"
                     IsVisible="{Binding IsAddingHighlight}"
-                    Height="14"
+                    Height="16"
                     VerticalAlignment="Bottom"
-                    Margin="7,0,7,-2">
+                    Margin="7,0,7,-4"
+                    PointerMoved="OnHighlightCanvasPointerMoved"
+                    PointerReleased="OnHighlightCanvasPointerReleased">
                 <!-- Start handle (green triangle pointing down) -->
                 <Path x:Name="HandleStart"
                       Fill="LimeGreen"
-                      Data="M0,0 L6,12 L-6,12 Z"
+                      Cursor="SizeWestEast"
+                      Data="M0,0 L8,14 L-8,14 Z"
                       Canvas.Left="0"
-                      Canvas.Top="0"/>
+                      Canvas.Top="0"
+                      PointerPressed="OnHighlightHandleStartPressed"/>
                 <!-- End handle (red triangle pointing down) -->
                 <Path x:Name="HandleEnd"
                       Fill="OrangeRed"
-                      Data="M0,0 L6,12 L-6,12 Z"
+                      Cursor="SizeWestEast"
+                      Data="M0,0 L8,14 L-8,14 Z"
                       Canvas.Left="0"
-                      Canvas.Top="0"/>
+                      Canvas.Top="0"
+                      PointerPressed="OnHighlightHandleEndPressed"/>
             </Canvas>
 
         </Grid>
@@ -861,6 +894,7 @@
                                 <Button Grid.Column="2"
                                         Command="{Binding BeginAddHighlightCommand}"
                                         IsVisible="{Binding !IsAddingHighlight}"
+                                        IsEnabled="{Binding !IsTrimming}"
                                         ToolTip.Tip="Add highlight"
                                         Padding="6">
                                     <icons:MaterialIcon Kind="PlusThick" Width="16" Height="16"/>
@@ -1198,7 +1232,8 @@
                                         Command="{Binding BeginTrimCommand}"
                                         Content="Begin Trim"
                                         FontSize="11"
-                                        IsVisible="{Binding !IsTrimming}"/>
+                                        IsVisible="{Binding !IsTrimming}"
+                                        IsEnabled="{Binding !IsAddingHighlight}"/>
                             </Grid>
 
                             <!-- Trim form -->
@@ -1297,7 +1332,33 @@
                                            TextWrapping="Wrap"
                                            IsVisible="{Binding IsTrimDestructive}"/>
 
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <!-- CE4: destructive-trim highlight-outside warning -->
+                                <Border IsVisible="{Binding TrimDestructiveWarning, Converter={x:Static conv:IsNotNullConverter.Instance}}"
+                                        Background="#33E74C3C"
+                                        BorderBrush="#E74C3C"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="8,6">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{Binding TrimDestructiveWarning}"
+                                                   FontSize="11"
+                                                   Foreground="#E74C3C"
+                                                   TextWrapping="Wrap"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Button Command="{Binding ConfirmDestructiveTrimCommand}"
+                                                    Content="Queue Anyway"
+                                                    FontSize="11"
+                                                    Background="#E74C3C"
+                                                    Foreground="White"/>
+                                            <Button Command="{Binding CancelTrimCommand}"
+                                                    Content="Cancel"
+                                                    FontSize="11"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <StackPanel Orientation="Horizontal" Spacing="6"
+                                            IsVisible="{Binding TrimDestructiveWarning, Converter={x:Static conv:IsNullConverter.Instance}}">
                                     <Button Command="{Binding QueueTrimExportCommand}"
                                             Content="Queue Export"
                                             FontSize="11"/>
