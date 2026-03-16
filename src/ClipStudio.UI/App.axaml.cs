@@ -322,6 +322,7 @@ public partial class App : AvaloniaApp
         services.AddTransient<ExportQueueViewModel>();
         services.AddTransient<HighlightsPageViewModel>();
         services.AddTransient<TrashPageViewModel>();
+        services.AddTransient<StatsPageViewModel>();
         services.AddScoped<ClipDetailViewModel>();
 
         return services.BuildServiceProvider();

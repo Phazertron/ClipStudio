@@ -1,0 +1,366 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="ClipStudio.UI.Views.StatsPageView"
+             x:DataType="vm:StatsPageViewModel">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- ===== Toolbar ===== -->
+        <Border Grid.Row="0"
+                Padding="16,10"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+
+                <TextBlock Grid.Column="0"
+                           Text="Statistics"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="0,0,16,0"/>
+
+                <icons:MaterialIcon Grid.Column="2"
+                                    Kind="Loading"
+                                    Width="20" Height="20"
+                                    IsVisible="{Binding IsLoading}"
+                                    VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- ===== Scrollable content ===== -->
+        <ScrollViewer Grid.Row="1" Padding="16">
+            <StackPanel Spacing="20">
+
+                <!-- === Summary cards === -->
+                <WrapPanel Orientation="Horizontal">
+
+                    <Border Classes="StatCard">
+                        <StackPanel>
+                            <TextBlock Text="{Binding TotalClips}" Classes="StatNumber"/>
+                            <TextBlock Text="Total Clips" Classes="StatLabel"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="StatCard">
+                        <StackPanel>
+                            <TextBlock Text="{Binding TotalHighlights}" Classes="StatNumber"/>
+                            <TextBlock Text="Highlights" Classes="StatLabel"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="StatCard">
+                        <StackPanel>
+                            <TextBlock Text="{Binding TotalDurationDisplay}" Classes="StatNumber"/>
+                            <TextBlock Text="Total Duration" Classes="StatLabel"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="StatCard">
+                        <StackPanel>
+                            <TextBlock Text="{Binding TotalPlayCount}" Classes="StatNumber"/>
+                            <TextBlock Text="Total Plays" Classes="StatLabel"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="StatCard">
+                        <StackPanel>
+                            <TextBlock Text="{Binding FavouriteClips}" Classes="StatNumber"/>
+                            <TextBlock Text="Favourites" Classes="StatLabel"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="StatCard">
+                        <StackPanel>
+                            <TextBlock Text="{Binding RatedClips}" Classes="StatNumber"/>
+                            <TextBlock Text="Rated Clips" Classes="StatLabel"/>
+                        </StackPanel>
+                    </Border>
+
+                </WrapPanel>
+
+                <!-- === Status breakdown === -->
+                <Border Classes="Section">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Status Breakdown" Classes="SectionTitle"/>
+
+                        <Grid ColumnDefinitions="120,*,Auto" Margin="0,4,0,0" RowDefinitions="Auto,6,Auto,6,Auto">
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Unreviewed" Classes="BarLabel"/>
+                            <ProgressBar Grid.Row="0" Grid.Column="1"
+                                         Minimum="0"
+                                         Maximum="{Binding TotalClips}"
+                                         Value="{Binding UnreviewedClips}"
+                                         Classes="StatusBar Unreviewed"
+                                         Height="14"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding UnreviewedClips}" Classes="BarCount"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Reviewed" Classes="BarLabel"/>
+                            <ProgressBar Grid.Row="2" Grid.Column="1"
+                                         Minimum="0"
+                                         Maximum="{Binding TotalClips}"
+                                         Value="{Binding ReviewedClips}"
+                                         Classes="StatusBar Reviewed"
+                                         Height="14"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding ReviewedClips}" Classes="BarCount"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Archived" Classes="BarLabel"/>
+                            <ProgressBar Grid.Row="4" Grid.Column="1"
+                                         Minimum="0"
+                                         Maximum="{Binding TotalClips}"
+                                         Value="{Binding ArchivedClips}"
+                                         Classes="StatusBar Archived"
+                                         Height="14"/>
+                            <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding ArchivedClips}" Classes="BarCount"/>
+
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- === Rating distribution === -->
+                <Border Classes="Section">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Rating Distribution" Classes="SectionTitle"/>
+
+                        <Grid ColumnDefinitions="50,*,Auto" Margin="0,4,0,0" RowDefinitions="Auto,6,Auto,6,Auto,6,Auto,6,Auto">
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="5 stars" Classes="BarLabel"/>
+                            <ProgressBar Grid.Row="0" Grid.Column="1"
+                                         Minimum="0"
+                                         Maximum="{Binding MaxRatingCount}"
+                                         Value="{Binding Rated5}"
+                                         Classes="RatingBar Star5"
+                                         Height="14"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Rated5}" Classes="BarCount"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="4 stars" Classes="BarLabel"/>
+                            <ProgressBar Grid.Row="2" Grid.Column="1"
+                                         Minimum="0"
+                                         Maximum="{Binding MaxRatingCount}"
+                                         Value="{Binding Rated4}"
+                                         Classes="RatingBar Star4"
+                                         Height="14"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Rated4}" Classes="BarCount"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="3 stars" Classes="BarLabel"/>
+                            <ProgressBar Grid.Row="4" Grid.Column="1"
+                                         Minimum="0"
+                                         Maximum="{Binding MaxRatingCount}"
+                                         Value="{Binding Rated3}"
+                                         Classes="RatingBar Star3"
+                                         Height="14"/>
+                            <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding Rated3}" Classes="BarCount"/>
+
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="2 stars" Classes="BarLabel"/>
+                            <ProgressBar Grid.Row="6" Grid.Column="1"
+                                         Minimum="0"
+                                         Maximum="{Binding MaxRatingCount}"
+                                         Value="{Binding Rated2}"
+                                         Classes="RatingBar Star2"
+                                         Height="14"/>
+                            <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding Rated2}" Classes="BarCount"/>
+
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="1 star" Classes="BarLabel"/>
+                            <ProgressBar Grid.Row="8" Grid.Column="1"
+                                         Minimum="0"
+                                         Maximum="{Binding MaxRatingCount}"
+                                         Value="{Binding Rated1}"
+                                         Classes="RatingBar Star1"
+                                         Height="14"/>
+                            <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding Rated1}" Classes="BarCount"/>
+
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- === Top-lists row === -->
+                <Grid ColumnDefinitions="*,16,*" RowDefinitions="Auto,16,Auto">
+
+                    <!-- Top Games -->
+                    <Border Grid.Row="0" Grid.Column="0" Classes="Section">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Top Games" Classes="SectionTitle"/>
+                            <ItemsControl ItemsSource="{Binding TopGames}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NameCountRow">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                            <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                       FontSize="12" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Count}"
+                                                       FontSize="12" Opacity="0.55"
+                                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Top Tags -->
+                    <Border Grid.Row="0" Grid.Column="2" Classes="Section">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Top Tags" Classes="SectionTitle"/>
+                            <ItemsControl ItemsSource="{Binding TopTags}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NameCountRow">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                            <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                       FontSize="12" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Count}"
+                                                       FontSize="12" Opacity="0.55"
+                                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Top Players -->
+                    <Border Grid.Row="2" Grid.Column="0" Classes="Section">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Top Players" Classes="SectionTitle"/>
+                            <ItemsControl ItemsSource="{Binding TopPlayers}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NameCountRow">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                            <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                       FontSize="12" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Count}"
+                                                       FontSize="12" Opacity="0.55"
+                                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Most Played -->
+                    <Border Grid.Row="2" Grid.Column="2" Classes="Section">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Most Played" Classes="SectionTitle"/>
+                            <ItemsControl ItemsSource="{Binding MostPlayed}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NameCountRow">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                            <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                       FontSize="12" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Count, StringFormat='{}{0}x'}"
+                                                       FontSize="12" Opacity="0.55"
+                                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                </Grid>
+
+                <!-- Bottom padding -->
+                <Border Height="16"/>
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </Grid>
+
+    <UserControl.Styles>
+
+        <Style Selector="Border.StatCard">
+            <Setter Property="Background" Value="{DynamicResource SystemAltHighColor}"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20,16"/>
+            <Setter Property="Margin" Value="0,0,12,12"/>
+            <Setter Property="MinWidth" Value="130"/>
+        </Style>
+
+        <Style Selector="TextBlock.StatNumber">
+            <Setter Property="FontSize" Value="28"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <Style Selector="TextBlock.StatLabel">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Opacity" Value="0.55"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+
+        <Style Selector="Border.Section">
+            <Setter Property="Background" Value="{DynamicResource SystemAltHighColor}"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,14"/>
+        </Style>
+
+        <Style Selector="TextBlock.SectionTitle">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+
+        <Style Selector="TextBlock.BarLabel">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+
+        <Style Selector="TextBlock.BarCount">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Opacity" Value="0.55"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style Selector="ProgressBar.StatusBar.Unreviewed /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#F39C12"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="ProgressBar.StatusBar.Reviewed /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#27AE60"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="ProgressBar.StatusBar.Archived /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#7F8C8D"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="ProgressBar.RatingBar.Star5 /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#F1C40F"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="ProgressBar.RatingBar.Star4 /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#E67E22"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="ProgressBar.RatingBar.Star3 /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#E74C3C"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="ProgressBar.RatingBar.Star2 /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#9B59B6"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="ProgressBar.RatingBar.Star1 /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#3498DB"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+    </UserControl.Styles>
+
+</UserControl>

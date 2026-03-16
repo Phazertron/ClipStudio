@@ -90,5 +90,9 @@ internal sealed class ClipConfiguration : IEntityTypeConfiguration<Clip>
             .WithOne(ej => ej.Clip)
             .HasForeignKey(ej => ej.ClipId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(c => c.PlayCount)
+            .IsRequired()
+            .HasDefaultValue(0);
     }
 }

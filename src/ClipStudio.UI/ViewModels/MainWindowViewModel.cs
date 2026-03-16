@@ -78,6 +78,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <param name="exportQueue">The export queue page view model.</param>
     /// <param name="highlights">The highlights page view model.</param>
     /// <param name="trash">The trash page view model.</param>
+    /// <param name="stats">The statistics dashboard page view model.</param>
     /// <param name="watcher">The library watcher service.</param>
     /// <param name="clipService">The clip service used to refresh the unreviewed count.</param>
     /// <param name="serviceProvider">The root DI service provider, used to create scoped detail VMs.</param>
@@ -91,6 +92,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         ExportQueueViewModel exportQueue,
         HighlightsPageViewModel highlights,
         TrashPageViewModel trash,
+        StatsPageViewModel stats,
         ILibraryWatcherService watcher,
         IClipService clipService,
         IServiceProvider serviceProvider)
@@ -131,6 +133,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             new NavigationItemViewModel("Players",    MaterialIconKind.AccountMultiple,  players),
             new NavigationItemViewModel("Export",     MaterialIconKind.FileExport,       exportQueue),
             new NavigationItemViewModel("Trash",      MaterialIconKind.TrashCan,         trash),
+            new NavigationItemViewModel("Statistics", MaterialIconKind.ChartBar,         stats),
             new NavigationItemViewModel("Settings",   MaterialIconKind.CogBox,           settings),
         };
 
@@ -195,6 +198,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 break;
             case TrashPageViewModel tpvm:
                 tpvm.LoadCommand.Execute(null);
+                break;
+            case StatsPageViewModel spvm:
+                spvm.LoadCommand.Execute(null);
                 break;
         }
     }

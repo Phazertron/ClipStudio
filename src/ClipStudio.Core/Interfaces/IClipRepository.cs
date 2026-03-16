@@ -55,4 +55,10 @@ public interface IClipRepository
     /// or <see langword="null"/> if no such clip exists.
     /// </summary>
     Task<Clip?> GetByFilePathAsync(string filePath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Atomically increments <see cref="Clip.PlayCount"/> by one for the given clip identifier.
+    /// No-ops silently if the clip does not exist.
+    /// </summary>
+    Task IncrementPlayCountAsync(int clipId, CancellationToken cancellationToken = default);
 }
