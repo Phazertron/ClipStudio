@@ -276,9 +276,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// Null when watch mode is opened from a context without a list (e.g. the clip editor).
     /// </param>
     /// <param name="sequenceIndex">The index of the current highlight within <paramref name="sequence"/>.</param>
+    /// <param name="initialLoopMode">
+    /// Optional loop mode to apply when the new highlight view model is created.
+    /// When provided, this overrides the default <see cref="LoopMode.LoopThis"/> so that
+    /// the current loop state is preserved across sequential highlight navigation.
+    /// </param>
     public void OpenHighlightWatchMode(int clipId, TimeSpan start, TimeSpan end,
                                        IReadOnlyList<HighlightRowViewModel>? sequence = null,
-                                       int sequenceIndex = -1)
+                                       int sequenceIndex = -1,
+                                       LoopMode? initialLoopMode = null)
     {
         CloseClipDetail();
         _previousPage = CurrentPage;
@@ -296,7 +302,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _currentDetailVm.WatchHighlightRating     = currentRow?.Rating ?? 0;
         _currentDetailVm.WatchHighlightIsFavorite = currentRow?.IsFavorite ?? false;
 
-        _currentDetailVm.LoopMode            = LoopMode.LoopThis;   // default to looping the highlight
+        _currentDetailVm.LoopMode            = initialLoopMode ?? LoopMode.LoopThis;
         _currentDetailVm.BackRequested       = CloseClipDetail;
 
         // Wire sequence navigation when a highlight list is provided.
@@ -307,20 +313,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
             _currentDetailVm.PreviousHighlightRequested = () =>
             {
-                if (sequenceIndex > 0)
-                {
-                    var prev = sequence[sequenceIndex - 1];
-                    OpenHighlightWatchMode(prev.ClipId, prev.StartTime, prev.EndTime, sequence, sequenceIndex - 1);
-                }
+                // Capture LoopMode before CloseClipDetail() nulls _currentDetailVm.
+                var loopMode = _currentDetailVm?.LoopMode ?? LoopMode.LoopThis;
+                int prevIndex = sequenceIndex > 0 ? sequenceIndex - 1 : sequence.Count - 1;
+                var prev = sequence[prevIndex];
+                OpenHighlightWatchMode(prev.ClipId, prev.StartTime, prev.EndTime, sequence, prevIndex, loopMode);
             };
 
             _currentDetailVm.NextHighlightRequested = () =>
             {
-                if (sequenceIndex < sequence.Count - 1)
-                {
-                    var next = sequence[sequenceIndex + 1];
-                    OpenHighlightWatchMode(next.ClipId, next.StartTime, next.EndTime, sequence, sequenceIndex + 1);
-                }
+                // Capture LoopMode before CloseClipDetail() nulls _currentDetailVm.
+                var loopMode = _currentDetailVm?.LoopMode ?? LoopMode.LoopThis;
+                // Wrap around from the last highlight back to the first for LoopAll cycling.
+                int nextIndex = sequenceIndex < sequence.Count - 1 ? sequenceIndex + 1 : 0;
+                var next = sequence[nextIndex];
+                OpenHighlightWatchMode(next.ClipId, next.StartTime, next.EndTime, sequence, nextIndex, loopMode);
             };
         }
 
