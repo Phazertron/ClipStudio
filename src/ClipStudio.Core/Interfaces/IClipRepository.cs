@@ -49,4 +49,10 @@ public interface IClipRepository
 
     /// <summary>Returns all clips (including soft-deleted) associated with the given source folder.</summary>
     Task<IReadOnlyList<Clip>> GetBySourceFolderIdAsync(int folderId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the clip whose <see cref="Clip.FilePath"/> matches the given path (case-insensitive),
+    /// or <see langword="null"/> if no such clip exists.
+    /// </summary>
+    Task<Clip?> GetByFilePathAsync(string filePath, CancellationToken cancellationToken = default);
 }

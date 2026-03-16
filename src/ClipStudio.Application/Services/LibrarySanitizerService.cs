@@ -151,8 +151,25 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                     }
                 }
 
-                // Source file truly gone — skip; let user handle via Trash/Delete.
+                // Source file truly gone — mark broken so the library shows a red overlay.
+                if (!clip.IsBroken)
+                {
+                    clip.IsBroken = true;
+                    await _clips.UpdateAsync(clip, ct);
+                    repaired++;
+                    _logger.LogWarning("Clip {Id} marked broken: source file not found at '{Path}'.", clip.Id, clip.FilePath);
+                    progress?.Report($"Broken clip flagged: {clip.FileName}");
+                }
                 continue;
+            }
+
+            // File exists — clear any stale IsBroken flag (e.g. set by watcher during a temporary move).
+            if (clip.IsBroken)
+            {
+                clip.IsBroken = false;
+                changed = true;
+                repaired++;
+                _logger.LogInformation("Clip {Id} IsBroken cleared: source file found at '{Path}'.", clip.Id, clip.FilePath);
             }
 
             // Track existing paths for orphan detection even if regeneration is not needed.

@@ -100,4 +100,11 @@ public class Clip
     /// source location for restore operations.
     /// </summary>
     public string? TrashPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the source file is missing or unreadable on disk.
+    /// Set to <see langword="true"/> by the file-watcher when a deletion event fires, and cleared
+    /// automatically by the library sanitiser when the file is found to exist again.
+    /// </summary>
+    public bool IsBroken { get; set; } = false;
 }

@@ -22,6 +22,9 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     /// <summary>Gets the unique database identifier of the clip.</summary>
     public int ClipId { get; }
 
+    /// <summary>Gets the absolute path to the video file on disk.</summary>
+    public string FilePath { get; }
+
     /// <summary>Gets or sets the file name of the clip (without directory path).</summary>
     [ObservableProperty] private string _fileName = string.Empty;
 
@@ -191,6 +194,9 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isArchivedNoticeVisible;
 
+    /// <summary>Gets or sets whether the source file for this clip is missing or unreadable on disk.</summary>
+    [ObservableProperty] private bool _isBroken;
+
     /// <summary>Gets the star rating of the clip (0 = unrated, 1-5 = rated).</summary>
     public int Rating { get; }
 
@@ -312,6 +318,7 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     public ClipCardViewModel(Clip clip, int stripFrameCount = 20)
     {
         ClipId            = clip.Id;
+        FilePath          = clip.FilePath;
         _fileName         = clip.FileName;
         ThumbnailPath     = clip.ThumbnailPath;
         StripPath         = clip.PreviewStripPath;
@@ -321,6 +328,7 @@ public sealed partial class ClipCardViewModel : ViewModelBase
         Status            = clip.Status;
         Rating            = clip.Rating;
         IsFavourite       = clip.IsFavourite;
+        _isBroken         = clip.IsBroken;
         SuggestedGameName = clip.SuggestedGameName;
 
         var gameTag = clip.ClipTags.FirstOrDefault(ct => ct.Tag?.Type == TagType.Game);

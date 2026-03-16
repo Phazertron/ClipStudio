@@ -83,6 +83,14 @@ internal sealed class ClipRepository : IClipRepository
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc/>
+    public async Task<Clip?> GetByFilePathAsync(string filePath, CancellationToken cancellationToken = default)
+        => await _context.Clips
+            .AsNoTrackingWithIdentityResolution()
+            .FirstOrDefaultAsync(
+                c => c.FilePath.ToLower() == filePath.ToLower(),
+                cancellationToken);
+
+    /// <inheritdoc/>
     public async Task AddAsync(Clip clip, CancellationToken cancellationToken = default)
     {
         await _context.Clips.AddAsync(clip, cancellationToken);

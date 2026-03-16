@@ -324,6 +324,18 @@
                                                                 HorizontalAlignment="Center"
                                                                 VerticalAlignment="Center"/>
 
+                                            <!-- Broken: red overlay + alert icon -->
+                                            <Border IsVisible="{Binding IsBroken}"
+                                                    Background="#7AFF2020"/>
+                                            <icons:MaterialIcon Kind="AlertCircle"
+                                                                Width="32" Height="32"
+                                                                Foreground="White"
+                                                                Opacity="0.85"
+                                                                IsVisible="{Binding IsBroken}"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Source file missing or unreadable"/>
+
                                             <!-- Archived notice overlay -->
                                             <Border IsVisible="{Binding IsArchivedNoticeVisible}"
                                                     Background="#CC1A1A2E"
@@ -523,6 +535,14 @@
                                                     IsHitTestVisible="False"
                                                     BorderBrush="#80FFD700"
                                                     BorderThickness="3,0,0,0"/>
+                                            <!-- Broken: red left-accent border -->
+                                            <Border Grid.ColumnSpan="10"
+                                                    IsVisible="{Binding IsBroken}"
+                                                    Background="#18FF2020"
+                                                    IsHitTestVisible="False"
+                                                    BorderBrush="#CCFF2020"
+                                                    BorderThickness="3,0,0,0"
+                                                    ToolTip.Tip="Source file missing or unreadable"/>
                                             <CheckBox Grid.Column="0"
                                                       IsChecked="{Binding IsSelected, Mode=OneWay}"
                                                       VerticalAlignment="Center"
