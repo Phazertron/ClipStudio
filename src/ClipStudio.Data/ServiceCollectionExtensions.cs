@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAudioTrackRepository, AudioTrackRepository>();
         services.AddScoped<IGameTagAliasRepository, GameTagAliasRepository>();
         services.AddScoped<IFilterPresetRepository, FilterPresetRepository>();
+        services.AddScoped<ITranscriptionRepository, TranscriptionRepository>();
 
         return services;
     }

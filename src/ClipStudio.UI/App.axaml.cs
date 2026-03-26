@@ -307,6 +307,7 @@ public partial class App : AvaloniaApp
         services.AddTransient<WelcomeStepViewModel>();
         services.AddTransient<SourceFoldersStepViewModel>();
         services.AddTransient<FfmpegStepViewModel>();
+        services.AddTransient<TranscriptionSetupStepViewModel>();
         services.AddTransient<FinishStepViewModel>();
 
         // ViewModels — main app

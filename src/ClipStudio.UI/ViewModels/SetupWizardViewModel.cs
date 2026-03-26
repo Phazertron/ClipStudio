@@ -18,6 +18,7 @@ public sealed partial class SetupWizardViewModel : ViewModelBase
 {
     private readonly List<WizardStepViewModel> _steps;
     private readonly FfmpegStepViewModel _ffmpegStep;
+    private readonly TranscriptionSetupStepViewModel _transcriptionStep;
     private readonly FinishStepViewModel _finishStep;
 
     // ---- Navigation state ----
@@ -77,10 +78,12 @@ public sealed partial class SetupWizardViewModel : ViewModelBase
         WelcomeStepViewModel welcome,
         SourceFoldersStepViewModel sourceFolders,
         FfmpegStepViewModel ffmpeg,
+        TranscriptionSetupStepViewModel transcription,
         FinishStepViewModel finish)
     {
-        _ffmpegStep = ffmpeg;
-        _finishStep = finish;
+        _ffmpegStep        = ffmpeg;
+        _transcriptionStep = transcription;
+        _finishStep        = finish;
 
         // Run detection now (synchronous file checks) so we know whether to include the step.
         ffmpeg.DetectAsync().GetAwaiter().GetResult();
@@ -89,12 +92,12 @@ public sealed partial class SetupWizardViewModel : ViewModelBase
         {
             // FFmpeg found — wire its resolved folder directly to Finish and skip the UI step.
             finish.ResolvedFfmpegFolder = ffmpeg.ResolvedFolder;
-            _steps = new List<WizardStepViewModel> { welcome, sourceFolders, finish };
+            _steps = new List<WizardStepViewModel> { welcome, sourceFolders, transcription, finish };
         }
         else
         {
             // FFmpeg not found — include the configuration step so the user can locate it.
-            _steps = new List<WizardStepViewModel> { welcome, sourceFolders, ffmpeg, finish };
+            _steps = new List<WizardStepViewModel> { welcome, sourceFolders, ffmpeg, transcription, finish };
         }
 
         _currentStep      = _steps[0];
@@ -130,6 +133,10 @@ public sealed partial class SetupWizardViewModel : ViewModelBase
         // (When the FFmpeg step is included and the user supplied a manual path, this picks it up.)
         if (_steps[nextIndex] is FinishStepViewModel finishStep)
             finishStep.ResolvedFfmpegFolder = _ffmpegStep.ResolvedFolder;
+
+        // Apply transcription settings when leaving the transcription step.
+        if (CurrentStep is TranscriptionSetupStepViewModel)
+            _ = _transcriptionStep.ApplyAsync();
 
         CurrentStepIndex = nextIndex;
         CurrentStep      = _steps[nextIndex];

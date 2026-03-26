@@ -1,0 +1,198 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:icons="using:Material.Icons.Avalonia"
+        xmlns:local="using:ClipStudio.UI.Views"
+        x:Class="ClipStudio.UI.Views.TranscriptionSetupDialog"
+        x:DataType="local:TranscriptionSetupDialogViewModel"
+        Title="Transcription Setup"
+        Width="540" Height="520"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,16">
+            <icons:MaterialIcon Kind="Microphone" Width="28" Height="28" VerticalAlignment="Center"/>
+            <StackPanel Spacing="2">
+                <TextBlock Text="Voice Transcription Setup"
+                           FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock Text="Select a local Whisper model to enable speech-to-text transcription."
+                           FontSize="12" Opacity="0.6"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="16">
+
+                <!-- Backend -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Inference backend" FontSize="12" Opacity="0.7"/>
+                    <TextBlock Text="Vulkan: GPU acceleration for AMD, Intel, and NVIDIA (no CUDA required). CPU: works on all hardware."
+                               FontSize="11" Opacity="0.5" TextWrapping="Wrap"/>
+                    <ComboBox ItemsSource="{Binding BackendOptions}"
+                              SelectedItem="{Binding SelectedBackend}"
+                              FontSize="12"
+                              Width="200"
+                              HorizontalAlignment="Left"/>
+                </StackPanel>
+
+                <!-- Language -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Language" FontSize="12" Opacity="0.7"/>
+                    <TextBlock Text="Use 'auto' for automatic detection, or enter a BCP-47 code (e.g. en, fr, de, ja)."
+                               FontSize="11" Opacity="0.5" TextWrapping="Wrap"/>
+                    <TextBox Text="{Binding Language}"
+                             Watermark="auto"
+                             Width="120"
+                             FontSize="12"
+                             HorizontalAlignment="Left"/>
+                </StackPanel>
+
+                <!-- Model selection -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Whisper model" FontSize="12" Opacity="0.7"/>
+                    <TextBlock Text="Download a model below or browse to an existing .bin file on disk. Larger models are more accurate but slower."
+                               FontSize="11" Opacity="0.5" TextWrapping="Wrap"/>
+
+                    <!-- Model table -->
+                    <Border Background="{DynamicResource SystemChromeHighColor}"
+                            CornerRadius="4"
+                            Padding="0">
+                        <StackPanel>
+
+                            <!-- Header row -->
+                            <Grid ColumnDefinitions="100,60,*,Auto"
+                                  Margin="10,6">
+                                <TextBlock Grid.Column="0" Text="Model" FontSize="11" FontWeight="SemiBold" Opacity="0.6"/>
+                                <TextBlock Grid.Column="1" Text="Size" FontSize="11" FontWeight="SemiBold" Opacity="0.6"/>
+                                <TextBlock Grid.Column="2" Text="Status" FontSize="11" FontWeight="SemiBold" Opacity="0.6"/>
+                            </Grid>
+
+                            <!-- Model rows -->
+                            <ItemsControl ItemsSource="{Binding Models}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="local:TranscriptionModelRowViewModel">
+                                        <Border Padding="10,6"
+                                                Background="{Binding IsSelected, Converter={x:Static local:TranscriptionSetupDialog.SelectedBackground}}"
+                                                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                                BorderThickness="0,0,0,1">
+                                            <Grid ColumnDefinitions="100,60,*,Auto">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding Name}"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding SizeDisplay}"
+                                                           FontSize="11"
+                                                           Opacity="0.6"
+                                                           VerticalAlignment="Center"/>
+                                                <StackPanel Grid.Column="2"
+                                                            Orientation="Horizontal"
+                                                            Spacing="4"
+                                                            VerticalAlignment="Center">
+                                                    <icons:MaterialIcon Kind="CheckCircle"
+                                                                        Width="14" Height="14"
+                                                                        Foreground="#2ECC71"
+                                                                        IsVisible="{Binding IsDownloaded}"/>
+                                                    <icons:MaterialIcon Kind="Download"
+                                                                        Width="14" Height="14"
+                                                                        Opacity="0.4"
+                                                                        IsVisible="{Binding !IsDownloaded}"/>
+                                                    <TextBlock Text="{Binding StatusText}"
+                                                               FontSize="11"
+                                                               Opacity="0.6"
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="3"
+                                                            Orientation="Horizontal"
+                                                            Spacing="4">
+                                                    <!-- Select (if downloaded) -->
+                                                    <Button Command="{Binding SelectCommand}"
+                                                            IsVisible="{Binding IsDownloaded}"
+                                                            Padding="6,3"
+                                                            FontSize="11"
+                                                            ToolTip.Tip="Use this model">
+                                                        <TextBlock Text="Select"/>
+                                                    </Button>
+                                                    <!-- Download (if not downloaded) -->
+                                                    <Button Command="{Binding DownloadCommand}"
+                                                            IsVisible="{Binding !IsDownloaded}"
+                                                            IsEnabled="{Binding !IsDownloading}"
+                                                            Padding="6,3"
+                                                            FontSize="11"
+                                                            ToolTip.Tip="Download this model">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <icons:MaterialIcon Kind="Download" Width="12" Height="12"
+                                                                                IsVisible="{Binding !IsDownloading}"/>
+                                                            <icons:MaterialIcon Kind="Loading" Width="12" Height="12"
+                                                                                IsVisible="{Binding IsDownloading}"/>
+                                                            <TextBlock Text="Download" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Download progress -->
+                    <ProgressBar IsVisible="{Binding IsDownloading}"
+                                 Value="{Binding DownloadProgress}"
+                                 Minimum="0" Maximum="1"
+                                 Height="4"/>
+                    <TextBlock Text="{Binding DownloadStatus}"
+                               FontSize="10"
+                               Opacity="0.6"
+                               IsVisible="{Binding DownloadStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                    <!-- Browse row -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Or browse to an existing model file" FontSize="11" Opacity="0.6"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding BrowsedModelPath}"
+                                     IsReadOnly="True"
+                                     Watermark="No file selected"
+                                     FontSize="11"/>
+                            <Button Grid.Column="1"
+                                    Click="OnBrowseClicked"
+                                    ToolTip.Tip="Browse for model file"
+                                    Margin="6,0,0,0"
+                                    Padding="8">
+                                <icons:MaterialIcon Kind="FolderOpen" Width="16" Height="16"/>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,16,0,0">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding SelectedModelDisplay}"
+                       FontSize="11"
+                       Opacity="0.6"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    Click="OnCancelClicked"
+                    Content="Cancel"
+                    Margin="0,0,8,0"/>
+            <Button Grid.Column="2"
+                    Click="OnOkClicked"
+                    Content="OK"
+                    IsEnabled="{Binding CanConfirm}"
+                    Classes="accent"/>
+        </Grid>
+
+    </Grid>
+
+</Window>

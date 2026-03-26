@@ -130,6 +130,39 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _soundEffectsEnabled = true;
 
+    // ---- Transcription ----
+
+    /// <summary>Gets or sets whether local voice transcription is enabled.</summary>
+    [ObservableProperty]
+    private bool _transcriptionEnabled;
+
+    /// <summary>Gets or sets the absolute path to the GGML Whisper model file.</summary>
+    [ObservableProperty]
+    private string _transcriptionModelPath = string.Empty;
+
+    /// <summary>Gets or sets the transcription inference backend display string.</summary>
+    [ObservableProperty]
+    private string _transcriptionBackend = "Auto (recommended)";
+
+    /// <summary>Gets or sets the BCP-47 language code for transcription, or "auto".</summary>
+    [ObservableProperty]
+    private string _transcriptionLanguage = "auto";
+
+    /// <summary>Gets or sets the folder where generated SRT files are saved (empty = next to clip).</summary>
+    [ObservableProperty]
+    private string _transcriptionSrtFolder = string.Empty;
+
+    /// <summary>Gets or sets whether the experimental speaker diarization pass is enabled (no-op in v1).</summary>
+    [ObservableProperty]
+    private bool _transcriptionEnableDiarization;
+
+    /// <summary>Gets the list of backend display strings for the ComboBox.</summary>
+    public static IReadOnlyList<string> TranscriptionBackendOptions { get; } =
+        new[] { "Auto (recommended)", "CPU only", "Vulkan (GPU)" };
+
+    /// <summary>Gets the command that opens the transcription model setup dialog.</summary>
+    public IRelayCommand ManageModelsCommand { get; private set; } = null!;
+
     // ---- State ----
 
     /// <summary>Gets or sets a value indicating whether a background operation is running.</summary>
@@ -260,6 +293,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         OpenKofiCommand              = new RelayCommand(OpenKofi);
         OpenLogsFolderCommand        = new RelayCommand(OpenLogsFolder);
         SendFeedbackCommand          = new RelayCommand(SendFeedback);
+        ManageModelsCommand          = new RelayCommand(OpenManageModels);
     }
 
     // ---- Load ----
@@ -302,6 +336,17 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ShowImagesInLists              = s.ShowImagesInLists;
             MinimumLogLevel                = s.MinimumLogLevel;
             SoundEffectsEnabled            = s.SoundEffectsEnabled;
+            TranscriptionEnabled           = s.TranscriptionEnabled;
+            TranscriptionModelPath         = s.TranscriptionModelPath;
+            TranscriptionLanguage          = s.TranscriptionLanguage;
+            TranscriptionSrtFolder         = s.TranscriptionSrtFolder;
+            TranscriptionEnableDiarization = s.TranscriptionEnableDiarization;
+            TranscriptionBackend           = s.TranscriptionBackend switch
+            {
+                ClipStudio.Core.Enums.TranscriptionBackend.Cpu    => "CPU only",
+                ClipStudio.Core.Enums.TranscriptionBackend.Vulkan => "Vulkan (GPU)",
+                _                                                  => "Auto (recommended)"
+            };
         }
         finally
         {
@@ -533,6 +578,17 @@ public sealed partial class SettingsViewModel : ViewModelBase
         s.ShowImagesInLists              = ShowImagesInLists;
         s.MinimumLogLevel                = MinimumLogLevel;
         s.SoundEffectsEnabled            = SoundEffectsEnabled;
+        s.TranscriptionEnabled           = TranscriptionEnabled;
+        s.TranscriptionModelPath         = TranscriptionModelPath.Trim();
+        s.TranscriptionLanguage          = TranscriptionLanguage.Trim();
+        s.TranscriptionSrtFolder         = TranscriptionSrtFolder.Trim();
+        s.TranscriptionEnableDiarization = TranscriptionEnableDiarization;
+        s.TranscriptionBackend           = TranscriptionBackend switch
+        {
+            "CPU only"     => ClipStudio.Core.Enums.TranscriptionBackend.Cpu,
+            "Vulkan (GPU)" => ClipStudio.Core.Enums.TranscriptionBackend.Vulkan,
+            _              => ClipStudio.Core.Enums.TranscriptionBackend.Auto
+        };
         await _settings.SaveAsync();
 
         // Re-apply FFmpeg binary path immediately so scans after saving use the new value.
@@ -681,6 +737,16 @@ public sealed partial class SettingsViewModel : ViewModelBase
             // Opening a browser is best-effort.
         }
     }
+
+    // ---- Transcription management ----
+
+    /// <summary>
+    /// Raised when the Settings view should open the <see cref="ClipStudio.UI.Views.TranscriptionSetupDialog"/>.
+    /// The view code-behind handles actual dialog creation so that it can pass an owner window.
+    /// </summary>
+    public event System.Action? ManageModelsRequested;
+
+    private void OpenManageModels() => ManageModelsRequested?.Invoke();
 
     // ---- Helpers ----
 
