@@ -126,11 +126,14 @@ public sealed class TranscriptionService : ITranscriptionService
     {
         var useGpu = backend != TranscriptionBackend.Cpu;
 
-        var factory   = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions { UseGpu = useGpu });
-        var builder   = factory.CreateBuilder();
+        var factory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions { UseGpu = useGpu });
+        var builder = factory.CreateBuilder();
 
-        if (!string.IsNullOrWhiteSpace(language) && language != "auto")
-            builder = builder.WithLanguage(language);
+        // Always pass the language so whisper.cpp does not silently fall back to translation mode.
+        // "auto" triggers Whisper's own language detection while keeping the output in the
+        // source language (transcription); any other code forces the source language explicitly.
+        var langCode = string.IsNullOrWhiteSpace(language) ? "auto" : language.Trim().ToLowerInvariant();
+        builder = builder.WithLanguage(langCode);
 
         using var processor = builder.Build();
 

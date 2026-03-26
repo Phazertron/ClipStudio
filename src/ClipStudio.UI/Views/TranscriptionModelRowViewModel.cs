@@ -43,25 +43,50 @@ public sealed partial class TranscriptionModelRowViewModel : ObservableObject
     /// <summary>Gets the command that initiates a download for this model.</summary>
     public IRelayCommand DownloadCommand { get; }
 
+    /// <summary>Gets the command that deletes the local model file.</summary>
+    public IRelayCommand UninstallCommand { get; }
+
     /// <summary>Raised when the user clicks Select on this row.</summary>
     public event Action<TranscriptionModelRowViewModel>? Selected;
 
     /// <summary>Raised when the user clicks Download on this row.</summary>
     public event Action<TranscriptionModelRowViewModel>? DownloadRequested;
 
+    /// <summary>Raised when the user clicks Uninstall on this row.</summary>
+    public event Action<TranscriptionModelRowViewModel>? UninstallRequested;
+
     /// <summary>
     /// Initialises a new <see cref="TranscriptionModelRowViewModel"/>.
     /// </summary>
     public TranscriptionModelRowViewModel(string name, string sizeDisplay, string url, string localPath)
     {
-        Name         = name;
-        SizeDisplay  = sizeDisplay;
-        Url          = url;
-        LocalPath    = localPath;
+        Name        = name;
+        SizeDisplay = sizeDisplay;
+        Url         = url;
+        LocalPath   = localPath;
+
+        // Commands must be created before IsDownloaded is set, because the source-generated
+        // OnIsDownloadedChanged partial method calls NotifyCanExecuteChanged on all three.
+        SelectCommand    = new RelayCommand(() => Selected?.Invoke(this),           () => IsDownloaded);
+        DownloadCommand  = new RelayCommand(() => DownloadRequested?.Invoke(this),  () => !IsDownloading && !IsDownloaded);
+        UninstallCommand = new RelayCommand(() => UninstallRequested?.Invoke(this), () => IsDownloaded && !IsDownloading);
+
         IsDownloaded = File.Exists(localPath);
         StatusText   = IsDownloaded ? "Downloaded" : "Not downloaded";
+    }
 
-        SelectCommand   = new RelayCommand(() => Selected?.Invoke(this), () => IsDownloaded);
-        DownloadCommand = new RelayCommand(() => DownloadRequested?.Invoke(this), () => !IsDownloading);
+    /// <summary>Refreshes command enabled state when <see cref="IsDownloaded"/> changes.</summary>
+    partial void OnIsDownloadedChanged(bool value)
+    {
+        SelectCommand.NotifyCanExecuteChanged();
+        DownloadCommand.NotifyCanExecuteChanged();
+        UninstallCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Refreshes command enabled state when <see cref="IsDownloading"/> changes.</summary>
+    partial void OnIsDownloadingChanged(bool value)
+    {
+        DownloadCommand.NotifyCanExecuteChanged();
+        UninstallCommand.NotifyCanExecuteChanged();
     }
 }
