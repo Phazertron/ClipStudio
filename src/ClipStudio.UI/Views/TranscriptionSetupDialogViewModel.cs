@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,9 +34,11 @@ public sealed partial class TranscriptionSetupDialogViewModel : ObservableObject
 
     // ---- Language ----
 
-    /// <summary>Gets or sets the BCP-47 language code, or "auto" for detection.</summary>
-    [ObservableProperty]
-    private string _language = "auto";
+    /// <summary>Gets the list of languages available in the language picker.</summary>
+    public IReadOnlyList<LanguageOption> LanguageOptions { get; } = BuildLanguageOptionsList();
+
+    /// <summary>Gets or sets the selected language option.</summary>
+    [ObservableProperty] private LanguageOption _selectedLanguage = BuildLanguageOptionsList()[0];
 
     // ---- Models ----
 
@@ -101,8 +104,9 @@ public sealed partial class TranscriptionSetupDialogViewModel : ObservableObject
         {
             var localPath = Path.Combine(modelsFolder, def.FileName);
             var row = new TranscriptionModelRowViewModel(def.Name, def.SizeDisplay, def.Url, localPath);
-            row.Selected += OnModelSelected;
+            row.Selected          += OnModelSelected;
             row.DownloadRequested += OnDownloadRequested;
+            row.UninstallRequested += OnUninstallRequested;
             Models.Add(row);
         }
 
@@ -111,8 +115,11 @@ public sealed partial class TranscriptionSetupDialogViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
             SetResolved(configured);
 
-        // Pre-populate language and backend from settings.
-        Language = settings.Current.TranscriptionLanguage;
+        // Pre-populate language from settings.
+        var savedCode = settings.Current.TranscriptionLanguage;
+        SelectedLanguage = LanguageOptions.FirstOrDefault(o => o.Code == savedCode)
+                           ?? LanguageOptions[0];
+
         SelectedBackend = settings.Current.TranscriptionBackend switch
         {
             TranscriptionBackend.Cpu    => "CPU only",
@@ -129,7 +136,7 @@ public sealed partial class TranscriptionSetupDialogViewModel : ObservableObject
     {
         var s = _settings.Current;
         s.TranscriptionModelPath = ResolvedModelPath;
-        s.TranscriptionLanguage  = Language.Trim();
+        s.TranscriptionLanguage  = SelectedLanguage.Code;
         s.TranscriptionBackend   = SelectedBackend switch
         {
             "CPU only"      => TranscriptionBackend.Cpu,
@@ -162,6 +169,33 @@ public sealed partial class TranscriptionSetupDialogViewModel : ObservableObject
         foreach (var m in Models)
             m.IsSelected = m == row;
         SetResolved(row.LocalPath);
+    }
+
+    private void OnUninstallRequested(TranscriptionModelRowViewModel row)
+    {
+        try
+        {
+            if (File.Exists(row.LocalPath))
+                File.Delete(row.LocalPath);
+
+            row.IsDownloaded = false;
+            row.StatusText   = "Not downloaded";
+
+            // If this was the selected model, clear the selection.
+            if (row.IsSelected)
+            {
+                row.IsSelected    = false;
+                ResolvedModelPath = string.Empty;
+                OnPropertyChanged(nameof(CanConfirm));
+                OnPropertyChanged(nameof(SelectedModelDisplay));
+            }
+
+            DownloadStatus = $"{row.Name} uninstalled.";
+        }
+        catch (Exception ex)
+        {
+            DownloadStatus = $"Uninstall failed: {ex.Message}";
+        }
     }
 
     private async void OnDownloadRequested(TranscriptionModelRowViewModel row)
@@ -230,11 +264,60 @@ public sealed partial class TranscriptionSetupDialogViewModel : ObservableObject
 
     private static IEnumerable<(string Name, string FileName, string SizeDisplay, string Url)> KnownModels()
     {
-        const string base_url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
-        yield return ("tiny",     "ggml-tiny.bin",     "75 MB",   base_url + "ggml-tiny.bin");
-        yield return ("base",     "ggml-base.bin",     "142 MB",  base_url + "ggml-base.bin");
-        yield return ("small",    "ggml-small.bin",    "466 MB",  base_url + "ggml-small.bin");
-        yield return ("medium",   "ggml-medium.bin",   "1.5 GB",  base_url + "ggml-medium.bin");
-        yield return ("large-v3", "ggml-large-v3.bin", "3.1 GB",  base_url + "ggml-large-v3.bin");
+        const string baseUrl = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
+        yield return ("tiny",     "ggml-tiny.bin",     "75 MB",   baseUrl + "ggml-tiny.bin");
+        yield return ("base",     "ggml-base.bin",     "142 MB",  baseUrl + "ggml-base.bin");
+        yield return ("small",    "ggml-small.bin",    "466 MB",  baseUrl + "ggml-small.bin");
+        yield return ("medium",   "ggml-medium.bin",   "1.5 GB",  baseUrl + "ggml-medium.bin");
+        yield return ("large-v3", "ggml-large-v3.bin", "3.1 GB",  baseUrl + "ggml-large-v3.bin");
+    }
+
+    /// <summary>
+    /// Builds the full list of language options shared between the setup dialog and the Settings page.
+    /// </summary>
+    public static IReadOnlyList<LanguageOption> BuildLanguageOptionsList()
+    {
+        return new[]
+        {
+            new LanguageOption("auto",  "Auto-detect"),
+            new LanguageOption("en",    "English"),
+            new LanguageOption("zh",    "Chinese"),
+            new LanguageOption("de",    "German"),
+            new LanguageOption("es",    "Spanish"),
+            new LanguageOption("ru",    "Russian"),
+            new LanguageOption("ko",    "Korean"),
+            new LanguageOption("fr",    "French"),
+            new LanguageOption("ja",    "Japanese"),
+            new LanguageOption("pt",    "Portuguese"),
+            new LanguageOption("tr",    "Turkish"),
+            new LanguageOption("pl",    "Polish"),
+            new LanguageOption("ca",    "Catalan"),
+            new LanguageOption("nl",    "Dutch"),
+            new LanguageOption("ar",    "Arabic"),
+            new LanguageOption("sv",    "Swedish"),
+            new LanguageOption("it",    "Italian"),
+            new LanguageOption("id",    "Indonesian"),
+            new LanguageOption("hi",    "Hindi"),
+            new LanguageOption("fi",    "Finnish"),
+            new LanguageOption("vi",    "Vietnamese"),
+            new LanguageOption("he",    "Hebrew"),
+            new LanguageOption("uk",    "Ukrainian"),
+            new LanguageOption("el",    "Greek"),
+            new LanguageOption("ms",    "Malay"),
+            new LanguageOption("cs",    "Czech"),
+            new LanguageOption("ro",    "Romanian"),
+            new LanguageOption("da",    "Danish"),
+            new LanguageOption("hu",    "Hungarian"),
+            new LanguageOption("ta",    "Tamil"),
+            new LanguageOption("no",    "Norwegian"),
+            new LanguageOption("th",    "Thai"),
+            new LanguageOption("ur",    "Urdu"),
+            new LanguageOption("hr",    "Croatian"),
+            new LanguageOption("bg",    "Bulgarian"),
+            new LanguageOption("lt",    "Lithuanian"),
+            new LanguageOption("lv",    "Latvian"),
+            new LanguageOption("sl",    "Slovenian"),
+            new LanguageOption("sk",    "Slovak"),
+        };
     }
 }

@@ -144,9 +144,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _transcriptionBackend = "Auto (recommended)";
 
-    /// <summary>Gets or sets the BCP-47 language code for transcription, or "auto".</summary>
+    /// <summary>Gets or sets the language option selected for transcription.</summary>
     [ObservableProperty]
-    private string _transcriptionLanguage = "auto";
+    private ClipStudio.UI.Views.LanguageOption _selectedTranscriptionLanguage = TranscriptionLanguageOptions[0];
 
     /// <summary>Gets or sets the folder where generated SRT files are saved (empty = next to clip).</summary>
     [ObservableProperty]
@@ -160,8 +160,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public static IReadOnlyList<string> TranscriptionBackendOptions { get; } =
         new[] { "Auto (recommended)", "CPU only", "Vulkan (GPU)" };
 
-    /// <summary>Gets the command that opens the transcription model setup dialog.</summary>
-    public IRelayCommand ManageModelsCommand { get; private set; } = null!;
+    /// <summary>Gets the list of language options for the transcription language picker.</summary>
+    public static IReadOnlyList<ClipStudio.UI.Views.LanguageOption> TranscriptionLanguageOptions { get; } =
+        ClipStudio.UI.Views.TranscriptionSetupDialogViewModel.BuildLanguageOptionsList();
 
     // ---- State ----
 
@@ -261,6 +262,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Path.Combine(AppContext.BaseDirectory, "obs-scripts", "clipstudio_replay_tagger.py");
 
     /// <summary>
+    /// Exposes the underlying settings service so that code-behind can pass it to dialogs
+    /// (e.g. <see cref="ClipStudio.UI.Views.TranscriptionSetupDialog"/>).
+    /// </summary>
+    public ISettingsService SettingsService => _settings;
+
+    /// <summary>
     /// Initialises a new <see cref="SettingsViewModel"/>.
     /// </summary>
     /// <param name="settings">The application settings service.</param>
@@ -293,7 +300,6 @@ public sealed partial class SettingsViewModel : ViewModelBase
         OpenKofiCommand              = new RelayCommand(OpenKofi);
         OpenLogsFolderCommand        = new RelayCommand(OpenLogsFolder);
         SendFeedbackCommand          = new RelayCommand(SendFeedback);
-        ManageModelsCommand          = new RelayCommand(OpenManageModels);
     }
 
     // ---- Load ----
@@ -338,7 +344,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
             SoundEffectsEnabled            = s.SoundEffectsEnabled;
             TranscriptionEnabled           = s.TranscriptionEnabled;
             TranscriptionModelPath         = s.TranscriptionModelPath;
-            TranscriptionLanguage          = s.TranscriptionLanguage;
+            SelectedTranscriptionLanguage  = TranscriptionLanguageOptions
+                                                .FirstOrDefault(o => o.Code == s.TranscriptionLanguage)
+                                                ?? TranscriptionLanguageOptions[0];
             TranscriptionSrtFolder         = s.TranscriptionSrtFolder;
             TranscriptionEnableDiarization = s.TranscriptionEnableDiarization;
             TranscriptionBackend           = s.TranscriptionBackend switch
@@ -580,7 +588,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         s.SoundEffectsEnabled            = SoundEffectsEnabled;
         s.TranscriptionEnabled           = TranscriptionEnabled;
         s.TranscriptionModelPath         = TranscriptionModelPath.Trim();
-        s.TranscriptionLanguage          = TranscriptionLanguage.Trim();
+        s.TranscriptionLanguage          = SelectedTranscriptionLanguage.Code;
         s.TranscriptionSrtFolder         = TranscriptionSrtFolder.Trim();
         s.TranscriptionEnableDiarization = TranscriptionEnableDiarization;
         s.TranscriptionBackend           = TranscriptionBackend switch
@@ -739,14 +747,6 @@ public sealed partial class SettingsViewModel : ViewModelBase
     }
 
     // ---- Transcription management ----
-
-    /// <summary>
-    /// Raised when the Settings view should open the <see cref="ClipStudio.UI.Views.TranscriptionSetupDialog"/>.
-    /// The view code-behind handles actual dialog creation so that it can pass an owner window.
-    /// </summary>
-    public event System.Action? ManageModelsRequested;
-
-    private void OpenManageModels() => ManageModelsRequested?.Invoke();
 
     // ---- Helpers ----
 

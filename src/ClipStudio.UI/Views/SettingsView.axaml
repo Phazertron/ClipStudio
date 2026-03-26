@@ -534,7 +534,7 @@
                                      Watermark="No model selected"
                                      FontSize="11"/>
                             <Button Grid.Column="1"
-                                    Command="{Binding ManageModelsCommand}"
+                                    Click="OnManageModelsClicked"
                                     ToolTip.Tip="Download or browse for a Whisper model"
                                     Margin="6,0,0,0"
                                     Padding="8,4"
@@ -561,14 +561,15 @@
 
                     <StackPanel Spacing="4"
                                 IsVisible="{Binding TranscriptionEnabled}">
-                        <TextBlock Text="Language (BCP-47 or 'auto')"
+                        <TextBlock Text="Language"
                                    FontSize="12"
                                    Opacity="0.7"/>
-                        <TextBox Text="{Binding TranscriptionLanguage}"
-                                 Watermark="auto"
-                                 Width="120"
-                                 FontSize="12"
-                                 HorizontalAlignment="Left"/>
+                        <ComboBox ItemsSource="{Binding TranscriptionLanguageOptions}"
+                                  SelectedItem="{Binding SelectedTranscriptionLanguage}"
+                                  DisplayMemberBinding="{Binding DisplayName}"
+                                  Width="200"
+                                  FontSize="12"
+                                  HorizontalAlignment="Left"/>
                     </StackPanel>
 
                     <StackPanel Spacing="4"
