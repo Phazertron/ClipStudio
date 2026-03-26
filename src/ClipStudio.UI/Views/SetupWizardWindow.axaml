@@ -25,6 +25,9 @@
         <DataTemplate DataType="stepsVm:FfmpegStepViewModel">
             <stepsViews:FfmpegStepView/>
         </DataTemplate>
+        <DataTemplate DataType="stepsVm:TranscriptionSetupStepViewModel">
+            <stepsViews:TranscriptionSetupStepView/>
+        </DataTemplate>
         <DataTemplate DataType="stepsVm:FinishStepViewModel">
             <stepsViews:FinishStepView/>
         </DataTemplate>

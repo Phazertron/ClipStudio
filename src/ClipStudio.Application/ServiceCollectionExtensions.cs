@@ -1,5 +1,6 @@
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Application.Services;
+using ClipStudio.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -44,6 +45,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<ITagSuggestionService, TagSuggestionService>();
         services.AddScoped<IFilterPresetService, FilterPresetService>();
+        services.AddScoped<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<IRecycleBinService, RecycleBinService>();
 
         // Steam game search: credential-free, uses a named HttpClient.

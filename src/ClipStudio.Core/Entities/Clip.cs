@@ -113,4 +113,7 @@ public class Clip
     /// Incremented each time the user navigates to the clip player.
     /// </summary>
     public int PlayCount { get; set; } = 0;
+
+    /// <summary>Gets the collection of speech-to-text transcriptions produced for this clip.</summary>
+    public ICollection<Transcription> Transcriptions { get; set; } = new List<Transcription>();
 }

@@ -115,4 +115,44 @@ public sealed class AppSettings
     /// Defaults to 52 pixels to comfortably show the thumbnail and metadata.
     /// </summary>
     public int LibraryDetailsRowHeight { get; set; } = 52;
+
+    /// <summary>
+    /// Gets or sets whether local voice transcription is enabled.
+    /// When <c>false</c>, the transcription panel and controls are hidden throughout the UI.
+    /// Defaults to <c>false</c> because a model must be downloaded before the feature can function.
+    /// </summary>
+    public bool TranscriptionEnabled { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the absolute path to the GGML Whisper model file (.bin) used for transcription.
+    /// Leave empty if no model has been configured; the setup dialog will prompt the user.
+    /// </summary>
+    public string TranscriptionModelPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the hardware inference backend used by the Whisper engine.
+    /// Defaults to <see cref="TranscriptionBackend.Auto"/> which selects Vulkan when available
+    /// and falls back to CPU.
+    /// </summary>
+    public TranscriptionBackend TranscriptionBackend { get; set; } = TranscriptionBackend.Auto;
+
+    /// <summary>
+    /// Gets or sets the BCP-47 language code passed to Whisper (e.g. "en", "fr"), or "auto"
+    /// for automatic language detection. Defaults to "auto".
+    /// </summary>
+    public string TranscriptionLanguage { get; set; } = "auto";
+
+    /// <summary>
+    /// Gets or sets the folder where generated SRT subtitle files are saved.
+    /// When empty, the SRT file is written to the same directory as the source clip.
+    /// </summary>
+    public string TranscriptionSrtFolder { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets whether the experimental speaker diarization pass is attempted during
+    /// transcription. This is a no-op in the current release; the flag is reserved for a
+    /// future implementation that requires additional tooling.
+    /// Defaults to <c>false</c>.
+    /// </summary>
+    public bool TranscriptionEnableDiarization { get; set; } = false;
 }

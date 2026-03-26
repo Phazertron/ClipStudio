@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using ClipStudio.UI.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ClipStudio.UI.Views;
 
@@ -17,6 +18,25 @@ public partial class SettingsView : UserControl
     {
         InitializeComponent();
         AttachedToVisualTree += OnAttachedToVisualTree;
+        DataContextChanged   += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object? sender, System.EventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm)
+            vm.ManageModelsRequested += OnManageModelsRequested;
+    }
+
+    private async void OnManageModelsRequested()
+    {
+        if (DataContext is not SettingsViewModel vm) return;
+        if (TopLevel.GetTopLevel(this) is not Window window) return;
+
+        var settings = App.Services.GetRequiredService<ClipStudio.Application.Interfaces.ISettingsService>();
+        var dlgVm    = new TranscriptionSetupDialogViewModel(settings);
+        dlgVm.Confirmed += async () => await vm.LoadAsync();
+        var dialog = new TranscriptionSetupDialog(dlgVm);
+        await dialog.ShowDialog(window);
     }
 
     private void OnAttachedToVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
@@ -74,6 +94,24 @@ public partial class SettingsView : UserControl
     /// Shows the <see cref="SourceFolderRemovalDialog"/> so the user can choose Archive, Wipe, or Cancel,
     /// then delegates to the appropriate <see cref="SettingsViewModel"/> method.
     /// </summary>
+    private async void OnBrowseTranscriptionSrtFolderClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm) return;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return;
+        var folder = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title         = "Select SRT output folder",
+            AllowMultiple = false
+        });
+        if (folder.Count > 0)
+        {
+            var path = folder[0].TryGetLocalPath();
+            if (!string.IsNullOrEmpty(path))
+                vm.TranscriptionSrtFolder = path;
+        }
+    }
+
     private async void OnRemoveFolderClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;

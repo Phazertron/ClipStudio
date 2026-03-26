@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
+using ClipStudio.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LibVLCSharp.Shared;
@@ -38,6 +39,26 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     private readonly ClipStudio.Application.Interfaces.IGameTagAliasService _gameTagAliasService;
     private readonly ClipStudio.UI.Services.ISoundService _soundService;
     private readonly ClipStudio.Application.Interfaces.ITagSuggestionService _tagSuggestionService;
+    private readonly ITranscriptionService _transcriptionService;
+    private readonly ITranscriptionRepository _transcriptionRepository;
+
+    /// <summary>Gets the transcription panel view model for the current clip.</summary>
+    public TranscriptionViewModel Transcription { get; }
+
+    /// <summary>Gets or sets the SRT file path of the latest transcription, used for subtitle overlay.</summary>
+    private string? _latestSrtPath;
+
+    /// <summary>
+    /// Gets a value indicating whether a transcription exists for the current clip,
+    /// enabling the subtitle overlay toggle in the transport bar.
+    /// </summary>
+    [ObservableProperty] private bool _hasTranscription;
+
+    /// <summary>Gets or sets whether the subtitle overlay is currently active.</summary>
+    [ObservableProperty] private bool _isSubtitlesEnabled;
+
+    /// <summary>Gets the command that toggles the subtitle overlay on or off.</summary>
+    public IRelayCommand ToggleSubtitlesCommand { get; }
 
     private Clip? _clip;
     private Media? _media;
@@ -738,21 +759,32 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         ClipStudio.Application.Interfaces.IMixedAudioService mixedAudioService,
         ClipStudio.Application.Interfaces.IGameTagAliasService gameTagAliasService,
         ClipStudio.UI.Services.ISoundService soundService,
-        ClipStudio.Application.Interfaces.ITagSuggestionService tagSuggestionService)
+        ClipStudio.Application.Interfaces.ITagSuggestionService tagSuggestionService,
+        ITranscriptionService transcriptionService,
+        ITranscriptionRepository transcriptionRepository)
     {
-        _libVlc               = libVlc;
-        _clipService          = clipService;
-        _highlightService     = highlightService;
-        _screenshotService    = screenshotService;
-        _tagService           = tagService;
-        _exportService        = exportService;
-        _settingsService      = settingsService;
-        _playerService        = playerService;
-        _audioTrackService    = audioTrackService;
-        _mixedAudioService    = mixedAudioService;
-        _gameTagAliasService  = gameTagAliasService;
-        _soundService         = soundService;
-        _tagSuggestionService = tagSuggestionService;
+        _libVlc                   = libVlc;
+        _clipService              = clipService;
+        _highlightService         = highlightService;
+        _screenshotService        = screenshotService;
+        _tagService               = tagService;
+        _exportService            = exportService;
+        _settingsService          = settingsService;
+        _playerService            = playerService;
+        _audioTrackService        = audioTrackService;
+        _mixedAudioService        = mixedAudioService;
+        _gameTagAliasService      = gameTagAliasService;
+        _soundService             = soundService;
+        _tagSuggestionService     = tagSuggestionService;
+        _transcriptionService     = transcriptionService;
+        _transcriptionRepository  = transcriptionRepository;
+
+        Transcription = new TranscriptionViewModel(
+            _transcriptionService,
+            _transcriptionRepository,
+            _settingsService,
+            seekMs => SeekToMs(seekMs));
+        Transcription.TranscriptionCompleted += OnTranscriptionCompleted;
 
         MediaPlayer = new MediaPlayer(_libVlc);
         // _masterVolume field initialiser bypasses the generated setter, so OnMasterVolumeChanged
@@ -822,6 +854,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         ShowClearAllDataConfirmCommand   = new RelayCommand(() => IsClearAllDataConfirmVisible   = true);
         ConfirmClearAllDataCommand       = new AsyncRelayCommand(ClearAllDataAsync);
         CancelClearAllDataConfirmCommand = new RelayCommand(() => IsClearAllDataConfirmVisible   = false);
+        ToggleSubtitlesCommand           = new RelayCommand(ToggleSubtitles);
     }
 
     // ---- Load ----
@@ -890,6 +923,14 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             await LoadPlayerPickerAsync();
             _ = _clipService.IncrementPlayCountAsync(clipId);
             _ = LoadTagSuggestionsAsync(clipId);
+
+            // Load any existing transcription for this clip.
+            var trackNames = AudioTracks.Select(t => t.DisplayName).ToList();
+            await Transcription.LoadAsync(clipId, trackNames);
+            HasTranscription  = Transcription.HasExistingTranscription;
+            _latestSrtPath    = Transcription.HasExistingTranscription
+                ? (await _transcriptionRepository.GetLatestByClipIdAsync(clipId))?.SrtFilePath
+                : null;
         }
 
         if (IsWatchMode || _settingsService.Current.AutoPlayOnOpen)
@@ -1203,6 +1244,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         // from inside the Playing-event handler — VLC's audio pipeline is not fully ready yet.
         await ApplyAudioRoutingAsync(System.Threading.CancellationToken.None, isInitialLoad: true);
         LogAudioDiagnostics("AfterRefreshAudioTracks");
+
+        // Push track names into the transcription panel so the track picker is populated.
+        Transcription.SetAvailableTracks(AudioTracks.Select(t => t.DisplayName).ToList());
     }
 
     private async Task SaveAudioSettingsAsync()
@@ -2351,6 +2395,65 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
     private static string FormatTime(TimeSpan ts) =>
         ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
+
+    // ---- Transcription helpers ----
+
+    /// <summary>
+    /// Seeks the media player to the given absolute position in milliseconds.
+    /// Used as the seek callback passed to <see cref="TranscriptionViewModel"/> so that
+    /// clicking a segment row in the transcription panel moves the playhead.
+    /// </summary>
+    /// <param name="ms">Target position in milliseconds from the start of the clip.</param>
+    private void SeekToMs(long ms)
+    {
+        _ignoreTimeChangedBeforeMs = ms - 200;
+        MediaPlayer.Time = ms;
+    }
+
+    /// <summary>
+    /// Called when <see cref="TranscriptionViewModel"/> raises <c>TranscriptionCompleted</c>
+    /// after a successful transcription run. Updates <see cref="HasTranscription"/> and caches
+    /// the SRT path so that <see cref="ToggleSubtitlesCommand"/> can apply the subtitle slave.
+    /// </summary>
+    /// <param name="srtPath">Absolute path to the generated <c>.srt</c> file.</param>
+    private void OnTranscriptionCompleted(string srtPath)
+    {
+        _latestSrtPath  = srtPath;
+        HasTranscription = true;
+    }
+
+    /// <summary>
+    /// Toggles the LibVLC subtitle slave on or off. When enabling, attaches the latest
+    /// <c>.srt</c> file as a subtitle slave; when disabling, reloads the media without any slave.
+    /// </summary>
+    private void ToggleSubtitles()
+    {
+        if (!HasTranscription || string.IsNullOrEmpty(_latestSrtPath))
+            return;
+
+        if (!IsSubtitlesEnabled)
+        {
+            // Enable: attach the SRT file as a subtitle slave.
+            var uri = new Uri(_latestSrtPath).AbsoluteUri;
+            MediaPlayer.AddSlave(MediaSlaveType.Subtitle, uri, true);
+            IsSubtitlesEnabled = true;
+        }
+        else
+        {
+            // Disable: reload the current media without any slave attached.
+            IsSubtitlesEnabled = false;
+            if (_clip is not null)
+            {
+                var posMs = MediaPlayer.Time;
+                _media?.Dispose();
+                _media = new Media(_libVlc, _clip.FilePath, FromType.FromPath);
+                MediaPlayer.Media = _media;
+                _ignoreTimeChangedBeforeMs = posMs - 200;
+                MediaPlayer.Play();
+                MediaPlayer.Time = posMs;
+            }
+        }
+    }
 
     // ---- IDisposable ----
 

@@ -1,0 +1,114 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="400"
+             x:Class="ClipStudio.UI.Views.TranscriptionPanelView"
+             x:DataType="vm:TranscriptionViewModel">
+
+    <StackPanel Spacing="8" Margin="0,4,0,0">
+
+        <!-- Track picker + Transcribe button row -->
+        <Grid ColumnDefinitions="*,Auto,Auto">
+
+            <!-- Audio track selector -->
+            <ComboBox Grid.Column="0"
+                      ItemsSource="{Binding AvailableTracks}"
+                      SelectedIndex="{Binding SelectedTrackIndex}"
+                      FontSize="11"
+                      IsEnabled="{Binding !IsTranscribing}"
+                      PlaceholderText="Select audio track..."
+                      HorizontalAlignment="Stretch"/>
+
+            <!-- Transcribe button -->
+            <Button Grid.Column="1"
+                    Command="{Binding TranscribeCommand}"
+                    IsEnabled="{Binding CanTranscribe}"
+                    ToolTip.Tip="Start transcription"
+                    Margin="6,0,0,0"
+                    Padding="8,4">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <icons:MaterialIcon Kind="Microphone" Width="14" Height="14"/>
+                    <TextBlock Text="Transcribe" FontSize="11" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Cancel button (visible only while transcribing) -->
+            <Button Grid.Column="2"
+                    Command="{Binding CancelCommand}"
+                    IsVisible="{Binding IsTranscribing}"
+                    ToolTip.Tip="Cancel transcription"
+                    Margin="4,0,0,0"
+                    Padding="6,4">
+                <icons:MaterialIcon Kind="Close" Width="14" Height="14"/>
+            </Button>
+
+        </Grid>
+
+        <!-- Progress bar (visible while transcribing) -->
+        <ProgressBar IsVisible="{Binding IsTranscribing}"
+                     Value="{Binding Progress}"
+                     Minimum="0"
+                     Maximum="1"
+                     Height="4"
+                     IsIndeterminate="False"/>
+
+        <!-- Status message -->
+        <TextBlock Text="{Binding StatusMessage}"
+                   FontSize="10"
+                   Opacity="0.6"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+        <!-- Existing transcription date line -->
+        <StackPanel Orientation="Horizontal"
+                    Spacing="4"
+                    IsVisible="{Binding HasExistingTranscription}">
+            <icons:MaterialIcon Kind="CheckCircleOutline" Width="12" Height="12" Opacity="0.5"/>
+            <TextBlock Text="{Binding LastTranscriptionDate, StringFormat='Transcribed: {0}'}"
+                       FontSize="10"
+                       Opacity="0.5"/>
+        </StackPanel>
+
+        <!-- Segment list -->
+        <ScrollViewer MaxHeight="280"
+                      IsVisible="{Binding Segments.Count}"
+                      HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Segments}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TranscriptionSegmentViewModel">
+                        <Border x:Name="SegmentRow"
+                                Padding="6,4"
+                                Margin="0,1"
+                                CornerRadius="3"
+                                Cursor="Hand"
+                                Background="Transparent">
+                            <Border.Styles>
+                                <Style Selector="Border:pointerover">
+                                    <Setter Property="Background" Value="{DynamicResource SystemAccentColorDark3}"/>
+                                </Style>
+                            </Border.Styles>
+                            <Grid ColumnDefinitions="80,*">
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding TimestampRange}"
+                                           FontSize="10"
+                                           FontFamily="Consolas,Courier New,monospace"
+                                           Opacity="0.55"
+                                           VerticalAlignment="Top"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding Text}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Margin="6,0,0,0"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+    </StackPanel>
+
+</UserControl>
