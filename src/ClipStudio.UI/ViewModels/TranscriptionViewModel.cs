@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ClipStudio.Application.Interfaces;
-using ClipStudio.Core.Enums;
 using ClipStudio.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -13,8 +14,12 @@ namespace ClipStudio.UI.ViewModels;
 
 /// <summary>
 /// View model for the transcription panel embedded in the clip detail view.
-/// Manages the single-track picker, the transcription progress state, and the ordered list
-/// of timed text segments produced by the local Whisper model.
+/// Manages per-clip caption track selection, transcription progress state, and the ordered list of
+/// timed text segments produced by the local Whisper model.
+///
+/// Caption tracks are owned by this panel and are independent of the audio mix configuration used
+/// for playback.  The user selects which tracks to include for captioning via checkboxes; all tracks
+/// are included by default.
 /// </summary>
 public sealed partial class TranscriptionViewModel : ViewModelBase
 {
@@ -31,11 +36,13 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(CanTranscribe))]
     private bool _isTranscribing;
 
-    /// <summary>Gets or sets the transcription progress (0 – 1).</summary>
-    [ObservableProperty] private float _progress;
+    /// <summary>Gets or sets the transcription progress (0 - 1).</summary>
+    [ObservableProperty]
+    private float _progress;
 
     /// <summary>Gets or sets a human-readable status message shown below the progress bar.</summary>
-    [ObservableProperty] private string _statusMessage = string.Empty;
+    [ObservableProperty]
+    private string _statusMessage = string.Empty;
 
     /// <summary>Gets or sets whether a transcription already exists for the current clip.</summary>
     [ObservableProperty]
@@ -43,17 +50,17 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
     private bool _hasExistingTranscription;
 
     /// <summary>Gets or sets the display date of the most recent transcription, if any.</summary>
-    [ObservableProperty] private string _lastTranscriptionDate = string.Empty;
-
-    // ---- Track selection ----
-
-    /// <summary>Gets the display names of the audio tracks available in the current clip.</summary>
-    public ObservableCollection<string> AvailableTracks { get; } = new();
-
-    /// <summary>Gets or sets the 0-based index of the audio track selected for transcription.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanTranscribe))]
-    private int _selectedTrackIndex;
+    private string _lastTranscriptionDate = string.Empty;
+
+    // ---- Caption track selection ----
+
+    /// <summary>
+    /// Gets the caption track items for this clip.  Each item corresponds to one FFmpeg audio stream
+    /// and exposes an <c>IsIncluded</c> checkbox so the user can choose which tracks feed the
+    /// transcription independently of the audio mix used for playback.
+    /// </summary>
+    public ObservableCollection<CaptionTrackViewModel> CaptionTracks { get; } = new();
 
     // ---- Segments ----
 
@@ -70,9 +77,9 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
 
     /// <summary>
     /// Gets a value indicating whether the user can start a new transcription.
-    /// Requires at least one track available and no run currently in progress.
+    /// Requires at least one caption track available and no run currently in progress.
     /// </summary>
-    public bool CanTranscribe => !IsTranscribing && AvailableTracks.Count > 0;
+    public bool CanTranscribe => !IsTranscribing && CaptionTracks.Count > 0;
 
     /// <summary>
     /// Raised when a transcription completes so that <see cref="ClipDetailViewModel"/>
@@ -80,18 +87,12 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
     /// </summary>
     public event Action<string>? TranscriptionCompleted;
 
-    /// <summary>Gets or sets the clip identifier for which this panel is active.</summary>
+    /// <summary>Gets the clip identifier for which this panel is active.</summary>
     private int _clipId;
 
     /// <summary>
     /// Initialises a new <see cref="TranscriptionViewModel"/>.
     /// </summary>
-    /// <param name="transcriptionService">Service that runs the Whisper pipeline.</param>
-    /// <param name="transcriptionRepository">Repository used to load existing transcriptions.</param>
-    /// <param name="settingsService">Application settings, used to read model path and backend.</param>
-    /// <param name="seekRequested">
-    /// Callback invoked when the user clicks a segment; receives the start position in milliseconds.
-    /// </param>
     public TranscriptionViewModel(
         ITranscriptionService transcriptionService,
         ITranscriptionRepository transcriptionRepository,
@@ -116,19 +117,13 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
 
     /// <summary>
     /// Loads the latest existing transcription for the given clip (if any) and populates segments.
-    /// Also sets up the track list from the supplied display names.
+    /// Also initialises the caption track list from the supplied display names.
     /// </summary>
-    /// <param name="clipId">The clip whose transcription history to load.</param>
-    /// <param name="trackDisplayNames">Display names of the audio tracks available for this clip.</param>
-    public async Task LoadAsync(int clipId, System.Collections.Generic.IReadOnlyList<string> trackDisplayNames)
+    public async Task LoadAsync(int clipId, IReadOnlyList<string> trackDisplayNames)
     {
         _clipId = clipId;
 
-        AvailableTracks.Clear();
-        foreach (var name in trackDisplayNames)
-            AvailableTracks.Add(name);
-
-        SelectedTrackIndex = 0;
+        SetAvailableTracks(trackDisplayNames);
         Segments.Clear();
         HasExistingTranscription = false;
         LastTranscriptionDate    = string.Empty;
@@ -143,26 +138,32 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Updates the available-tracks list from the audio tracks discovered by VLC after playback starts.
+    /// Updates the caption track list from the audio tracks discovered by VLC after playback starts.
     /// Called by <see cref="ClipDetailViewModel"/> once <c>RefreshAudioTracksAsync</c> completes.
+    /// Existing <c>IsIncluded</c> state is preserved for tracks whose display name has not changed.
     /// </summary>
-    /// <param name="trackDisplayNames">Ordered display names of the available audio tracks.</param>
-    public void SetAvailableTracks(System.Collections.Generic.IReadOnlyList<string> trackDisplayNames)
+    public void SetAvailableTracks(IReadOnlyList<string> trackDisplayNames)
     {
-        AvailableTracks.Clear();
-        foreach (var name in trackDisplayNames)
-            AvailableTracks.Add(name);
+        // Snapshot current inclusion state keyed by name so it can be reapplied after refresh.
+        var previous = CaptionTracks.ToDictionary(t => t.Name, t => t.IsIncluded);
 
-        if (SelectedTrackIndex >= AvailableTracks.Count)
-            SelectedTrackIndex = 0;
+        CaptionTracks.Clear();
+        for (var i = 0; i < trackDisplayNames.Count; i++)
+        {
+            var name      = trackDisplayNames[i];
+            var isIncluded = !previous.TryGetValue(name, out var was) || was;
+            CaptionTracks.Add(new CaptionTrackViewModel(name, i) { IsIncluded = isIncluded });
+        }
 
         OnPropertyChanged(nameof(CanTranscribe));
         TranscribeCommand.NotifyCanExecuteChanged();
     }
 
-    // ---- Private helpers ----
-
-    private async Task TranscribeAsync()
+    /// <summary>
+    /// Starts a transcription run using the currently selected caption tracks.
+    /// Can be called by <see cref="ClipDetailViewModel"/> for the auto-on-mix-save trigger.
+    /// </summary>
+    public async Task TranscribeAsync()
     {
         var settings = _settingsService.Current;
 
@@ -173,34 +174,37 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
             return;
         }
 
+        var trackIndices = ResolveTrackIndices();
+
         _transcribeCts = new CancellationTokenSource();
         IsTranscribing = true;
         Progress       = 0f;
-        StatusMessage  = "Extracting audio...";
+        StatusMessage  = trackIndices.Count > 1
+            ? $"Mixing {trackIndices.Count} caption tracks..."
+            : "Extracting audio...";
         Segments.Clear();
 
         try
         {
             var progress = new Progress<float>(p =>
             {
-                Progress = p;
-                if (p < 1f)
-                    StatusMessage = $"Transcribing... {p * 100:F0}%";
+                Progress      = p;
+                StatusMessage = p < 1f ? $"Transcribing... {p * 100:F0}%" : StatusMessage;
             });
 
             var result = await _transcriptionService.TranscribeAsync(
-                clipId:           _clipId,
-                ffmpegTrackIndex: SelectedTrackIndex,
-                modelPath:        settings.TranscriptionModelPath,
-                backend:          settings.TranscriptionBackend,
-                language:         settings.TranscriptionLanguage,
-                progress:         progress,
-                cancellationToken: _transcribeCts.Token);
+                clipId:             _clipId,
+                ffmpegTrackIndices: trackIndices,
+                modelPath:          settings.TranscriptionModelPath,
+                backend:            settings.TranscriptionBackend,
+                language:           settings.TranscriptionLanguage,
+                progress:           progress,
+                cancellationToken:  _transcribeCts.Token);
 
             PopulateSegments(result.Segments);
             HasExistingTranscription = true;
             LastTranscriptionDate    = result.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-            StatusMessage            = $"Done — {result.Segments.Count} segments.";
+            StatusMessage            = $"Done - {result.Segments.Count} segments.";
             TranscriptionCompleted?.Invoke(result.SrtFilePath);
         }
         catch (OperationCanceledException)
@@ -220,12 +224,26 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
         }
     }
 
-    private void CancelTranscription()
+    // ---- Private helpers ----
+
+    /// <summary>
+    /// Returns the FFmpeg track indices to use for the next transcription run.
+    /// Uses all <see cref="CaptionTracks"/> whose <c>IsIncluded</c> flag is set.
+    /// Falls back to index 0 when no tracks are explicitly included.
+    /// </summary>
+    private IReadOnlyList<int> ResolveTrackIndices()
     {
-        _transcribeCts?.Cancel();
+        var included = CaptionTracks
+            .Where(t => t.IsIncluded)
+            .Select(t => t.FfmpegStreamIndex)
+            .ToList();
+
+        return included.Count > 0 ? included : new[] { 0 };
     }
 
-    private void PopulateSegments(System.Collections.Generic.IEnumerable<ClipStudio.Core.Entities.TranscriptionSegment> segments)
+    private void CancelTranscription() => _transcribeCts?.Cancel();
+
+    private void PopulateSegments(IEnumerable<ClipStudio.Core.Entities.TranscriptionSegment> segments)
     {
         Segments.Clear();
         foreach (var seg in segments)

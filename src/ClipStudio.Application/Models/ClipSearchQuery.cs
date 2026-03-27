@@ -57,6 +57,14 @@ public sealed class ClipSearchQuery
     public string? SearchText { get; set; }
 
     /// <summary>
+    /// When <c>true</c> and <see cref="SearchText"/> is non-empty, the search is also applied
+    /// against transcription segment text.  Clips that have a matching caption are included in
+    /// results even if their filename or tags do not match.
+    /// Defaults to <c>false</c> to avoid the extra DB query for normal searches.
+    /// </summary>
+    public bool SearchCaptions { get; set; } = false;
+
+    /// <summary>
     /// Gets or sets player identifiers to filter by.
     /// A clip matches if it is tagged with at least one of the listed players.
     /// Empty list means no player filter is applied.

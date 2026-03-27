@@ -18,6 +18,12 @@ internal sealed class TranscriptionRepository : ITranscriptionRepository
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<Transcription>> GetAllAsync(CancellationToken cancellationToken = default)
+        => await _context.Transcriptions
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<Transcription>> GetByClipIdAsync(int clipId, CancellationToken cancellationToken = default)
         => await _context.Transcriptions
             .Where(t => t.ClipId == clipId)
@@ -55,5 +61,34 @@ internal sealed class TranscriptionRepository : ITranscriptionRepository
             _context.Transcriptions.Remove(transcription);
             await _context.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<int>> SearchClipIdsBySegmentTextAsync(string searchText, CancellationToken cancellationToken = default)
+        => await _context.TranscriptionSegments
+            .Where(s => EF.Functions.Like(s.Text, $"%{searchText}%"))
+            .Select(s => s.Transcription.ClipId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<string>> DeleteByClipIdAsync(int clipId, CancellationToken cancellationToken = default)
+    {
+        var transcriptions = await _context.Transcriptions
+            .Where(t => t.ClipId == clipId)
+            .ToListAsync(cancellationToken);
+
+        var srtPaths = transcriptions
+            .Select(t => t.SrtFilePath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToList();
+
+        if (transcriptions.Count > 0)
+        {
+            _context.Transcriptions.RemoveRange(transcriptions);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        return srtPaths;
     }
 }

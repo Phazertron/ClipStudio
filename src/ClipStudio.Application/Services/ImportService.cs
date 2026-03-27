@@ -25,6 +25,7 @@ public sealed class ImportService : IImportService
     private readonly ISettingsService _settings;
     private readonly IPlayerRepository _players;
     private readonly IGameTagAliasService _gameAliases;
+    private readonly ITranscriptionService _transcription;
     private readonly ILogger<ImportService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="ImportService"/>.</summary>
@@ -35,6 +36,7 @@ public sealed class ImportService : IImportService
         ISettingsService settings,
         IPlayerRepository players,
         IGameTagAliasService gameAliases,
+        ITranscriptionService transcription,
         ILogger<ImportService> logger)
     {
         _clips = clips;
@@ -43,6 +45,7 @@ public sealed class ImportService : IImportService
         _settings = settings;
         _players = players;
         _gameAliases = gameAliases;
+        _transcription = transcription;
         _logger = logger;
     }
 
@@ -128,6 +131,9 @@ public sealed class ImportService : IImportService
                     await _players.TagClipAsync(clip.Id, player.Id, cancellationToken);
             }
 
+            // Auto-transcription: fire-and-forget based on the configured auto-mode.
+            MaybeAutoTranscribe(clip.Id, metadata.AudioStreamCount, filePath);
+
             return ImportResult.Succeeded(clip);
         }
         catch (Exception ex)
@@ -189,6 +195,56 @@ public sealed class ImportService : IImportService
         await _folders.UpdateAsync(folder, cancellationToken);
 
         return results;
+    }
+
+    /// <summary>
+    /// Starts a background transcription task for the newly imported clip when one or more import
+    /// auto-transcription toggles are enabled.  The task is fire-and-forget; failures are only logged.
+    /// </summary>
+    private void MaybeAutoTranscribe(int clipId, int audioStreamCount, string filePath)
+    {
+        var s = _settings.Current;
+
+        if (!s.TranscriptionEnabled || string.IsNullOrWhiteSpace(s.TranscriptionModelPath))
+            return;
+
+        // Determine which tracks to include based on the independent auto-import toggles.
+        IReadOnlyList<int> trackIndices;
+
+        if (s.TranscriptionAutoOnImportSingleTrack && audioStreamCount == 1)
+        {
+            trackIndices = [0];
+        }
+        else if (s.TranscriptionAutoOnImportAllTracks && audioStreamCount >= 1)
+        {
+            trackIndices = Enumerable.Range(0, audioStreamCount).ToList();
+        }
+        else
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _transcription.TranscribeAsync(
+                    clipId,
+                    trackIndices,
+                    s.TranscriptionModelPath,
+                    s.TranscriptionBackend,
+                    s.TranscriptionLanguage,
+                    progress: null,
+                    cancellationToken: default);
+
+                _logger.LogInformation(
+                    "Auto-transcription complete for clip {ClipId} ({FilePath}).", clipId, filePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Auto-transcription failed for clip {ClipId}.", clipId);
+            }
+        });
     }
 
     private static string GetDataDirectory()

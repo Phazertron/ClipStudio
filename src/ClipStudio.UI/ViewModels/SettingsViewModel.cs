@@ -156,6 +156,26 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _transcriptionEnableDiarization;
 
+    /// <summary>
+    /// Gets or sets whether clips with exactly one audio track are automatically transcribed on import.
+    /// </summary>
+    [ObservableProperty]
+    private bool _transcriptionAutoOnImportSingleTrack;
+
+    /// <summary>
+    /// Gets or sets whether all imported clips are automatically transcribed on import by mixing all
+    /// detected audio tracks together.
+    /// </summary>
+    [ObservableProperty]
+    private bool _transcriptionAutoOnImportAllTracks;
+
+    /// <summary>
+    /// Gets or sets whether a transcription run is triggered automatically when the user applies an
+    /// audio mix in the clip editor.
+    /// </summary>
+    [ObservableProperty]
+    private bool _transcriptionAutoOnMixSave;
+
     /// <summary>Gets the list of backend display strings for the ComboBox.</summary>
     public static IReadOnlyList<string> TranscriptionBackendOptions { get; } =
         new[] { "Auto (recommended)", "CPU only", "Vulkan (GPU)" };
@@ -347,9 +367,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
             SelectedTranscriptionLanguage  = TranscriptionLanguageOptions
                                                 .FirstOrDefault(o => o.Code == s.TranscriptionLanguage)
                                                 ?? TranscriptionLanguageOptions[0];
-            TranscriptionSrtFolder         = s.TranscriptionSrtFolder;
-            TranscriptionEnableDiarization = s.TranscriptionEnableDiarization;
-            TranscriptionBackend           = s.TranscriptionBackend switch
+            TranscriptionSrtFolder                  = s.TranscriptionSrtFolder;
+            TranscriptionEnableDiarization          = s.TranscriptionEnableDiarization;
+            TranscriptionAutoOnImportSingleTrack    = s.TranscriptionAutoOnImportSingleTrack;
+            TranscriptionAutoOnImportAllTracks      = s.TranscriptionAutoOnImportAllTracks;
+            TranscriptionAutoOnMixSave              = s.TranscriptionAutoOnMixSave;
+            TranscriptionBackend                    = s.TranscriptionBackend switch
             {
                 ClipStudio.Core.Enums.TranscriptionBackend.Cpu    => "CPU only",
                 ClipStudio.Core.Enums.TranscriptionBackend.Vulkan => "Vulkan (GPU)",
@@ -589,9 +612,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
         s.TranscriptionEnabled           = TranscriptionEnabled;
         s.TranscriptionModelPath         = TranscriptionModelPath.Trim();
         s.TranscriptionLanguage          = SelectedTranscriptionLanguage.Code;
-        s.TranscriptionSrtFolder         = TranscriptionSrtFolder.Trim();
-        s.TranscriptionEnableDiarization = TranscriptionEnableDiarization;
-        s.TranscriptionBackend           = TranscriptionBackend switch
+        s.TranscriptionSrtFolder                 = TranscriptionSrtFolder.Trim();
+        s.TranscriptionEnableDiarization         = TranscriptionEnableDiarization;
+        s.TranscriptionAutoOnImportSingleTrack   = TranscriptionAutoOnImportSingleTrack;
+        s.TranscriptionAutoOnImportAllTracks     = TranscriptionAutoOnImportAllTracks;
+        s.TranscriptionAutoOnMixSave             = TranscriptionAutoOnMixSave;
+        s.TranscriptionBackend                   = TranscriptionBackend switch
         {
             "CPU only"     => ClipStudio.Core.Enums.TranscriptionBackend.Cpu,
             "Vulkan (GPU)" => ClipStudio.Core.Enums.TranscriptionBackend.Vulkan,

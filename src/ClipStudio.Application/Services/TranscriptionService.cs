@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ClipStudio.Application.Interfaces;
@@ -15,9 +16,9 @@ namespace ClipStudio.Application.Services;
 
 /// <summary>
 /// Implements <see cref="ITranscriptionService"/> using the local Whisper.net inference engine.
-/// The pipeline is: extract the selected audio track to a temporary 16 kHz mono WAV via FFmpeg,
-/// run Whisper to obtain timed text segments, write an SRT file, and persist the result to the
-/// database via <see cref="ITranscriptionRepository"/>.
+/// The pipeline is: extract the selected audio track(s) to a temporary 16 kHz mono WAV via FFmpeg
+/// (mixing multiple tracks when needed), run Whisper to obtain timed text segments, write an SRT
+/// file, and persist the result to the database via <see cref="ITranscriptionRepository"/>.
 /// </summary>
 public sealed class TranscriptionService : ITranscriptionService
 {
@@ -42,13 +43,16 @@ public sealed class TranscriptionService : ITranscriptionService
     /// <inheritdoc/>
     public async Task<Transcription> TranscribeAsync(
         int clipId,
-        int ffmpegTrackIndex,
+        IReadOnlyList<int> ffmpegTrackIndices,
         string modelPath,
         TranscriptionBackend backend,
         string language,
         IProgress<float>? progress,
         CancellationToken cancellationToken = default)
     {
+        if (ffmpegTrackIndices is null || ffmpegTrackIndices.Count == 0)
+            throw new ArgumentException("At least one track index must be supplied.", nameof(ffmpegTrackIndices));
+
         var clip = await _clips.GetByIdAsync(clipId, cancellationToken)
             ?? throw new ArgumentException($"Clip {clipId} not found.", nameof(clipId));
 
@@ -58,58 +62,126 @@ public sealed class TranscriptionService : ITranscriptionService
         var tempWav = Path.ChangeExtension(Path.GetTempFileName(), ".wav");
         try
         {
-            // Step 1: extract selected track to 16 kHz mono WAV.
-            await ExtractAudioTrackAsync(clip.FilePath, ffmpegTrackIndex, tempWav, cancellationToken);
-
-            // Step 2: run Whisper inference.
-            var segments = await RunWhisperAsync(tempWav, modelPath, backend, language, progress, cancellationToken);
-
-            // Step 3: determine SRT output path.
-            var srtPath = BuildSrtPath(clip.FilePath, clip.FileName);
-
-            // Step 4: write SRT file.
-            await SrtWriter.WriteToFileAsync(segments, srtPath, cancellationToken);
-
-            // Step 5: persist to DB.
-            var modelName = Path.GetFileNameWithoutExtension(modelPath);
-            var transcription = new Transcription
-            {
-                ClipId      = clipId,
-                CreatedAt   = DateTime.UtcNow,
-                Language    = language,
-                ModelName   = modelName,
-                SrtFilePath = srtPath,
-                Segments    = segments
-            };
-
-            await _transcriptions.AddAsync(transcription, cancellationToken);
-            _logger.LogInformation("Transcription complete for clip {ClipId}: {SegmentCount} segments, SRT at {SrtPath}",
-                clipId, segments.Count, srtPath);
-
-            return transcription;
+            await ExtractAudioAsync(clip.FilePath, ffmpegTrackIndices, tempWav, cancellationToken);
+            return await RunPipelineAsync(clipId, clip.FilePath, clip.FileName, tempWav, modelPath, backend, language, progress, cancellationToken);
         }
         finally
         {
-            try { File.Delete(tempWav); } catch { /* non-fatal */ }
+            TryDeleteFile(tempWav);
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<Transcription> TranscribeFromFileAsync(
+        int clipId,
+        string audioFilePath,
+        string modelPath,
+        TranscriptionBackend backend,
+        string language,
+        IProgress<float>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(audioFilePath))
+            throw new FileNotFoundException("Audio file not found.", audioFilePath);
+
+        var clip = await _clips.GetByIdAsync(clipId, cancellationToken)
+            ?? throw new ArgumentException($"Clip {clipId} not found.", nameof(clipId));
+
+        if (!File.Exists(modelPath))
+            throw new FileNotFoundException("Whisper model file not found.", modelPath);
+
+        var tempWav = Path.ChangeExtension(Path.GetTempFileName(), ".wav");
+        try
+        {
+            // Extract the default audio stream from the supplied file (no track selection).
+            await FFMpegArguments
+                .FromFileInput(audioFilePath, verifyExists: true)
+                .OutputToFile(tempWav, overwrite: true, options => options
+                    .WithCustomArgument("-vn -ac 1 -ar 16000 -f wav -acodec pcm_s16le"))
+                .CancellableThrough(cancellationToken)
+                .ProcessAsynchronously(throwOnError: true);
+
+            return await RunPipelineAsync(clipId, clip.FilePath, clip.FileName, tempWav, modelPath, backend, language, progress, cancellationToken);
+        }
+        finally
+        {
+            TryDeleteFile(tempWav);
+        }
+    }
+
+    // ---- Private helpers ----
+
     /// <summary>
-    /// Uses FFMpegCore to extract a single audio track from the source video as a
-    /// 16 kHz mono PCM WAV, which is the format expected by Whisper.
+    /// Extracts one or more audio tracks from the source video as a single 16 kHz mono PCM WAV.
+    /// When multiple indices are supplied the tracks are blended with FFmpeg amix.
     /// </summary>
-    private static async Task ExtractAudioTrackAsync(
+    private static async Task ExtractAudioAsync(
         string videoPath,
-        int ffmpegTrackIndex,
+        IReadOnlyList<int> trackIndices,
         string outputWav,
         CancellationToken cancellationToken)
     {
+        string audioArgs;
+
+        if (trackIndices.Count == 1)
+        {
+            // Single-track: simple map.
+            audioArgs = $"-map 0:a:{trackIndices[0]} -ac 1 -ar 16000 -vn -f wav -acodec pcm_s16le";
+        }
+        else
+        {
+            // Multi-track: build amix filter graph.
+            // [0:a:0][0:a:1]amix=inputs=2:duration=first:normalize=0
+            var inputs     = string.Concat(trackIndices.Select(i => $"[0:a:{i}]"));
+            var inputCount = trackIndices.Count;
+            audioArgs = $"-filter_complex \"{inputs}amix=inputs={inputCount}:duration=first:normalize=0\" "
+                      + $"-ac 1 -ar 16000 -vn -f wav -acodec pcm_s16le";
+        }
+
         await FFMpegArguments
             .FromFileInput(videoPath, verifyExists: true)
             .OutputToFile(outputWav, overwrite: true, options => options
-                .WithCustomArgument($"-map 0:a:{ffmpegTrackIndex} -ac 1 -ar 16000 -vn -f wav -acodec pcm_s16le"))
+                .WithCustomArgument(audioArgs))
             .CancellableThrough(cancellationToken)
             .ProcessAsynchronously(throwOnError: true);
+    }
+
+    /// <summary>
+    /// Runs Whisper inference on the WAV file then writes the SRT and persists to the DB.
+    /// Shared by both <see cref="TranscribeAsync"/> and <see cref="TranscribeFromFileAsync"/>.
+    /// </summary>
+    private async Task<Transcription> RunPipelineAsync(
+        int clipId,
+        string clipFilePath,
+        string clipFileName,
+        string wavPath,
+        string modelPath,
+        TranscriptionBackend backend,
+        string language,
+        IProgress<float>? progress,
+        CancellationToken cancellationToken)
+    {
+        var segments = await RunWhisperAsync(wavPath, modelPath, backend, language, progress, cancellationToken);
+        var srtPath  = BuildSrtPath(clipFilePath, clipFileName);
+        await SrtWriter.WriteToFileAsync(segments, srtPath, cancellationToken);
+
+        var modelName    = Path.GetFileNameWithoutExtension(modelPath);
+        var transcription = new Transcription
+        {
+            ClipId      = clipId,
+            CreatedAt   = DateTime.UtcNow,
+            Language    = language,
+            ModelName   = modelName,
+            SrtFilePath = srtPath,
+            Segments    = segments
+        };
+
+        await _transcriptions.AddAsync(transcription, cancellationToken);
+        _logger.LogInformation(
+            "Transcription complete for clip {ClipId}: {SegmentCount} segments, SRT at {SrtPath}",
+            clipId, segments.Count, srtPath);
+
+        return transcription;
     }
 
     /// <summary>
@@ -124,14 +196,11 @@ public sealed class TranscriptionService : ITranscriptionService
         IProgress<float>? progress,
         CancellationToken cancellationToken)
     {
-        var useGpu = backend != TranscriptionBackend.Cpu;
-
+        var useGpu  = backend != TranscriptionBackend.Cpu;
         var factory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions { UseGpu = useGpu });
         var builder = factory.CreateBuilder();
 
         // Always pass the language so whisper.cpp does not silently fall back to translation mode.
-        // "auto" triggers Whisper's own language detection while keeping the output in the
-        // source language (transcription); any other code forces the source language explicitly.
         var langCode = string.IsNullOrWhiteSpace(language) ? "auto" : language.Trim().ToLowerInvariant();
         builder = builder.WithLanguage(langCode);
 
@@ -154,9 +223,7 @@ public sealed class TranscriptionService : ITranscriptionService
                 Text        = seg.Text
             });
 
-            // Report approximate progress based on end-time of the latest segment.
-            // The segment stream flows in chronological order; we use a rough heuristic
-            // since total duration is not available here without an extra FFProbe call.
+            // Approximate progress: use end-time heuristic (no total-duration available without an extra FFProbe call).
             progress?.Report(Math.Min(1f, (float)(seg.End.TotalSeconds / 3600)));
         }
 
@@ -178,5 +245,10 @@ public sealed class TranscriptionService : ITranscriptionService
 
         var clipDir = Path.GetDirectoryName(clipFilePath);
         return Path.Combine(clipDir ?? string.Empty, baseName);
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try { File.Delete(path); } catch { /* non-fatal */ }
     }
 }

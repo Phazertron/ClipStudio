@@ -8,6 +8,9 @@ namespace ClipStudio.Core.Interfaces;
 /// </summary>
 public interface ITranscriptionRepository
 {
+    /// <summary>Returns every transcription record in the repository (without segments), for use by sanitizer passes.</summary>
+    Task<IReadOnlyList<Transcription>> GetAllAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Returns all transcriptions for the given clip, ordered by creation date descending.</summary>
     Task<IReadOnlyList<Transcription>> GetByClipIdAsync(int clipId, CancellationToken cancellationToken = default);
 
@@ -22,4 +25,16 @@ public interface ITranscriptionRepository
 
     /// <summary>Removes a transcription and its associated segments by identifier.</summary>
     Task DeleteAsync(int transcriptionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes all transcriptions (and their segments) for the given clip and returns
+    /// the SRT file paths that were stored so the caller can delete the files on disk.
+    /// </summary>
+    Task<IReadOnlyList<string>> DeleteByClipIdAsync(int clipId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the distinct clip identifiers whose transcription segments contain the given text
+    /// (case-insensitive substring match).  Used for caption-inclusive search.
+    /// </summary>
+    Task<IReadOnlyList<int>> SearchClipIdsBySegmentTextAsync(string searchText, CancellationToken cancellationToken = default);
 }

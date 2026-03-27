@@ -18,13 +18,19 @@
                 BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
 
-                <!-- Search box -->
-                <TextBox Grid.Column="0"
-                         Text="{Binding SearchText}"
-                         Watermark="Search clips..."
-                         MaxWidth="360"
-                         HorizontalAlignment="Left"
-                         CornerRadius="6"/>
+                <!-- Search box + captions toggle -->
+                <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="2" HorizontalAlignment="Left">
+                    <TextBox Text="{Binding SearchText}"
+                             Watermark="Search clips..."
+                             MaxWidth="360"
+                             CornerRadius="6"/>
+                    <CheckBox Content="Search captions"
+                              IsChecked="{Binding SearchCaptions}"
+                              FontSize="10"
+                              Opacity="0.7"
+                              ToolTip.Tip="Include transcription segment text in search results"
+                              IsVisible="{Binding SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
 
                 <!-- Sort dropdown -->
                 <ComboBox Grid.Column="1"

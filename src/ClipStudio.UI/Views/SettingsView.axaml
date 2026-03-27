@@ -522,6 +522,29 @@
                                       FontSize="12"/>
                     </StackPanel>
 
+                    <StackPanel Spacing="6"
+                                IsVisible="{Binding TranscriptionEnabled}">
+                        <TextBlock Text="Auto-transcription"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="Each trigger is independent. 'On mix save' uses the caption tracks configured in the clip editor panel, not the playback mix."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding TranscriptionAutoOnImportSingleTrack}"
+                                      OnContent="On import (single-track clips)"
+                                      OffContent="On import (single-track clips)"
+                                      FontSize="12"/>
+                        <ToggleSwitch IsChecked="{Binding TranscriptionAutoOnImportAllTracks}"
+                                      OnContent="On import (mix all tracks)"
+                                      OffContent="On import (mix all tracks)"
+                                      FontSize="12"/>
+                        <ToggleSwitch IsChecked="{Binding TranscriptionAutoOnMixSave}"
+                                      OnContent="When audio mix is saved in editor"
+                                      OffContent="When audio mix is saved in editor"
+                                      FontSize="12"/>
+                    </StackPanel>
+
                     <StackPanel Spacing="4"
                                 IsVisible="{Binding TranscriptionEnabled}">
                         <TextBlock Text="Active model"

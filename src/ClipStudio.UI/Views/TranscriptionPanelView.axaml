@@ -10,24 +10,33 @@
 
     <StackPanel Spacing="8" Margin="0,4,0,0">
 
-        <!-- Track picker + Transcribe button row -->
-        <Grid ColumnDefinitions="*,Auto,Auto">
+        <!-- Caption track checkboxes -->
+        <StackPanel Spacing="2"
+                    IsVisible="{Binding CaptionTracks.Count}"
+                    IsEnabled="{Binding !IsTranscribing}">
+            <TextBlock Text="Caption tracks"
+                       FontSize="10"
+                       Opacity="0.55"
+                       Margin="0,0,0,2"/>
+            <ItemsControl ItemsSource="{Binding CaptionTracks}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CaptionTrackViewModel">
+                        <CheckBox IsChecked="{Binding IsIncluded}"
+                                  Content="{Binding Name}"
+                                  FontSize="11"
+                                  Padding="2,1"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
 
-            <!-- Audio track selector -->
-            <ComboBox Grid.Column="0"
-                      ItemsSource="{Binding AvailableTracks}"
-                      SelectedIndex="{Binding SelectedTrackIndex}"
-                      FontSize="11"
-                      IsEnabled="{Binding !IsTranscribing}"
-                      PlaceholderText="Select audio track..."
-                      HorizontalAlignment="Stretch"/>
+        <!-- Transcribe / Cancel button row -->
+        <StackPanel Orientation="Horizontal" Spacing="6">
 
             <!-- Transcribe button -->
-            <Button Grid.Column="1"
-                    Command="{Binding TranscribeCommand}"
+            <Button Command="{Binding TranscribeCommand}"
                     IsEnabled="{Binding CanTranscribe}"
-                    ToolTip.Tip="Start transcription"
-                    Margin="6,0,0,0"
+                    ToolTip.Tip="Start transcription using the selected caption tracks"
                     Padding="8,4">
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <icons:MaterialIcon Kind="Microphone" Width="14" Height="14"/>
@@ -36,16 +45,14 @@
             </Button>
 
             <!-- Cancel button (visible only while transcribing) -->
-            <Button Grid.Column="2"
-                    Command="{Binding CancelCommand}"
+            <Button Command="{Binding CancelCommand}"
                     IsVisible="{Binding IsTranscribing}"
                     ToolTip.Tip="Cancel transcription"
-                    Margin="4,0,0,0"
                     Padding="6,4">
                 <icons:MaterialIcon Kind="Close" Width="14" Height="14"/>
             </Button>
 
-        </Grid>
+        </StackPanel>
 
         <!-- Progress bar (visible while transcribing) -->
         <ProgressBar IsVisible="{Binding IsTranscribing}"
