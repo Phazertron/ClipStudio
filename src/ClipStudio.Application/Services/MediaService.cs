@@ -48,7 +48,8 @@ public sealed class MediaService : IMediaService
             Height = video?.Height ?? 0,
             Codec = video?.CodecName ?? string.Empty,
             FileSizeBytes = new FileInfo(filePath).Length,
-            EmbeddedCreationTime = embeddedCreationTime
+            EmbeddedCreationTime = embeddedCreationTime,
+            AudioStreamCount = analysis.AudioStreams.Count
         };
     }
 

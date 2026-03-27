@@ -149,6 +149,28 @@ public sealed class AppSettings
     public string TranscriptionSrtFolder { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets whether a clip with exactly one audio track is automatically transcribed on import.
+    /// When <c>false</c>, multi-track clips are not transcribed on import regardless of other settings.
+    /// Defaults to <c>false</c> so transcription is always opt-in.
+    /// </summary>
+    public bool TranscriptionAutoOnImportSingleTrack { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether every imported clip is automatically transcribed on import by mixing all
+    /// detected audio tracks together.  When <c>true</c>, applies to all clips regardless of track count.
+    /// Defaults to <c>false</c>.
+    /// </summary>
+    public bool TranscriptionAutoOnImportAllTracks { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether a transcription run is triggered automatically when the user applies an
+    /// audio mix in the clip editor.  The transcription uses the caption tracks configured in the
+    /// transcription panel, which are independent of the playback mix.
+    /// Defaults to <c>false</c>.
+    /// </summary>
+    public bool TranscriptionAutoOnMixSave { get; set; } = false;
+
+    /// <summary>
     /// Gets or sets whether the experimental speaker diarization pass is attempted during
     /// transcription. This is a no-op in the current release; the flag is reserved for a
     /// future implementation that requires additional tooling.

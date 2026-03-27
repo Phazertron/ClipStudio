@@ -158,6 +158,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
     [ObservableProperty] private string _searchText = string.Empty;
 
     /// <summary>
+    /// Gets or sets a value indicating whether the search should also look inside transcription
+    /// segment text.  Disabled by default to avoid the extra DB query on every keystroke.
+    /// </summary>
+    [ObservableProperty] private bool _searchCaptions = false;
+
+    /// <summary>
     /// Gets or sets the row height in pixels applied to each details-view row.
     /// Persisted to <see cref="ClipStudio.Application.Models.AppSettings.LibraryDetailsRowHeight"/>.
     /// </summary>
@@ -624,6 +630,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
     // ---- Partial property handlers ----
 
     partial void OnSearchTextChanged(string value) => LoadCommand.Execute(null);
+    partial void OnSearchCaptionsChanged(bool value) => LoadCommand.Execute(null);
     partial void OnSortByChanged(string value) => LoadCommand.Execute(null);
     partial void OnFilterStatusChanged(ClipStatus? value)   { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
     partial void OnFilterDateFromChanged(DateTime? value)   { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
@@ -1149,6 +1156,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         return new ClipSearchQuery
         {
             SearchText        = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim(),
+            SearchCaptions    = SearchCaptions,
             Status            = FilterStatus,
             ExcludeArchived   = false,
             CreatedFrom       = FilterDateFrom.HasValue ? DateTime.SpecifyKind(FilterDateFrom.Value.Date, DateTimeKind.Local).ToUniversalTime() : null,

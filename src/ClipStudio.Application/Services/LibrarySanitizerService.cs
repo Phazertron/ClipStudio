@@ -15,6 +15,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
     private readonly IHighlightRepository _highlights;
     private readonly IMediaService _media;
     private readonly ISettingsService _settings;
+    private readonly ITranscriptionRepository _transcriptions;
     private readonly ILogger<LibrarySanitizerService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="LibrarySanitizerService"/>.</summary>
@@ -23,13 +24,15 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         IHighlightRepository highlights,
         IMediaService media,
         ISettingsService settings,
+        ITranscriptionRepository transcriptions,
         ILogger<LibrarySanitizerService> logger)
     {
-        _clips      = clips;
-        _highlights = highlights;
-        _media      = media;
-        _settings   = settings;
-        _logger     = logger;
+        _clips          = clips;
+        _highlights     = highlights;
+        _media          = media;
+        _settings       = settings;
+        _transcriptions = transcriptions;
+        _logger         = logger;
     }
 
     /// <inheritdoc/>
@@ -322,7 +325,83 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             }
         }
 
-        var summary = $"Sanitize complete: {repaired} file(s) regenerated, {deleted} orphan(s) removed, {audioCleaned} orphan audio cache file(s) removed.";
+        // ---- SRT orphan cleanup ----
+        // Load all transcription DB records (no segments needed).
+        // Delete the SRT file on disk and the DB record for any transcription whose clip no
+        // longer exists in either the active or trashed set.  Trashed clips keep their
+        // transcriptions so they survive a restore.
+        var srtCleaned = 0;
+        try
+        {
+            var trashedClipIds    = new HashSet<int>(trashedClips.Select(c => c.Id));
+            var protectedClipIds  = new HashSet<int>(validClipIds.Concat(trashedClipIds));
+            var allTranscriptions = await _transcriptions.GetAllAsync(ct);
+            var knownSrtPaths     = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var transcription in allTranscriptions)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (!string.IsNullOrWhiteSpace(transcription.SrtFilePath))
+                    knownSrtPaths.Add(transcription.SrtFilePath);
+
+                if (!protectedClipIds.Contains(transcription.ClipId))
+                {
+                    // Clip permanently deleted — clean up SRT file and orphan DB record.
+                    if (!string.IsNullOrWhiteSpace(transcription.SrtFilePath)
+                        && File.Exists(transcription.SrtFilePath))
+                    {
+                        try
+                        {
+                            File.Delete(transcription.SrtFilePath);
+                            srtCleaned++;
+                            _logger.LogDebug("Deleted orphan SRT file: {Path}", transcription.SrtFilePath);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to delete orphan SRT file: {Path}", transcription.SrtFilePath);
+                        }
+                    }
+
+                    await _transcriptions.DeleteAsync(transcription.Id, ct);
+                }
+            }
+
+            // Scan the configured SRT output folder for .srt files not in any DB record.
+            var srtFolderCleaned = 0;
+            var srtFolder = _settings.Current.TranscriptionSrtFolder;
+            if (!string.IsNullOrWhiteSpace(srtFolder) && Directory.Exists(srtFolder))
+            {
+                foreach (var file in Directory.EnumerateFiles(srtFolder, "*.srt"))
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    if (!knownSrtPaths.Contains(file))
+                    {
+                        try
+                        {
+                            File.Delete(file);
+                            srtFolderCleaned++;
+                            _logger.LogDebug("Deleted untracked SRT file: {File}", file);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to delete untracked SRT file: {File}", file);
+                        }
+                    }
+                }
+            }
+
+            srtCleaned += srtFolderCleaned;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "SRT orphan cleanup encountered an error.");
+        }
+
+        var summary = $"Sanitize complete: {repaired} file(s) regenerated, {deleted} orphan(s) removed, "
+                    + $"{audioCleaned} orphan audio cache file(s) removed, "
+                    + $"{srtCleaned} orphan SRT file(s) removed.";
         progress?.Report(summary);
         _logger.LogInformation("{Summary}", summary);
     }
