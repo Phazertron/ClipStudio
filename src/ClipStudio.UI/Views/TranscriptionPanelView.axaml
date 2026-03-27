@@ -82,34 +82,94 @@
         <!-- Segment list -->
         <ScrollViewer MaxHeight="280"
                       IsVisible="{Binding Segments.Count}"
-                      HorizontalScrollBarVisibility="Disabled">
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Hidden">
             <ItemsControl ItemsSource="{Binding Segments}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:TranscriptionSegmentViewModel">
-                        <Border x:Name="SegmentRow"
-                                Padding="6,4"
+                        <Border Padding="6,4"
                                 Margin="0,1"
                                 CornerRadius="3"
-                                Cursor="Hand"
                                 Background="Transparent">
                             <Border.Styles>
                                 <Style Selector="Border:pointerover">
                                     <Setter Property="Background" Value="{DynamicResource SystemAccentColorDark3}"/>
                                 </Style>
                             </Border.Styles>
-                            <Grid ColumnDefinitions="80,*">
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding TimestampRange}"
-                                           FontSize="10"
-                                           FontFamily="Consolas,Courier New,monospace"
-                                           Opacity="0.55"
-                                           VerticalAlignment="Top"/>
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding Text}"
-                                           FontSize="11"
-                                           TextWrapping="Wrap"
-                                           Margin="6,0,0,0"/>
-                            </Grid>
+
+                            <Panel>
+
+                                <!-- Active-segment highlight overlay (behind content, non-interactive) -->
+                                <Border Background="#26FFFFFF"
+                                        CornerRadius="3"
+                                        IsVisible="{Binding IsCurrentlyPlaying}"
+                                        IsHitTestVisible="False"/>
+
+                                <StackPanel Spacing="4">
+
+                                <!-- Display mode -->
+                                <Grid ColumnDefinitions="80,*,Auto"
+                                      IsVisible="{Binding !IsEditing}"
+                                      Cursor="Hand">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding TimestampRange}"
+                                               FontSize="10"
+                                               FontFamily="Consolas,Courier New,monospace"
+                                               Opacity="0.55"
+                                               VerticalAlignment="Top"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Text}"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Margin="6,0,0,0"/>
+                                    <Button Grid.Column="2"
+                                            Command="{Binding BeginEditCommand}"
+                                            ToolTip.Tip="Edit this segment"
+                                            Padding="4,2"
+                                            Opacity="0.45"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            VerticalAlignment="Top">
+                                        <icons:MaterialIcon Kind="Pencil" Width="12" Height="12"/>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Edit mode -->
+                                <StackPanel IsVisible="{Binding IsEditing}" Spacing="4">
+                                    <TextBlock Text="{Binding TimestampRange}"
+                                               FontSize="10"
+                                               FontFamily="Consolas,Courier New,monospace"
+                                               Opacity="0.55"/>
+                                    <TextBox Text="{Binding EditedText}"
+                                             AcceptsReturn="True"
+                                             MaxLines="6"
+                                             FontSize="11"
+                                             TextWrapping="Wrap"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <Button Command="{Binding SaveEditCommand}"
+                                                IsEnabled="{Binding !IsSaving}"
+                                                ToolTip.Tip="Save correction"
+                                                Padding="6,3">
+                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                <icons:MaterialIcon Kind="Check" Width="12" Height="12"/>
+                                                <TextBlock Text="Save" FontSize="10" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Command="{Binding CancelEditCommand}"
+                                                ToolTip.Tip="Discard edit"
+                                                Padding="6,3">
+                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                <icons:MaterialIcon Kind="Close" Width="12" Height="12"/>
+                                                <TextBlock Text="Cancel" FontSize="10" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                </StackPanel>
+
+                            </Panel>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

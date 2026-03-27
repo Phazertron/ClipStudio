@@ -785,6 +785,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             _settingsService,
             seekMs => SeekToMs(seekMs));
         Transcription.TranscriptionCompleted += OnTranscriptionCompleted;
+        Transcription.SegmentTextEdited      += OnSegmentTextEdited;
 
         MediaPlayer = new MediaPlayer(_libVlc);
         // _masterVolume field initialiser bypasses the generated setter, so OnMasterVolumeChanged
@@ -2155,6 +2156,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         {
             var ts = TimeSpan.FromMilliseconds(e.Time);
 
+            Transcription.UpdatePlaybackPosition(e.Time);
+
             if (IsWatchMode)
             {
                 // When the watched highlight's end is reached, behaviour depends on LoopMode.
@@ -2432,6 +2435,28 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
+    /// Called when a segment's text has been edited and the SRT file on disk has been rewritten.
+    /// If the subtitle overlay is currently active, reloads the media with the updated slave so
+    /// LibVLC picks up the changed file content.
+    /// </summary>
+    private void OnSegmentTextEdited()
+    {
+        if (!IsSubtitlesEnabled || _clip is null || string.IsNullOrEmpty(_latestSrtPath))
+            return;
+
+        var posMs = MediaPlayer.Time;
+        var uri   = new Uri(_latestSrtPath).AbsoluteUri;
+
+        _media?.Dispose();
+        _media = new Media(_libVlc, _clip.FilePath, FromType.FromPath);
+        MediaPlayer.Media = _media;
+        _ignoreTimeChangedBeforeMs = posMs - 200;
+        MediaPlayer.Play();
+        MediaPlayer.AddSlave(MediaSlaveType.Subtitle, uri, true);
+        MediaPlayer.Time = posMs;
+    }
+
+    /// <summary>
     /// Toggles the LibVLC subtitle slave on or off. When enabling, attaches the latest
     /// <c>.srt</c> file as a subtitle slave; when disabling, reloads the media without any slave.
     /// </summary>
@@ -2476,6 +2501,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _mixApplyCts?.Cancel();
         _mixApplyCts?.Dispose();
         _mixApplyCts = null;
+
+        Transcription.SegmentTextEdited -= OnSegmentTextEdited;
 
         MediaPlayer.TimeChanged -= OnPlayerTimeChanged;
         MediaPlayer.Playing     -= OnPlayerPlaying;
