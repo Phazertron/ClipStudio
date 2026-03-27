@@ -527,22 +527,26 @@
                         <TextBlock Text="Auto-transcription"
                                    FontSize="12"
                                    Opacity="0.7"/>
-                        <TextBlock Text="Each trigger is independent. 'On mix save' uses the caption tracks configured in the clip editor panel, not the playback mix."
+                        <TextBlock Text="Automatically start transcription when a clip is imported into the library, using the specified audio tracks."
                                    FontSize="11"
                                    Opacity="0.5"
                                    TextWrapping="Wrap"/>
-                        <ToggleSwitch IsChecked="{Binding TranscriptionAutoOnImportSingleTrack}"
-                                      OnContent="On import (single-track clips)"
-                                      OffContent="On import (single-track clips)"
+                        <ToggleSwitch IsChecked="{Binding TranscriptionAutoOnImport}"
+                                      OnContent="Transcribe automatically on import"
+                                      OffContent="Transcribe automatically on import"
                                       FontSize="12"/>
-                        <ToggleSwitch IsChecked="{Binding TranscriptionAutoOnImportAllTracks}"
-                                      OnContent="On import (mix all tracks)"
-                                      OffContent="On import (mix all tracks)"
-                                      FontSize="12"/>
-                        <ToggleSwitch IsChecked="{Binding TranscriptionAutoOnMixSave}"
-                                      OnContent="When audio mix is saved in editor"
-                                      OffContent="When audio mix is saved in editor"
-                                      FontSize="12"/>
+                        <StackPanel Spacing="4"
+                                    IsVisible="{Binding TranscriptionAutoOnImport}"
+                                    Margin="0,2,0,0">
+                            <TextBlock Text="Tracks to mix (0-based FFmpeg indices, comma-separated)"
+                                       FontSize="10"
+                                       Opacity="0.55"/>
+                            <TextBox Text="{Binding TranscriptionAutoOnImportTrackIndices}"
+                                     Watermark="e.g. 0   or   0,2"
+                                     FontSize="12"
+                                     MaxWidth="180"
+                                     HorizontalAlignment="Left"/>
+                        </StackPanel>
                     </StackPanel>
 
                     <StackPanel Spacing="4"

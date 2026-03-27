@@ -198,31 +198,33 @@ public sealed class ImportService : IImportService
     }
 
     /// <summary>
-    /// Starts a background transcription task for the newly imported clip when one or more import
-    /// auto-transcription toggles are enabled.  The task is fire-and-forget; failures are only logged.
+    /// Starts a background transcription task for the newly imported clip when auto-transcription
+    /// on import is enabled.  The task is fire-and-forget; failures are only logged.
     /// </summary>
     private void MaybeAutoTranscribe(int clipId, int audioStreamCount, string filePath)
     {
         var s = _settings.Current;
 
-        if (!s.TranscriptionEnabled || string.IsNullOrWhiteSpace(s.TranscriptionModelPath))
+        if (!s.TranscriptionEnabled
+            || !s.TranscriptionAutoOnImport
+            || string.IsNullOrWhiteSpace(s.TranscriptionModelPath))
             return;
 
-        // Determine which tracks to include based on the independent auto-import toggles.
-        IReadOnlyList<int> trackIndices;
+        // Parse the configured index string (e.g. "0" or "0,2"), clamp to available stream count.
+        var raw = string.IsNullOrWhiteSpace(s.TranscriptionAutoOnImportTrackIndices)
+            ? "0"
+            : s.TranscriptionAutoOnImportTrackIndices;
 
-        if (s.TranscriptionAutoOnImportSingleTrack && audioStreamCount == 1)
-        {
-            trackIndices = [0];
-        }
-        else if (s.TranscriptionAutoOnImportAllTracks && audioStreamCount >= 1)
-        {
-            trackIndices = Enumerable.Range(0, audioStreamCount).ToList();
-        }
-        else
-        {
+        var trackIndices = raw
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(token => int.TryParse(token, out var idx) ? idx : -1)
+            .Where(idx => idx >= 0 && idx < audioStreamCount)
+            .Distinct()
+            .OrderBy(idx => idx)
+            .ToList();
+
+        if (trackIndices.Count == 0)
             return;
-        }
 
         _ = Task.Run(async () =>
         {
