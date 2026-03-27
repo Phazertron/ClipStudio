@@ -37,4 +37,13 @@ public interface ITranscriptionRepository
     /// (case-insensitive substring match).  Used for caption-inclusive search.
     /// </summary>
     Task<IReadOnlyList<int>> SearchClipIdsBySegmentTextAsync(string searchText, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the text of a single <see cref="TranscriptionSegment"/> identified by its primary key.
+    /// No-op when the segment is not found.
+    /// </summary>
+    /// <param name="segmentId">The primary key of the segment to update.</param>
+    /// <param name="newText">The corrected text to store.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task UpdateSegmentAsync(int segmentId, string newText, CancellationToken cancellationToken = default);
 }

@@ -22,13 +22,18 @@ public partial class TranscriptionPanelView : UserControl
     {
         // Walk up from the pressed element to find the Border with a
         // TranscriptionSegmentViewModel DataContext and invoke RequestSeek.
+        // Do not seek while the row is in inline-edit mode so TextBox interactions
+        // are not interrupted.
         var element = e.Source as Avalonia.Visual;
         while (element is not null)
         {
             if (element is Border { DataContext: ViewModels.TranscriptionSegmentViewModel segVm })
             {
-                segVm.RequestSeek();
-                e.Handled = true;
+                if (!segVm.IsEditing)
+                {
+                    segVm.RequestSeek();
+                    e.Handled = true;
+                }
                 return;
             }
             element = element.GetVisualParent();

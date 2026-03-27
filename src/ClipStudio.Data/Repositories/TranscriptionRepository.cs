@@ -72,6 +72,16 @@ internal sealed class TranscriptionRepository : ITranscriptionRepository
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc/>
+    public async Task UpdateSegmentAsync(int segmentId, string newText, CancellationToken cancellationToken = default)
+    {
+        var segment = await _context.TranscriptionSegments.FindAsync([segmentId], cancellationToken);
+        if (segment is null) return;
+
+        segment.Text = newText;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<string>> DeleteByClipIdAsync(int clipId, CancellationToken cancellationToken = default)
     {
         var transcriptions = await _context.Transcriptions
