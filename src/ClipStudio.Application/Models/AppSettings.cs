@@ -149,26 +149,20 @@ public sealed class AppSettings
     public string TranscriptionSrtFolder { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets whether a clip with exactly one audio track is automatically transcribed on import.
-    /// When <c>false</c>, multi-track clips are not transcribed on import regardless of other settings.
+    /// Gets or sets whether imported clips are automatically transcribed on import.
+    /// When <c>true</c>, transcription is triggered immediately after a clip is added to the library,
+    /// using the track indices specified by <see cref="TranscriptionAutoOnImportTrackIndices"/>.
     /// Defaults to <c>false</c> so transcription is always opt-in.
     /// </summary>
-    public bool TranscriptionAutoOnImportSingleTrack { get; set; } = false;
+    public bool TranscriptionAutoOnImport { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets whether every imported clip is automatically transcribed on import by mixing all
-    /// detected audio tracks together.  When <c>true</c>, applies to all clips regardless of track count.
-    /// Defaults to <c>false</c>.
+    /// Gets or sets the FFmpeg audio stream indices (0-based) to mix when auto-transcribing on import.
+    /// Stored as a comma-separated string, e.g. <c>"0"</c> for a single track or <c>"0,2"</c> to mix
+    /// two tracks.  Indices that exceed the clip's actual stream count are silently ignored.
+    /// An empty string is treated as index 0 (first track only).
     /// </summary>
-    public bool TranscriptionAutoOnImportAllTracks { get; set; } = false;
-
-    /// <summary>
-    /// Gets or sets whether a transcription run is triggered automatically when the user applies an
-    /// audio mix in the clip editor.  The transcription uses the caption tracks configured in the
-    /// transcription panel, which are independent of the playback mix.
-    /// Defaults to <c>false</c>.
-    /// </summary>
-    public bool TranscriptionAutoOnMixSave { get; set; } = false;
+    public string TranscriptionAutoOnImportTrackIndices { get; set; } = "0";
 
     /// <summary>
     /// Gets or sets whether the experimental speaker diarization pass is attempted during

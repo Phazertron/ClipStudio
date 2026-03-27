@@ -157,24 +157,18 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private bool _transcriptionEnableDiarization;
 
     /// <summary>
-    /// Gets or sets whether clips with exactly one audio track are automatically transcribed on import.
+    /// Gets or sets whether imported clips are automatically transcribed on import using the
+    /// track indices configured in <see cref="TranscriptionAutoOnImportTrackIndices"/>.
     /// </summary>
     [ObservableProperty]
-    private bool _transcriptionAutoOnImportSingleTrack;
+    private bool _transcriptionAutoOnImport;
 
     /// <summary>
-    /// Gets or sets whether all imported clips are automatically transcribed on import by mixing all
-    /// detected audio tracks together.
+    /// Gets or sets the comma-separated FFmpeg audio stream indices to mix when auto-transcribing
+    /// on import (e.g. <c>"0"</c> or <c>"0,2"</c>).
     /// </summary>
     [ObservableProperty]
-    private bool _transcriptionAutoOnImportAllTracks;
-
-    /// <summary>
-    /// Gets or sets whether a transcription run is triggered automatically when the user applies an
-    /// audio mix in the clip editor.
-    /// </summary>
-    [ObservableProperty]
-    private bool _transcriptionAutoOnMixSave;
+    private string _transcriptionAutoOnImportTrackIndices = "0";
 
     /// <summary>Gets the list of backend display strings for the ComboBox.</summary>
     public static IReadOnlyList<string> TranscriptionBackendOptions { get; } =
@@ -369,9 +363,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
                                                 ?? TranscriptionLanguageOptions[0];
             TranscriptionSrtFolder                  = s.TranscriptionSrtFolder;
             TranscriptionEnableDiarization          = s.TranscriptionEnableDiarization;
-            TranscriptionAutoOnImportSingleTrack    = s.TranscriptionAutoOnImportSingleTrack;
-            TranscriptionAutoOnImportAllTracks      = s.TranscriptionAutoOnImportAllTracks;
-            TranscriptionAutoOnMixSave              = s.TranscriptionAutoOnMixSave;
+            TranscriptionAutoOnImport               = s.TranscriptionAutoOnImport;
+            TranscriptionAutoOnImportTrackIndices   = s.TranscriptionAutoOnImportTrackIndices;
             TranscriptionBackend                    = s.TranscriptionBackend switch
             {
                 ClipStudio.Core.Enums.TranscriptionBackend.Cpu    => "CPU only",
@@ -614,9 +607,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         s.TranscriptionLanguage          = SelectedTranscriptionLanguage.Code;
         s.TranscriptionSrtFolder                 = TranscriptionSrtFolder.Trim();
         s.TranscriptionEnableDiarization         = TranscriptionEnableDiarization;
-        s.TranscriptionAutoOnImportSingleTrack   = TranscriptionAutoOnImportSingleTrack;
-        s.TranscriptionAutoOnImportAllTracks     = TranscriptionAutoOnImportAllTracks;
-        s.TranscriptionAutoOnMixSave             = TranscriptionAutoOnMixSave;
+        s.TranscriptionAutoOnImport              = TranscriptionAutoOnImport;
+        s.TranscriptionAutoOnImportTrackIndices  = TranscriptionAutoOnImportTrackIndices.Trim();
         s.TranscriptionBackend                   = TranscriptionBackend switch
         {
             "CPU only"     => ClipStudio.Core.Enums.TranscriptionBackend.Cpu,

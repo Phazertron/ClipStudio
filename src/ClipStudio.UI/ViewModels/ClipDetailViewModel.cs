@@ -1459,14 +1459,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             ReloadMedia(mkvPath);
             IsPlayingMixPreview = true;
 
-            // Auto-transcribe using caption track selection if the user has enabled OnMixSave.
-            var s = _settingsService.Current;
-            if (s.TranscriptionAutoOnMixSave
-                && s.TranscriptionEnabled
-                && !string.IsNullOrWhiteSpace(s.TranscriptionModelPath))
-            {
-                _ = Transcription.TranscribeAsync();
-            }
         }
         catch (OperationCanceledException)
         {
