@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using ClipStudio.Application.Interfaces;
 using ClipStudio.Application.Models;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
+using ClipStudio.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +45,11 @@ public sealed partial class LibraryViewModel : ViewModelBase
     // ---- Load cancellation + picker-reload suppression ----
     private CancellationTokenSource _loadCts = new();
     private bool _suppressFilterChanges;
+
+    // ---- Bulk transcription ----
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ISettingsService _settingsService;
+    private CancellationTokenSource? _bulkTranscribeCts;
 
     // ---- Preset filter IDs applied on the next LoadAsync call ----
     private int? _presetGameTagId;
@@ -162,6 +169,26 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// segment text.  Disabled by default to avoid the extra DB query on every keystroke.
     /// </summary>
     [ObservableProperty] private bool _searchCaptions = false;
+
+    /// <summary>Gets or sets whether a bulk transcription run is currently in progress.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanBulkTranscribe))]
+    private bool _isBulkTranscribing;
+
+    /// <summary>Gets or sets the bulk transcription progress (0–1).</summary>
+    [ObservableProperty] private float _bulkTranscribeProgress;
+
+    /// <summary>Gets or sets the status message shown in the bulk transcription section.</summary>
+    [ObservableProperty] private string _bulkTranscribeStatus = string.Empty;
+
+    /// <summary>
+    /// Gets whether transcription is enabled in settings and the bulk transcribe button may appear.
+    /// Refreshed on every <see cref="LoadAsync"/> call.
+    /// </summary>
+    public bool IsTranscriptionEnabled => _settingsService.Current.TranscriptionEnabled;
+
+    /// <summary>Gets whether the bulk transcribe command can execute.</summary>
+    public bool CanBulkTranscribe => HasSelectedClips && !IsBulkTranscribing;
 
     /// <summary>
     /// Gets or sets the row height in pixels applied to each details-view row.
@@ -413,6 +440,17 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// </summary>
     public IAsyncRelayCommand ConfirmBulkClearAllDataCommand { get; }
 
+    // ---- Bulk transcription commands ----
+
+    /// <summary>
+    /// Gets the command that transcribes all currently selected clips sequentially using the
+    /// Whisper model configured in Settings. Disabled when no clips are selected or a run is already active.
+    /// </summary>
+    public IAsyncRelayCommand BulkTranscribeCommand { get; }
+
+    /// <summary>Gets the command that cancels an in-progress bulk transcription run.</summary>
+    public IRelayCommand CancelBulkTranscribeCommand { get; }
+
     // ---- Copy-format commands ----
 
     /// <summary>
@@ -451,12 +489,16 @@ public sealed partial class LibraryViewModel : ViewModelBase
         IClipService clipService,
         ITagService tagService,
         IPlayerService playerService,
-        IFilterPresetService filterPresetService)
+        IFilterPresetService filterPresetService,
+        IServiceScopeFactory scopeFactory,
+        ISettingsService settingsService)
     {
         _clipService          = clipService;
         _tagService           = tagService;
         _playerService        = playerService;
         _filterPresetService  = filterPresetService;
+        _scopeFactory         = scopeFactory;
+        _settingsService      = settingsService;
 
         LoadCommand                = new AsyncRelayCommand(LoadAsync);
         ToggleFilterPanelCommand   = new RelayCommand(() => IsFilterPanelOpen = !IsFilterPanelOpen);
@@ -497,6 +539,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
         ShowBulkClearAllDataConfirmCommand = new RelayCommand(() => IsBulkClearAllDataConfirmVisible = !IsBulkClearAllDataConfirmVisible);
         ConfirmBulkClearAllDataCommand     = new AsyncRelayCommand(BulkClearAllDataAsync);
 
+        BulkTranscribeCommand       = new AsyncRelayCommand(BulkTranscribeAsync, () => CanBulkTranscribe);
+        CancelBulkTranscribeCommand = new RelayCommand(CancelBulkTranscribe, () => IsBulkTranscribing);
+
         StartCopyFormatCommand        = new RelayCommand(StartCopyFormat);
         ExitCopyFormatCommand         = new RelayCommand(ExitCopyFormat);
         PasteFormatToSelectionCommand = new AsyncRelayCommand(PasteFormatToSelectionAsync);
@@ -521,6 +566,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsMultiSelectMode));
         OnPropertyChanged(nameof(IsCopyFormatButtonEnabled));
         OnPropertyChanged(nameof(SelectedClipsCountDisplay));
+        OnPropertyChanged(nameof(CanBulkTranscribe));
+        BulkTranscribeCommand.NotifyCanExecuteChanged();
 
         RefreshBulkChipsFromSelection();
     }
@@ -580,6 +627,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var token = _loadCts.Token;
 
         IsLoading = true;
+        OnPropertyChanged(nameof(IsTranscriptionEnabled));
         DeselectAll();
         Clips.Clear();
 
@@ -631,6 +679,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => LoadCommand.Execute(null);
     partial void OnSearchCaptionsChanged(bool value) => LoadCommand.Execute(null);
+
+    partial void OnIsBulkTranscribingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanBulkTranscribe));
+        BulkTranscribeCommand.NotifyCanExecuteChanged();
+        CancelBulkTranscribeCommand.NotifyCanExecuteChanged();
+    }
     partial void OnSortByChanged(string value) => LoadCommand.Execute(null);
     partial void OnFilterStatusChanged(ClipStatus? value)   { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
     partial void OnFilterDateFromChanged(DateTime? value)   { if (!_suppressFilterChanges) LoadCommand.Execute(null); }
@@ -1459,5 +1514,110 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var card = Clips.FirstOrDefault(c => c.ClipId == clipId);
         if (card is not null)
             card.IsBroken = isBroken;
+    }
+
+    // ---- Bulk transcription ----
+
+    /// <summary>
+    /// Transcribes all currently selected clips one by one using the Whisper model configured in Settings.
+    /// Shows an inline status message when transcription is disabled or no model is available.
+    /// </summary>
+    private async Task BulkTranscribeAsync()
+    {
+        var settings = _settingsService.Current;
+
+        if (!settings.TranscriptionEnabled)
+        {
+            BulkTranscribeStatus = "Transcription is disabled. Enable it in Settings > Transcription.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.TranscriptionModelPath)
+            || !File.Exists(settings.TranscriptionModelPath))
+        {
+            BulkTranscribeStatus = "No model found. Configure one in Settings > Transcription.";
+            return;
+        }
+
+        var clips = SelectedClips.ToList();
+        if (clips.Count == 0) return;
+
+        var trackIndices = ParseBulkTrackIndices(settings.TranscriptionAutoOnImportTrackIndices);
+
+        _bulkTranscribeCts  = new CancellationTokenSource();
+        IsBulkTranscribing  = true;
+        BulkTranscribeProgress = 0f;
+        BulkTranscribeStatus   = $"Starting — {clips.Count} clip{(clips.Count == 1 ? "" : "s")} queued...";
+
+        var completed = 0;
+
+        try
+        {
+            for (var i = 0; i < clips.Count; i++)
+            {
+                _bulkTranscribeCts.Token.ThrowIfCancellationRequested();
+
+                var card = clips[i];
+                BulkTranscribeStatus = $"{i + 1} / {clips.Count}: {card.FileName}";
+
+                using var scope = _scopeFactory.CreateScope();
+                var svc = scope.ServiceProvider.GetRequiredService<ITranscriptionService>();
+
+                try
+                {
+                    await svc.TranscribeAsync(
+                        card.ClipId,
+                        trackIndices,
+                        settings.TranscriptionModelPath,
+                        settings.TranscriptionBackend,
+                        settings.TranscriptionLanguage,
+                        progress: null,
+                        cancellationToken: _bulkTranscribeCts.Token);
+
+                    completed++;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    // Skip failed clip and continue with the rest.
+                }
+
+                BulkTranscribeProgress = (float)(i + 1) / clips.Count;
+            }
+
+            BulkTranscribeStatus = completed == clips.Count
+                ? $"Done — {completed} clip{(completed == 1 ? "" : "s")} transcribed."
+                : $"Done — {completed} of {clips.Count} succeeded.";
+        }
+        catch (OperationCanceledException)
+        {
+            BulkTranscribeStatus = "Cancelled.";
+        }
+        finally
+        {
+            IsBulkTranscribing     = false;
+            BulkTranscribeProgress = 0f;
+            _bulkTranscribeCts?.Dispose();
+            _bulkTranscribeCts = null;
+        }
+    }
+
+    private void CancelBulkTranscribe() => _bulkTranscribeCts?.Cancel();
+
+    /// <summary>
+    /// Parses a comma-separated string of 0-based FFmpeg audio stream indices.
+    /// Falls back to <c>[0]</c> when the string is empty or contains no valid entries.
+    /// </summary>
+    private static IReadOnlyList<int> ParseBulkTrackIndices(string? csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) return [0];
+        var result = csv.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s.Trim(), out var idx) ? idx : -1)
+            .Where(idx => idx >= 0)
+            .ToList();
+        return result.Count > 0 ? result : [0];
     }
 }
