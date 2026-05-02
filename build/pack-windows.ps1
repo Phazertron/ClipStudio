@@ -96,14 +96,37 @@ if ($SkipFfmpegDownload) {
     Write-Host "  Skipping FFmpeg download (-SkipFfmpegDownload specified)."
 } else {
     $FfmpegDir     = Join-Path $PublishDir "ffmpeg"
-    $FfmpegZipUrl  = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+    # BtbN GitHub releases: LGPL static build, hosted on GitHub CDN (more reliable than gyan.dev).
+    $FfmpegZipUrl  = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip"
     $FfmpegZip     = Join-Path $env:TEMP "clipstudio-ffmpeg-bundle.zip"
     $FfmpegExtract = Join-Path $env:TEMP "clipstudio-ffmpeg-extract"
 
     if (-not (Test-Path $FfmpegDir)) { New-Item -ItemType Directory -Path $FfmpegDir | Out-Null }
 
-    Write-Host "  Downloading $FfmpegZipUrl ..."
-    Invoke-WebRequest -Uri $FfmpegZipUrl -OutFile $FfmpegZip -UseBasicParsing
+    # Check for a cached zip younger than 7 days to avoid re-downloading every build.
+    $needsDownload = $true
+    if (Test-Path $FfmpegZip) {
+        $age = (Get-Date) - (Get-Item $FfmpegZip).LastWriteTime
+        if ($age.TotalDays -lt 7) {
+            Write-Host "  Using cached FFmpeg zip (age: $([int]$age.TotalHours)h)."
+            $needsDownload = $false
+        }
+    }
+
+    if ($needsDownload) {
+        Write-Host "  Downloading $FfmpegZipUrl ..."
+        $maxRetries = 3
+        for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+            try {
+                Invoke-WebRequest -Uri $FfmpegZipUrl -OutFile $FfmpegZip -UseBasicParsing -TimeoutSec 300
+                break
+            } catch {
+                if ($attempt -eq $maxRetries) { throw "FFmpeg download failed after $maxRetries attempts: $_" }
+                Write-Warning "  Attempt $attempt failed: $_. Retrying in 10 s..."
+                Start-Sleep -Seconds 10
+            }
+        }
+    }
 
     Write-Host "  Extracting ..."
     if (Test-Path $FfmpegExtract) { Remove-Item $FfmpegExtract -Recurse -Force }
