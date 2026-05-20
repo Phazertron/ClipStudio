@@ -1514,9 +1514,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// </param>
     private string GetAudioMixCachePath(int slot = -1)
     {
-        var folder = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ClipStudio", "audio_cache");
+        var folder = System.IO.Path.Combine(App.AppDataPath, "audio_cache");
         System.IO.Directory.CreateDirectory(folder);
         var slotToUse = slot < 0 ? _activeMixSlot : slot;
         var suffix    = slotToUse == 0 ? string.Empty : "_alt";
