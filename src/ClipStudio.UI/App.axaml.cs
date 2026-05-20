@@ -35,10 +35,17 @@ public partial class App : AvaloniaApp
     /// <summary>Gets the application-wide DI service provider. Available after <see cref="Initialize"/>.</summary>
     public static IServiceProvider Services { get; private set; } = null!;
 
-    /// <summary>Gets the absolute path to the directory that contains rolling log files.</summary>
-    public static string LogsFolder { get; } = Path.Combine(
+    /// <summary>
+    /// Gets or sets the root data directory for all persistent application state (database,
+    /// settings, cache, logs). Defaults to <c>%AppData%\ClipStudio</c>; overridden by
+    /// <c>Program.Main</c> when a <c>--profile</c> argument is supplied.
+    /// </summary>
+    public static string AppDataPath { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ClipStudio", "logs");
+        "ClipStudio");
+
+    /// <summary>Gets the absolute path to the directory that contains rolling log files.</summary>
+    public static string LogsFolder => Path.Combine(AppDataPath, "logs");
 
     /// <summary>
     /// Initialises the Serilog rolling-file logger.
@@ -280,21 +287,17 @@ public partial class App : AvaloniaApp
 
     private static IServiceProvider BuildServiceProvider()
     {
-        var appDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ClipStudio");
+        Directory.CreateDirectory(AppDataPath);
 
-        Directory.CreateDirectory(appDataPath);
-
-        var dbPath = Path.Combine(appDataPath, "library.db");
-        var settingsPath = Path.Combine(appDataPath, "settings.json");
+        var dbPath       = Path.Combine(AppDataPath, "library.db");
+        var settingsPath = Path.Combine(AppDataPath, "settings.json");
 
         var services = new ServiceCollection();
 
         services.AddLogging(logging => logging.AddSerilog(dispose: false));
 
         services.AddClipStudioData(dbPath);
-        services.AddClipStudioApplication(settingsPath);
+        services.AddClipStudioApplication(settingsPath, AppDataPath);
 
         // LibVLC — single shared instance for the lifetime of the app
         services.AddSingleton<LibVLC>(_ => new LibVLC(enableDebugLogs: false));
@@ -307,6 +310,7 @@ public partial class App : AvaloniaApp
         services.AddTransient<WelcomeStepViewModel>();
         services.AddTransient<SourceFoldersStepViewModel>();
         services.AddTransient<FfmpegStepViewModel>();
+        services.AddTransient<TranscriptionSetupStepViewModel>();
         services.AddTransient<FinishStepViewModel>();
 
         // ViewModels — main app

@@ -26,6 +26,9 @@ public sealed class MediaMetadata
     /// </summary>
     public DateTime? EmbeddedCreationTime { get; set; }
 
+    /// <summary>Gets or sets the number of audio streams found in the file by FFprobe.</summary>
+    public int AudioStreamCount { get; set; }
+
     /// <summary>Gets a formatted resolution string (e.g., "1920x1080").</summary>
     public string Resolution => $"{Width}x{Height}";
 }

@@ -96,14 +96,54 @@ if ($SkipFfmpegDownload) {
     Write-Host "  Skipping FFmpeg download (-SkipFfmpegDownload specified)."
 } else {
     $FfmpegDir     = Join-Path $PublishDir "ffmpeg"
-    $FfmpegZipUrl  = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+    # BtbN GitHub releases: LGPL static build, hosted on GitHub CDN (more reliable than gyan.dev).
+    $FfmpegZipUrl  = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip"
     $FfmpegZip     = Join-Path $env:TEMP "clipstudio-ffmpeg-bundle.zip"
     $FfmpegExtract = Join-Path $env:TEMP "clipstudio-ffmpeg-extract"
 
     if (-not (Test-Path $FfmpegDir)) { New-Item -ItemType Directory -Path $FfmpegDir | Out-Null }
 
-    Write-Host "  Downloading $FfmpegZipUrl ..."
-    Invoke-WebRequest -Uri $FfmpegZipUrl -OutFile $FfmpegZip -UseBasicParsing
+    # Validate that a zip is not corrupt (catches partial downloads from a previous failed run).
+    function Test-ZipValid ([string]$Path) {
+        try {
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $z = [System.IO.Compression.ZipFile]::OpenRead($Path)
+            $z.Dispose()
+            return $true
+        } catch {
+            return $false
+        }
+    }
+
+    # Use the cached zip if it is younger than 7 days AND is a valid archive.
+    $needsDownload = $true
+    if (Test-Path $FfmpegZip) {
+        $age = (Get-Date) - (Get-Item $FfmpegZip).LastWriteTime
+        if ($age.TotalDays -lt 7 -and (Test-ZipValid $FfmpegZip)) {
+            Write-Host "  Using cached FFmpeg zip (age: $([int]$age.TotalHours)h)."
+            $needsDownload = $false
+        } else {
+            Write-Host "  Cached zip is stale or corrupt — deleting and re-downloading."
+            Remove-Item $FfmpegZip -Force
+        }
+    }
+
+    if ($needsDownload) {
+        Write-Host "  Downloading $FfmpegZipUrl ..."
+        $maxRetries = 3
+        for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+            try {
+                Invoke-WebRequest -Uri $FfmpegZipUrl -OutFile $FfmpegZip -UseBasicParsing -TimeoutSec 300
+                if (-not (Test-ZipValid $FfmpegZip)) { throw "Downloaded file is not a valid zip archive." }
+                break
+            } catch {
+                Remove-Item $FfmpegZip -Force -ErrorAction SilentlyContinue
+                if ($attempt -eq $maxRetries) { throw "FFmpeg download failed after $maxRetries attempts: $_" }
+                Write-Warning "  Attempt $attempt failed: $_. Retrying in 10 s..."
+                Start-Sleep -Seconds 10
+            }
+        }
+    }
 
     Write-Host "  Extracting ..."
     if (Test-Path $FfmpegExtract) { Remove-Item $FfmpegExtract -Recurse -Force }

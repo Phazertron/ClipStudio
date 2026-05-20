@@ -18,14 +18,20 @@ public sealed class ClipServiceTests
     private readonly Mock<IClipRepository> _clipRepoMock = new();
     private readonly Mock<ITagRepository> _tagRepoMock = new();
     private readonly Mock<IRecycleBinService> _recycleBinMock = new();
+    private readonly Mock<ITranscriptionRepository> _transcriptionRepoMock = new();
     private readonly ClipService _service;
 
     public ClipServiceTests()
     {
+        _transcriptionRepoMock
+            .Setup(r => r.DeleteByClipIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<string>());
+
         _service = new ClipService(
             _clipRepoMock.Object,
             _tagRepoMock.Object,
             _recycleBinMock.Object,
+            _transcriptionRepoMock.Object,
             NullLogger<ClipService>.Instance);
     }
 

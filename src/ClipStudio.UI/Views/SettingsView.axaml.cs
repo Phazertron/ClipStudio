@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -17,6 +18,43 @@ public partial class SettingsView : UserControl
     {
         InitializeComponent();
         AttachedToVisualTree += OnAttachedToVisualTree;
+    }
+
+    private async void OnManageModelsClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm) return;
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is not Window window) return;
+
+        try
+        {
+            var dlgVm = new TranscriptionSetupDialogViewModel(vm.SettingsService);
+            dlgVm.Confirmed += async () => await vm.LoadAsync();
+            var dialog = new TranscriptionSetupDialog(dlgVm);
+            await dialog.ShowDialog(window);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ManageModels] {ex}");
+            await new Avalonia.Controls.Window
+            {
+                Title   = "Error",
+                Content = new Avalonia.Controls.ScrollViewer
+                {
+                    Content = new Avalonia.Controls.TextBlock
+                    {
+                        Text         = ex.ToString(),
+                        Margin       = new Avalonia.Thickness(16),
+                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                        FontSize     = 11
+                    }
+                },
+                Width  = 600,
+                Height = 400,
+                WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner
+            }.ShowDialog(window);
+        }
     }
 
     private void OnAttachedToVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
@@ -74,6 +112,24 @@ public partial class SettingsView : UserControl
     /// Shows the <see cref="SourceFolderRemovalDialog"/> so the user can choose Archive, Wipe, or Cancel,
     /// then delegates to the appropriate <see cref="SettingsViewModel"/> method.
     /// </summary>
+    private async void OnBrowseTranscriptionSrtFolderClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm) return;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return;
+        var folder = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title         = "Select SRT output folder",
+            AllowMultiple = false
+        });
+        if (folder.Count > 0)
+        {
+            var path = folder[0].TryGetLocalPath();
+            if (!string.IsNullOrEmpty(path))
+                vm.TranscriptionSrtFolder = path;
+        }
+    }
+
     private async void OnRemoveFolderClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;

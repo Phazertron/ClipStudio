@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels.WizardSteps"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="580" d:DesignHeight="320"
+             x:Class="ClipStudio.UI.Views.WizardSteps.TranscriptionSetupStepView"
+             x:DataType="vm:TranscriptionSetupStepViewModel">
+
+    <StackPanel Spacing="16" Margin="8">
+
+        <TextBlock Text="ClipStudio can generate subtitles from your clip audio using a local Whisper model — no cloud, no GPU required."
+                   FontSize="13"
+                   Opacity="0.7"
+                   TextWrapping="Wrap"/>
+
+        <!-- Enable toggle -->
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <ToggleSwitch IsChecked="{Binding IsEnabled}"
+                          OnContent="Enabled"
+                          OffContent="Disabled"/>
+            <TextBlock Text="Enable voice transcription"
+                       FontSize="13"
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Model picker (visible when enabled) -->
+        <StackPanel Spacing="8" IsVisible="{Binding ShowModelPicker}">
+
+            <TextBlock Text="Select a GGML Whisper model file (.bin) you have already downloaded:"
+                       FontSize="12"
+                       Opacity="0.8"
+                       TextWrapping="Wrap"/>
+
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding ModelFileName}"
+                           FontSize="12"
+                           Opacity="0.7"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
+                <Button Grid.Column="1"
+                        Command="{Binding BrowseModelCommand}"
+                        Margin="8,0,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <icons:MaterialIcon Kind="FolderSearch" Width="16" Height="16"/>
+                        <TextBlock Text="Browse"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <TextBlock FontSize="11"
+                       Opacity="0.5"
+                       TextWrapping="Wrap">
+                <Run Text="Models: "/>
+                <Run Text="tiny (75 MB), base (142 MB), small (466 MB), medium (1.5 GB), large-v3 (3.1 GB)."/>
+                <Run Text=" Download from HuggingFace and select the .bin file above."/>
+            </TextBlock>
+
+        </StackPanel>
+
+        <TextBlock Text="You can configure transcription at any time in Settings > Transcription."
+                   FontSize="11"
+                   Opacity="0.5"
+                   TextWrapping="Wrap"/>
+
+    </StackPanel>
+
+</UserControl>
