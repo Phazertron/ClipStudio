@@ -1,4 +1,5 @@
 using ClipStudio.Application.Interfaces;
+using ClipStudio.Application.Models;
 using ClipStudio.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -16,6 +17,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
     private readonly IMediaService _media;
     private readonly ISettingsService _settings;
     private readonly ITranscriptionRepository _transcriptions;
+    private readonly AppDataPaths _paths;
     private readonly ILogger<LibrarySanitizerService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="LibrarySanitizerService"/>.</summary>
@@ -25,6 +27,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         IMediaService media,
         ISettingsService settings,
         ITranscriptionRepository transcriptions,
+        AppDataPaths paths,
         ILogger<LibrarySanitizerService> logger)
     {
         _clips          = clips;
@@ -32,6 +35,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         _media          = media;
         _settings       = settings;
         _transcriptions = transcriptions;
+        _paths          = paths;
         _logger         = logger;
     }
 
@@ -406,25 +410,15 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         _logger.LogInformation("{Summary}", summary);
     }
 
-    private static string GetAudioCacheDirectory()
+    private string GetAudioCacheDirectory()
     {
-        var dir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ClipStudio",
-            "audio_cache");
-
-        Directory.CreateDirectory(dir);
-        return dir;
+        Directory.CreateDirectory(_paths.AudioCachePath);
+        return _paths.AudioCachePath;
     }
 
-    private static string GetDataDirectory()
+    private string GetDataDirectory()
     {
-        var dir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ClipStudio",
-            "media-cache");
-
-        Directory.CreateDirectory(dir);
-        return dir;
+        Directory.CreateDirectory(_paths.MediaCachePath);
+        return _paths.MediaCachePath;
     }
 }

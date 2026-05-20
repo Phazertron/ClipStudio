@@ -27,10 +27,21 @@ internal sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        // Compute the settings path early so Serilog can read the configured log level.
-        var settingsPath = Path.Combine(
+        // Resolve the data directory. An optional --profile <name> argument redirects all
+        // persistent storage to %AppData%\ClipStudio_<name>\ so multiple isolated profiles
+        // (e.g. a "demo" profile for screenshots) can coexist without touching the real library.
+        var profileName = ParseProfileArg(args);
+        var folderName  = profileName is not null ? $"ClipStudio_{profileName}" : "ClipStudio";
+        App.AppDataPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ClipStudio", "settings.json");
+            folderName);
+
+        // Strip --profile and its value from the args passed to Avalonia so the framework
+        // does not treat them as unknown arguments.
+        args = StripProfileArg(args);
+
+        // Compute the settings path early so Serilog can read the configured log level.
+        var settingsPath = Path.Combine(App.AppDataPath, "settings.json");
 
         App.SetupSerilog(settingsPath);
 
@@ -90,4 +101,38 @@ internal sealed class Program
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();
+
+    /// <summary>
+    /// Returns the value of the <c>--profile</c> argument, or <see langword="null"/> if it was
+    /// not supplied.
+    /// </summary>
+    private static string? ParseProfileArg(string[] args)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i].Equals("--profile", StringComparison.OrdinalIgnoreCase))
+                return args[i + 1];
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns a copy of <paramref name="args"/> with the <c>--profile &lt;name&gt;</c> pair
+    /// removed so Avalonia does not see unknown arguments.
+    /// </summary>
+    private static string[] StripProfileArg(string[] args)
+    {
+        var result = new System.Collections.Generic.List<string>(args.Length);
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i].Equals("--profile", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                i++; // skip the value too
+                continue;
+            }
+            result.Add(args[i]);
+        }
+        return result.ToArray();
+    }
 }

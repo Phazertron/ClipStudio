@@ -13,9 +13,7 @@ namespace ClipStudio.UI;
 /// </summary>
 public static class CrashReporter
 {
-    private static readonly string CrashDumpDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ClipStudio");
+    private static string CrashDumpDir => App.AppDataPath;
 
     private const string CrashDumpPrefix = "crash_";
     private const string CrashDumpExtension = ".txt";
