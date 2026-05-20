@@ -341,6 +341,14 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Gets or sets the output file path for the trimmed export.</summary>
     [ObservableProperty] private string _trimOutputPath = string.Empty;
 
+    /// <summary>Gets or sets whether an export job is currently being processed in the background.</summary>
+    [ObservableProperty] private bool _isExporting;
+
+    /// <summary>Gets or sets a status message shown while an export runs or after it completes.</summary>
+    [ObservableProperty] private string? _exportStatusMessage;
+
+    private bool _isProcessingExport;
+
     /// <summary>
     /// Gets or sets whether the trim export for this clip should use destructive mode
     /// (re-encode and optionally delete original). Defaults to the setting's <see cref="AppSettings.DefaultTrimMode"/>.
@@ -643,6 +651,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Gets the command that queues a trim export job for the current range.</summary>
     public IAsyncRelayCommand QueueTrimExportCommand { get; }
 
+    /// <summary>Gets the command that clears the export status bar.</summary>
+    public IRelayCommand DismissExportStatusCommand { get; }
+
     /// <summary>
     /// Gets the command that confirms a destructive trim after the user acknowledges the warning
     /// that highlights fall outside the trim range. Bypasses the warning check and queues immediately.
@@ -827,6 +838,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         CommitTrimEndCommand      = new RelayCommand(CommitTrimEnd);
         QueueTrimExportCommand          = new AsyncRelayCommand(QueueTrimExportAsync);
         ConfirmDestructiveTrimCommand   = new AsyncRelayCommand(ConfirmDestructiveTrimAsync);
+        DismissExportStatusCommand      = new RelayCommand(() => ExportStatusMessage = null);
         UnlockHighlightCommand    = new RelayCommand(() => LockedHighlight = null);
         ToggleRepeatCommand       = new RelayCommand(CycleLoopMode);
         PreviousCommand                   = new RelayCommand(() => PreviousClipRequested?.Invoke());
@@ -1044,12 +1056,22 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             $"{Path.GetFileNameWithoutExtension(_clip.FileName)}_{label}.mp4");
 
         var settings = _settingsService.Current;
-        await _exportService.QueueAsync(
-            _clip.Id,
-            highlight.HighlightId,
-            outputPath,
-            settings.DefaultTrimMode,
-            settings.DeleteOriginalAfterDestructiveTrim);
+        try
+        {
+            await _exportService.QueueAsync(
+                _clip.Id,
+                highlight.HighlightId,
+                outputPath,
+                settings.DefaultTrimMode,
+                settings.DeleteOriginalAfterDestructiveTrim);
+        }
+        catch (Exception ex)
+        {
+            ExportStatusMessage = $"Export failed: {ex.Message}";
+            return;
+        }
+
+        _ = RunExportQueueAsync();
     }
 
     private async Task LoadTagSuggestionsAsync(int clipId)
@@ -2049,22 +2071,58 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         if (_clip is null) return;
 
         var trimMode = IsTrimDestructive ? TrimMode.Destructive : TrimMode.NonDestructive;
-        await _exportService.QueueAsync(
-            _clip.Id,
-            null,
-            TrimOutputPath,
-            trimMode,
-            IsTrimDestructive,
-            _trimStart,
-            _trimEnd);
+        try
+        {
+            await _exportService.QueueAsync(
+                _clip.Id,
+                null,
+                TrimOutputPath,
+                trimMode,
+                IsTrimDestructive,
+                _trimStart,
+                _trimEnd);
+        }
+        catch (Exception ex)
+        {
+            ExportStatusMessage = $"Export failed: {ex.Message}";
+            return;
+        }
 
         IsTrimming = false;
+        _ = RunExportQueueAsync();
     }
 
     /// <summary>Clears the destructive-trim warning whenever the trim form is closed.</summary>
     partial void OnIsTrimmingChanged(bool value)
     {
         if (!value) TrimDestructiveWarning = null;
+    }
+
+    /// <summary>
+    /// Processes all pending export jobs in the background immediately after one is queued.
+    /// Guards against concurrent runs so multiple rapid queues do not race.
+    /// </summary>
+    private async Task RunExportQueueAsync()
+    {
+        if (_isProcessingExport) return;
+        _isProcessingExport    = true;
+        IsExporting            = true;
+        ExportStatusMessage    = "Exporting...";
+
+        try
+        {
+            await _exportService.ProcessQueueAsync();
+            ExportStatusMessage = "Export complete.";
+        }
+        catch (Exception ex)
+        {
+            ExportStatusMessage = $"Export failed: {ex.Message}";
+        }
+        finally
+        {
+            IsExporting         = false;
+            _isProcessingExport = false;
+        }
     }
 
     // ---- Delete / trash ----

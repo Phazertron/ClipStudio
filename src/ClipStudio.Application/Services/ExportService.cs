@@ -49,22 +49,19 @@ public sealed class ExportService : IExportService
         TimeSpan? endTime = null,
         CancellationToken cancellationToken = default)
     {
-        var clip = await _clips.GetByIdAsync(clipId, cancellationToken)
+        _ = await _clips.GetByIdAsync(clipId, cancellationToken)
             ?? throw new InvalidOperationException($"Clip {clipId} not found.");
 
-        Highlight? highlight = null;
         if (highlightId.HasValue)
         {
-            highlight = await _highlights.GetByIdAsync(highlightId.Value, cancellationToken)
+            _ = await _highlights.GetByIdAsync(highlightId.Value, cancellationToken)
                 ?? throw new InvalidOperationException($"Highlight {highlightId} not found.");
         }
 
         var job = new ExportJob
         {
             ClipId = clipId,
-            Clip = clip,
             HighlightId = highlightId,
-            Highlight = highlight,
             OutputPath = outputPath,
             TrimMode = trimMode,
             DeleteOriginalAfterExport = deleteOriginal && trimMode == TrimMode.Destructive,
