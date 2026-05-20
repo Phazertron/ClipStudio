@@ -14,10 +14,9 @@ internal sealed class Program
 {
     /// <summary>
     /// GitHub repository URL used for automatic update checks.
-    /// Set this to <c>https://github.com/OWNER/ClipStudio</c> before publishing a release.
-    /// Leave <see langword="null"/> to disable background update checks entirely.
+    /// Set this to <see langword="null"/> to disable background update checks entirely.
     /// </summary>
-    private static readonly string? AutoUpdateRepositoryUrl = null;
+    private static readonly string? AutoUpdateRepositoryUrl = "https://github.com/Phazertron/ClipStudio";
 
     /// <summary>
     /// Main entry point. Velopack's bootstrap call MUST be the very first statement so that
