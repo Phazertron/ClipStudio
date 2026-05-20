@@ -1,31 +1,215 @@
 # ClipStudio
 
-A cross-platform desktop application for managing, tagging, and curating gameplay video clips.
-Designed for content creators and casual players who accumulate large replay libraries and need a structured,
-searchable way to find and export the moments that matter.
+**A desktop app for managing, tagging, and curating your gameplay replay library.**
+
+Built for players who record everything but never have time to find the good moments — ClipStudio turns a folder of raw OBS replays into a searchable, tagged, exportable highlight reel.
+
+![Library view](docs/screenshots/library.png)
 
 ---
 
-## Repository Structure
+## Features
 
+- **Automatic import** — watches your OBS replay folder and imports new clips as they land, no manual steps
+- **Game detection** — reads the `[Game Name]` tag embedded by the OBS script (or set it manually from a Steam-backed picker)
+- **Highlight editor** — mark in/out points on the timeline to create named, tagged, rated highlights; overlapping highlights are fully supported
+- **Tag system** — hierarchical general tags + game tags; clips inherit tags from their highlights for search
+- **Players** — track who was in each session; mark yourself with *IsMe* and get auto-tagged on every import
+- **Audio track mixing** — multi-track clips get per-track volume and mute controls; FFmpeg preview mix in real time
+- **Subtitle / caption support** — local Whisper transcription generates searchable captions synced to the timeline
+- **Trim & Export** — non-destructive (stream copy) or destructive (re-encode) export, queued and processed in the background
+- **Stats dashboard** — play counts, rating distribution, top games and tags
+- **Bulk edit** — select multiple clips and apply tags, game, or players in one action; copy metadata from one clip to others with the format-brush
+- **Cross-platform** — Windows, macOS, Linux (Avalonia UI)
+
+---
+
+## Screenshots
+
+| Library | Unreviewed Queue |
+|---|---|
+| ![Library](docs/screenshots/library.png) | ![Unreviewed](docs/screenshots/unreviewed.png) |
+
+| Games | Stats |
+|---|---|
+| ![Games](docs/screenshots/games.png) | ![Stats](docs/screenshots/stats.png) |
+
+| Tags | Players |
+|---|---|
+| ![Tags](docs/screenshots/tags.png) | ![Players](docs/screenshots/players.png) |
+
+| Highlights Page | Clip Editor — Metadata |
+|---|---|
+| ![Highlights](docs/screenshots/highlights-page.png) | ![Clip editor metadata](docs/screenshots/clip-editor-metadata.png) |
+
+| Clip Editor — Highlights & Captions | Clip Editor — Trim & Export |
+|---|---|
+| ![Clip editor highlights](docs/screenshots/clip-editor-highlights.png) | ![Clip editor trim](docs/screenshots/clip-editor-trim.png) |
+
+---
+
+## Getting Started
+
+### Requirements
+
+| Dependency | Notes |
+|---|---|
+| [.NET 9 Runtime](https://dot.net/download) | Required to run the app |
+| [VLC media player](https://www.videolan.org/) | Required on macOS and Linux for native LibVLC libraries; on Windows, VLC libraries are bundled |
+| FFmpeg | **Bundled automatically** in the installer. For development builds, install to system PATH or configure the path in Settings |
+
+### Download
+
+Grab the latest installer from the [Releases](https://github.com/Phazertron/ClipStudio/releases) page.
+
+### Build from Source
+
+```bash
+git clone https://github.com/Phazertron/ClipStudio.git
+cd ClipStudio
+dotnet restore
+dotnet run --project src/ClipStudio.UI
 ```
-ClipStudio/
-├── documentation/
-│   ├── SPECIFICATION.md                # Full software specification
-│   ├── DECISION_LOG.md                 # Architectural and product decision log       
-├── src/
-│   ├── ClipStudio.Core/            # Domain entities, enums, repository interfaces
-│   │   ├── Entities/               # Clip, Tag, Highlight, Screenshot, ExportJob, ...
-│   │   ├── Enums/                  # ClipStatus, TagType, TrimMode, ExportJobStatus
-│   │   └── Interfaces/             # IClipRepository, ITagRepository, ...
-│   ├── ClipStudio.Data/            # EF Core DbContext, SQLite, repository implementations
-│   ├── ClipStudio.Application/     # Application services, import pipeline, Steam game search
-│   └── ClipStudio.UI/              # Avalonia MVVM UI (Views, ViewModels, Assets)
-├── tests/
-│   └── ClipStudio.Tests/           # xUnit tests with Moq and in-memory EF Core
-├── obs-scripts/                    # OBS Python script for game-name filename embedding
-└── ClipStudio.sln
+
+Run tests:
+
+```bash
+dotnet test
 ```
+
+### First Launch
+
+A setup wizard runs on first launch and guides you through:
+
+1. **Source folders** — select the folder(s) where your recording software saves replays (OBS, NVIDIA ShadowPlay, Xbox Game Bar, etc.)
+2. **FFmpeg** — auto-detected or configured manually
+3. **Transcription** — optional local Whisper model for caption generation
+4. **Theme** — light or dark (dark by default)
+
+Once the wizard completes, ClipStudio watches your source folders in the background. Any new video file that lands there is imported automatically and appears in the **Unreviewed** queue.
+
+> **Tip — multiple profiles:** Launch with `--profile <name>` (e.g. `ClipStudio.exe --profile demo`) to run a completely isolated library under `%AppData%\ClipStudio_<name>\`. Useful for keeping a demo library separate from your real one.
+
+---
+
+### OBS Integration (Recommended)
+
+The bundled OBS script renames each replay buffer save to embed the active game name, so ClipStudio can auto-suggest the game tag without any manual input.
+
+**Produced filename format:**
+```
+Replay 2025-03-03 22-49-45 [Apex Legends].mp4
+```
+
+**Installation:**
+
+1. Open OBS Studio and go to **Tools → Scripts**.
+2. Click **+** and select `obs-scripts/clipstudio_replay_tagger.py` from the repo (or your local copy).
+3. Click **Close**. The script is now active for all replay buffer saves.
+
+**Detection order** (the script tries each in sequence):
+
+1. **OBS scene name** — name your scenes after the game you are recording (e.g. `Valorant`, `Deep Rock Galactic`). This is the most reliable method.
+2. **Source name** — if you use a Game Capture or Window Capture source with *Capture Audio (BETA)* enabled, the source name is used as the game title. Name that source after the game.
+3. **Foreground window title** — fallback that reads the active window. Works for most fullscreen games; may be noisy for windowed games.
+
+Generic default names such as *Scene*, *Game Capture*, *Window Capture*, and *Game* are automatically ignored so the script always tries the next detection step.
+
+> Only **Replay Buffer saves** are renamed. Regular recording stops are not affected.
+
+---
+
+### Manual Mode (No OBS Required)
+
+ClipStudio works with any video files — OBS is not required.
+
+1. Add any folder containing `.mp4`, `.mkv`, `.mov`, or `.avi` files as a source folder in **Settings → Source Folders**.
+2. New files are detected automatically (or re-scan the folder manually from Settings).
+3. Clips appear in the **Unreviewed** queue.
+4. Open a clip to set the game tag manually: type a game name in the **Game** picker and select from the Steam-backed search results.
+
+Files whose names already contain a `[Game Name]` bracket token (produced by any recording tool, not just OBS) are automatically parsed, and the game tag is pre-suggested in the Unreviewed queue.
+
+---
+
+## Usage Guide
+
+### Reviewing Clips
+
+New clips land in the **Unreviewed** queue. Open a clip to:
+
+- Confirm or correct the suggested game title using the **Game** picker.
+- Apply **general tags** from the Tags section in the side panel.
+- Tag **players** (participants) from the Players section.
+- Rename the clip inline using the pencil icon next to the title.
+- Define **highlights** on the timeline — set in/out points, label them, add tags and a star rating.
+- Export any highlight directly with the **Export** button on its row.
+- Set a clip-level rating, write notes, or capture frame screenshots.
+- View and search **captions** generated by local Whisper transcription.
+
+Mark the clip as **Reviewed** when done to clear it from the queue.
+
+### Tags and Highlights
+
+- Tags are created in the **Tags** page and support a single-parent hierarchy and soft many-to-many relations.
+- A clip **inherits** all tags from its highlights — searching for a tag matches both directly-tagged clips and clips that have a highlight with that tag.
+- In the player, click a highlight row to jump to it and lock playback into a loop between its start and end times. Click the lock icon to unlock.
+- The **Highlights** page shows all highlights across your entire library, filterable by rating, tag, and game.
+
+### Trimming and Exporting
+
+1. Open a clip and scroll to **Trim & Export** in the side panel.
+2. Click **Begin Trim** — an output path is pre-filled automatically.
+3. Seek to the start point and click **Mark Start**. Seek to the end point and click **Mark End**.
+4. Click **Queue Export**. The job runs immediately in the background.
+
+**Non-Destructive** (default): stream-copy only — instant, lossless, no re-encode.  
+**Destructive**: FFmpeg re-encode — useful for precise frame-accurate cuts. Requires double confirmation. Optionally deletes the source file after export.
+
+Export jobs and their status are visible on the **Export** page.
+
+### Audio Tracks
+
+When a clip has multiple audio tracks (e.g., game audio + microphone on separate OBS tracks):
+
+- The **Audio Tracks** section appears in the side panel after playback starts.
+- Rename tracks, toggle the **Include** checkbox, and adjust per-track volume (0–200 %).
+- Changes trigger a real-time FFmpeg preview mix (debounced 300 ms) loaded by VLC as an audio slave.
+- Click **Save Audio Settings** to persist the mix for future sessions.
+- On export, original tracks are passed through unchanged (stream copy — no re-encode).
+
+### Bulk Edit
+
+Hover over a clip card to reveal a selection checkbox. Select multiple clips to open the bulk-edit panel:
+
+- Add a tag, player, or game to all selected clips at once.
+- Trash all selected clips with one confirmation.
+- **Copy Format brush** — select exactly one clip and click the brush button. Click any other card to paste its tags, players, and game onto it. Press Escape to exit.
+
+### Search and Filter
+
+Use the **filter panel** (funnel icon in the Library toolbar) to combine:
+
+- Free-text search against filenames, notes, and highlight labels
+- Status (Unreviewed / Reviewed / Archived)
+- Game tag, general tags, players
+- Date range, duration range, star rating
+- Has highlights / Is favourite
+
+Use the **sort dropdown** to order by date, name, duration, or rating.  
+Use the **view toggle** to switch between the tile grid and a compact table view.
+
+### Keyboard Shortcuts
+
+Shortcuts are active when the player view has focus (suppressed while a text field is focused).
+
+| Key | Action |
+|---|---|
+| Space | Play / Pause |
+| Left arrow | Skip backward 5 s |
+| Right arrow | Skip forward 5 s |
+| `,` (comma) | Step one frame backward |
+| `.` (period) | Step one frame forward |
 
 ---
 
@@ -39,7 +223,8 @@ graph TD
     CORE[ClipStudio.Core\nDomain Model]
     OBS[obs-scripts/\nOBS Python Script]
     VLC[LibVLCSharp\nVideo Playback]
-    FFMPEG[FFMpegCore\nTrim & Export]
+    FFMPEG[FFMpegCore\nTrim, Export & Preview Mix]
+    WHISPER[Whisper.net\nLocal Transcription]
     STEAM[Steam Community API\nGame Metadata]
     FS[File System\nSource Folders]
 
@@ -49,10 +234,31 @@ graph TD
     APP --> CORE
     APP --> DATA
     APP --> FFMPEG
+    APP --> WHISPER
     APP --> STEAM
     DATA --> CORE
     OBS --> FS
     APP --> FS
+```
+
+### Project Layout
+
+```
+ClipStudio/
+├── docs/
+│   └── screenshots/            # README screenshots
+├── documentation/
+│   ├── SPECIFICATION.md        # Full software specification
+│   └── DECISION_LOG.md         # Architectural decision log
+├── src/
+│   ├── ClipStudio.Core/        # Domain entities, enums, repository interfaces
+│   ├── ClipStudio.Data/        # EF Core DbContext, SQLite, repository implementations
+│   ├── ClipStudio.Application/ # Application services, import pipeline, Steam integration
+│   └── ClipStudio.UI/          # Avalonia MVVM UI (Views, ViewModels, Assets)
+├── tests/
+│   └── ClipStudio.Tests/       # xUnit + Moq + EF Core InMemory
+├── obs-scripts/                # OBS Python replay-tagger script
+└── ClipStudio.sln
 ```
 
 ---
@@ -65,154 +271,26 @@ graph TD
 | Language | C# / .NET 9 |
 | Database | SQLite via Entity Framework Core 9 |
 | Video Playback | LibVLCSharp 3 + LibVLCSharp.Avalonia |
-| Video Processing | FFMpegCore (thumbnail, preview strip, trim, export) |
+| Video Processing | FFMpegCore (thumbnails, preview strips, trim, export, audio mix) |
+| Transcription | Whisper.net (local inference, CPU / Vulkan backend) |
 | Dependency Injection | Microsoft.Extensions.DependencyInjection 9 |
-| OBS Integration | Python script (OBS built-in scripting) |
+| OBS Integration | Python script (OBS built-in scripting, v1.5.0) |
 | Game Metadata | Steam Community Search API (credential-free) |
+| Updates | Velopack (Windows .exe, macOS .dmg, Linux AppImage) |
 | Testing | xUnit + Moq + EF Core InMemory |
 
 ---
 
-## Setup Guide
+## Contributing
 
-### Prerequisites
+Issues and pull requests are welcome. Please open an issue first for significant changes so we can discuss the approach before implementation.
 
-- [.NET 9 SDK](https://dot.net/download)
-- [VLC media player](https://www.videolan.org/) installed (provides native LibVLC libraries on macOS/Linux)
-- FFmpeg — **bundled automatically** in the Velopack installer (no manual install required). For development builds, either install FFmpeg to your system PATH or set the path in Settings.
-- (Optional) An [OBS Studio](https://obsproject.com/) installation if you want automatic game-name detection
+If ClipStudio saves you time, consider supporting development:
 
-### Build and Run
-
-```bash
-git clone https://github.com/your-org/ClipStudio.git
-cd ClipStudio
-dotnet restore
-dotnet run --project src/ClipStudio.UI
-```
-
-### Run Tests
-
-```bash
-dotnet test
-```
-
-### OBS Script Installation (Optional)
-
-1. Copy `obs-scripts/clipstudio_replay_tagger.py` to your local machine.
-2. Open OBS Studio and go to `Tools > Scripts > +`.
-3. Select the copied script and click OK.
-4. OBS will now append the detected game name to replay buffer filenames automatically.
-
-The script detects the active game in this order:
-1. Current OBS scene name (name your scenes after the game for best results).
-2. Window Capture source with **Capture Audio (BETA)** enabled — the last such source in the scene wins.
-3. Active foreground window title (platform-specific fallback).
+[![Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/phazertron)
 
 ---
 
-## How to Use
+## License
 
-### First Launch
-
-A setup wizard guides you through:
-1. Selecting one or more source folders (where OBS saves your clips).
-2. Detecting or locating FFmpeg (bundled automatically in the installer).
-3. Choosing your preferred theme.
-
-Re-trigger the wizard at any time by deleting `%AppData%\ClipStudio\settings.json`.
-
-### Reviewing Clips
-
-New clips land in the **Unreviewed** queue. Open a clip to:
-- Confirm or correct the suggested game title using the Game Tag picker in the side panel.
-- Apply general tags to the clip from the Tags section in the side panel.
-- Tag players (participants) in the clip from the Players section in the side panel.
-- Rename the clip inline using the pencil icon next to the title.
-- Define highlights (tagged time ranges) on the timeline, then add tags to each highlight.
-- Export any highlight directly using the Export button on the highlight row.
-- Set a rating and add notes.
-- Capture screenshots from specific frames.
-
-### Keyboard Shortcuts
-
-The clip player responds to the following keyboard shortcuts when the player view has focus (shortcuts are suppressed when a text field has keyboard focus):
-
-| Key | Action |
-|-----|--------|
-| Space | Play / Pause |
-| Left arrow | Skip backward (5 s) |
-| Right arrow | Skip forward (5 s) |
-| , (comma) | Step one frame backward |
-| . (period) | Step one frame forward |
-
-Click the video area to toggle play/pause.
-
-### Tags and Highlights
-
-- Create tags via the tag manager. Tags can have parent tags (hierarchy) and related tags (soft links).
-- In the player, set an in-point and out-point to define a highlight, then apply one or more tags to it directly in the Highlights panel.
-- Click a highlight row to jump to it and lock playback into a loop between its start and end times. Click the lock icon again to unlock.
-- Overlapping highlights are fully supported and treated as independent.
-- A clip inherits all tags from its highlights, making them appear in any relevant tag search.
-
-### Renaming Clips
-
-Click the pencil icon next to the clip title in the player to rename it inline.
-- **Non-Destructive** (default): updates the display name in the database only — the physical file is not touched.
-- **Destructive**: also renames the file on disk. Controlled by the Default Trim Mode setting in Settings.
-
-### Trimming and Exporting
-
-Use the **Trim & Export** section at the bottom of the clip detail side panel:
-1. Click **Begin Trim** to enter trim mode. An output path is pre-filled automatically.
-2. Seek to the desired start point and click **Mark Start**.
-3. Seek to the desired end point and click **Mark End**.
-4. Click **Queue Export** to add the job to the Export queue.
-
-Select Non-Destructive (copy-only, no re-encode) or Destructive trim via the Default Trim Mode setting.
-
-### Queue Navigation
-
-When opening a clip from the Library or Unreviewed queue, **Previous** and **Next** buttons appear in the transport bar to move through the clip list without returning to the grid. A **Repeat** button toggles automatic loop of the current clip.
-
-### Players
-
-The **Players** page lets you manage participants who appear in your clips:
-- Create a player with a display name, optional icon, and one or more aliases.
-- Mark yourself with **IsMe** — new imported clips are automatically tagged with all IsMe players.
-- Tag a player on any clip from the Players section in the clip detail side panel.
-- Filter the library by player using the filter panel.
-
-### Audio Tracks
-
-When a clip has multiple audio tracks (e.g., game audio and microphone on separate tracks):
-- The **Audio Tracks** section appears in the clip detail side panel after playback starts.
-- Rename tracks, toggle the **Include** checkbox to include or exclude each track from the preview mix, and adjust volume (0–200 %).
-- Changes trigger a real-time FFmpeg mix (debounced 300 ms) that VLC loads as an audio slave, so you hear the adjusted blend immediately.
-- Mixed preview files are cached in `%AppData%\ClipStudio\audio_cache\` to avoid redundant FFmpeg runs (toggle in Settings under **Cache Audio Previews**).
-- Click **Save Audio Settings** to persist the settings to the database for future sessions.
-- On export, all original audio tracks are passed through unchanged (stream copy — no re-encode, no mixing).
-- Use the **master volume** slider in the transport bar to adjust VLC playback volume.
-
-### Multi-Select and Bulk Edit
-
-Hover over a clip card to reveal a selection checkbox. Check multiple clips to open the bulk-edit panel on the right side of the library:
-- Add a tag, player, or game to all selected clips at once.
-- Trash all selected clips with a single confirmation.
-- **Copy Format brush**: when exactly one clip is selected, a brush button appears. Click it to enter copy-format mode, then click any other card's checkbox to paste the source clip's tags, players, and game onto it. Press Escape or click the brush button again to exit.
-
-### Search and Filter
-
-Use the filter panel (funnel icon in the Library toolbar) to combine:
-- Free-text search against filenames, notes, and highlight labels.
-- Status (Unreviewed / Reviewed / Archived).
-- Game tag.
-- Date range (from / to).
-
-Use the **sort dropdown** to order results by date, name, duration, or rating.
-Use the **view toggle** (list icon) to switch between the tile grid and a compact details table showing name, game, date, duration, and rating.
-
-### Exporting
-
-Jobs queued from the trim panel or the highlight Export button appear in the **Export** page. Select Non-Destructive (copy-only, no re-encode) or Destructive (FFmpeg re-encode). Destructive export requires double confirmation.
+ClipStudio is released under the [GNU General Public License v3.0](LICENSE).

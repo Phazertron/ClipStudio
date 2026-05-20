@@ -4,6 +4,7 @@
              xmlns:icons="using:Material.Icons.Avalonia"
              xmlns:vlc="using:LibVLCSharp.Avalonia"
              xmlns:conv="using:ClipStudio.UI.Converters"
+             xmlns:local="using:ClipStudio.UI.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="750"
@@ -273,7 +274,7 @@
 
         <!-- ===== Transport bar ===== -->
         <Grid Grid.Row="3" Grid.Column="0"
-              ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto"
+              ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto,Auto"
               Margin="10,4,10,10">
 
             <!-- Previous clip (visible when HasPrevious) -->
@@ -462,6 +463,18 @@
                 </StackPanel>
             </Button>
 
+            <!-- Subtitle toggle (visible when a transcription exists) -->
+            <Button Grid.Column="10"
+                    Command="{Binding ToggleSubtitlesCommand}"
+                    IsVisible="{Binding HasTranscription}"
+                    ToolTip.Tip="Toggle subtitle overlay"
+                    Margin="4,0,0,0">
+                <Panel>
+                    <icons:MaterialIcon Kind="Subtitles" Width="20" Height="20" IsVisible="{Binding IsSubtitlesEnabled}"/>
+                    <icons:MaterialIcon Kind="Subtitles" Width="20" Height="20" Opacity="0.35" IsVisible="{Binding !IsSubtitlesEnabled}"/>
+                </Panel>
+            </Button>
+
         </Grid>
 
         <!-- ===== Side panel (hidden in watch mode) ===== -->
@@ -474,6 +487,42 @@
 
             <ScrollViewer>
                 <StackPanel>
+
+                    <!-- ===== Export status bar ===== -->
+                    <Border Padding="10,8"
+                            Background="#20FFFFFF"
+                            BorderBrush="{DynamicResource SystemChromeHighColor}"
+                            BorderThickness="0,0,0,1"
+                            IsVisible="{Binding ExportStatusMessage,
+                                                Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <ProgressBar Grid.Column="0"
+                                         IsIndeterminate="True"
+                                         Width="14" Height="14"
+                                         Margin="0,0,8,0"
+                                         IsVisible="{Binding IsExporting}"/>
+                            <icons:MaterialIcon Grid.Column="0"
+                                                Kind="CheckCircleOutline"
+                                                Width="14" Height="14"
+                                                Foreground="#2ECC71"
+                                                Margin="0,0,8,0"
+                                                IsVisible="{Binding !IsExporting}"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ExportStatusMessage}"
+                                       FontSize="11"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"/>
+                            <Button Grid.Column="2"
+                                    Command="{Binding DismissExportStatusCommand}"
+                                    Padding="4"
+                                    Margin="6,0,0,0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    ToolTip.Tip="Dismiss">
+                                <icons:MaterialIcon Kind="Close" Width="12" Height="12" Opacity="0.5"/>
+                            </Button>
+                        </Grid>
+                    </Border>
 
                     <!-- ===== Game Tag section ===== -->
                     <Border Padding="14,12"
@@ -1259,6 +1308,14 @@
                                     Content="Save Notes"
                                     FontSize="12"/>
                         </StackPanel>
+                    </Border>
+
+                    <!-- ===== Transcription section ===== -->
+                    <Border Padding="14,12"
+                            BorderBrush="{DynamicResource SystemChromeHighColor}"
+                            BorderThickness="0,0,0,1"
+                            IsVisible="{Binding !IsWatchMode}">
+                        <local:TranscriptionPanelView DataContext="{Binding Transcription}"/>
                     </Border>
 
                     <!-- ===== Trim & Export section ===== -->

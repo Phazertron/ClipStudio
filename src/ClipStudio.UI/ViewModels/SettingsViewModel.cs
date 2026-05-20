@@ -130,6 +130,54 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _soundEffectsEnabled = true;
 
+    // ---- Transcription ----
+
+    /// <summary>Gets or sets whether local voice transcription is enabled.</summary>
+    [ObservableProperty]
+    private bool _transcriptionEnabled;
+
+    /// <summary>Gets or sets the absolute path to the GGML Whisper model file.</summary>
+    [ObservableProperty]
+    private string _transcriptionModelPath = string.Empty;
+
+    /// <summary>Gets or sets the transcription inference backend display string.</summary>
+    [ObservableProperty]
+    private string _transcriptionBackend = "Auto (recommended)";
+
+    /// <summary>Gets or sets the language option selected for transcription.</summary>
+    [ObservableProperty]
+    private ClipStudio.UI.Views.LanguageOption _selectedTranscriptionLanguage = TranscriptionLanguageOptions[0];
+
+    /// <summary>Gets or sets the folder where generated SRT files are saved (empty = next to clip).</summary>
+    [ObservableProperty]
+    private string _transcriptionSrtFolder = string.Empty;
+
+    /// <summary>Gets or sets whether the experimental speaker diarization pass is enabled (no-op in v1).</summary>
+    [ObservableProperty]
+    private bool _transcriptionEnableDiarization;
+
+    /// <summary>
+    /// Gets or sets whether imported clips are automatically transcribed on import using the
+    /// track indices configured in <see cref="TranscriptionAutoOnImportTrackIndices"/>.
+    /// </summary>
+    [ObservableProperty]
+    private bool _transcriptionAutoOnImport;
+
+    /// <summary>
+    /// Gets or sets the comma-separated FFmpeg audio stream indices to mix when auto-transcribing
+    /// on import (e.g. <c>"0"</c> or <c>"0,2"</c>).
+    /// </summary>
+    [ObservableProperty]
+    private string _transcriptionAutoOnImportTrackIndices = "0";
+
+    /// <summary>Gets the list of backend display strings for the ComboBox.</summary>
+    public static IReadOnlyList<string> TranscriptionBackendOptions { get; } =
+        new[] { "Auto (recommended)", "CPU only", "Vulkan (GPU)" };
+
+    /// <summary>Gets the list of language options for the transcription language picker.</summary>
+    public static IReadOnlyList<ClipStudio.UI.Views.LanguageOption> TranscriptionLanguageOptions { get; } =
+        ClipStudio.UI.Views.TranscriptionSetupDialogViewModel.BuildLanguageOptionsList();
+
     // ---- State ----
 
     /// <summary>Gets or sets a value indicating whether a background operation is running.</summary>
@@ -228,6 +276,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Path.Combine(AppContext.BaseDirectory, "obs-scripts", "clipstudio_replay_tagger.py");
 
     /// <summary>
+    /// Exposes the underlying settings service so that code-behind can pass it to dialogs
+    /// (e.g. <see cref="ClipStudio.UI.Views.TranscriptionSetupDialog"/>).
+    /// </summary>
+    public ISettingsService SettingsService => _settings;
+
+    /// <summary>
     /// Initialises a new <see cref="SettingsViewModel"/>.
     /// </summary>
     /// <param name="settings">The application settings service.</param>
@@ -302,6 +356,21 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ShowImagesInLists              = s.ShowImagesInLists;
             MinimumLogLevel                = s.MinimumLogLevel;
             SoundEffectsEnabled            = s.SoundEffectsEnabled;
+            TranscriptionEnabled           = s.TranscriptionEnabled;
+            TranscriptionModelPath         = s.TranscriptionModelPath;
+            SelectedTranscriptionLanguage  = TranscriptionLanguageOptions
+                                                .FirstOrDefault(o => o.Code == s.TranscriptionLanguage)
+                                                ?? TranscriptionLanguageOptions[0];
+            TranscriptionSrtFolder                  = s.TranscriptionSrtFolder;
+            TranscriptionEnableDiarization          = s.TranscriptionEnableDiarization;
+            TranscriptionAutoOnImport               = s.TranscriptionAutoOnImport;
+            TranscriptionAutoOnImportTrackIndices   = s.TranscriptionAutoOnImportTrackIndices;
+            TranscriptionBackend                    = s.TranscriptionBackend switch
+            {
+                ClipStudio.Core.Enums.TranscriptionBackend.Cpu    => "CPU only",
+                ClipStudio.Core.Enums.TranscriptionBackend.Vulkan => "Vulkan (GPU)",
+                _                                                  => "Auto (recommended)"
+            };
         }
         finally
         {
@@ -533,6 +602,19 @@ public sealed partial class SettingsViewModel : ViewModelBase
         s.ShowImagesInLists              = ShowImagesInLists;
         s.MinimumLogLevel                = MinimumLogLevel;
         s.SoundEffectsEnabled            = SoundEffectsEnabled;
+        s.TranscriptionEnabled           = TranscriptionEnabled;
+        s.TranscriptionModelPath         = TranscriptionModelPath.Trim();
+        s.TranscriptionLanguage          = SelectedTranscriptionLanguage.Code;
+        s.TranscriptionSrtFolder                 = TranscriptionSrtFolder.Trim();
+        s.TranscriptionEnableDiarization         = TranscriptionEnableDiarization;
+        s.TranscriptionAutoOnImport              = TranscriptionAutoOnImport;
+        s.TranscriptionAutoOnImportTrackIndices  = TranscriptionAutoOnImportTrackIndices.Trim();
+        s.TranscriptionBackend                   = TranscriptionBackend switch
+        {
+            "CPU only"     => ClipStudio.Core.Enums.TranscriptionBackend.Cpu,
+            "Vulkan (GPU)" => ClipStudio.Core.Enums.TranscriptionBackend.Vulkan,
+            _              => ClipStudio.Core.Enums.TranscriptionBackend.Auto
+        };
         await _settings.SaveAsync();
 
         // Re-apply FFmpeg binary path immediately so scans after saving use the new value.
@@ -681,6 +763,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
             // Opening a browser is best-effort.
         }
     }
+
+    // ---- Transcription management ----
 
     // ---- Helpers ----
 

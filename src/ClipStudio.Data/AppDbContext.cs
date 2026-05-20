@@ -61,6 +61,12 @@ public sealed class AppDbContext : DbContext
     /// <summary>Gets or sets the saved library filter presets.</summary>
     public DbSet<FilterPreset> FilterPresets => Set<FilterPreset>();
 
+    /// <summary>Gets or sets the speech-to-text transcription runs.</summary>
+    public DbSet<Transcription> Transcriptions => Set<Transcription>();
+
+    /// <summary>Gets or sets the individual timed text segments from transcription runs.</summary>
+    public DbSet<TranscriptionSegment> TranscriptionSegments => Set<TranscriptionSegment>();
+
     /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -79,6 +85,8 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AudioTrackSettingConfiguration());
         modelBuilder.ApplyConfiguration(new GameTagAliasConfiguration());
         modelBuilder.ApplyConfiguration(new FilterPresetConfiguration());
+        modelBuilder.ApplyConfiguration(new TranscriptionConfiguration());
+        modelBuilder.ApplyConfiguration(new TranscriptionSegmentConfiguration());
 
         // SQLite stores DateTime as text and returns it without a Kind.
         // Apply value converters globally so that every DateTime read from the DB has

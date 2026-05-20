@@ -502,6 +502,148 @@
                 <!-- Divider -->
                 <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
 
+                <!-- ===== Transcription ===== -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Transcription"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Enable local voice transcription"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="Generates SRT subtitle files from clip audio using a local Whisper model. Requires a model to be downloaded first."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding TranscriptionEnabled}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6"
+                                IsVisible="{Binding TranscriptionEnabled}">
+                        <TextBlock Text="Auto-transcription"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="Automatically start transcription when a clip is imported into the library, using the specified audio tracks."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding TranscriptionAutoOnImport}"
+                                      OnContent="Transcribe automatically on import"
+                                      OffContent="Transcribe automatically on import"
+                                      FontSize="12"/>
+                        <StackPanel Spacing="4"
+                                    IsVisible="{Binding TranscriptionAutoOnImport}"
+                                    Margin="0,2,0,0">
+                            <TextBlock Text="Tracks to mix (0-based FFmpeg indices, comma-separated)"
+                                       FontSize="10"
+                                       Opacity="0.55"/>
+                            <TextBox Text="{Binding TranscriptionAutoOnImportTrackIndices}"
+                                     Watermark="e.g. 0   or   0,2"
+                                     FontSize="12"
+                                     MaxWidth="180"
+                                     HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4"
+                                IsVisible="{Binding TranscriptionEnabled}">
+                        <TextBlock Text="Active model"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding TranscriptionModelPath}"
+                                     IsReadOnly="True"
+                                     Watermark="No model selected"
+                                     FontSize="11"/>
+                            <Button Grid.Column="1"
+                                    Click="OnManageModelsClicked"
+                                    ToolTip.Tip="Download or browse for a Whisper model"
+                                    Margin="6,0,0,0"
+                                    Padding="8,4"
+                                    FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <icons:MaterialIcon Kind="Download" Width="14" Height="14"/>
+                                    <TextBlock Text="Manage Models" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4"
+                                IsVisible="{Binding TranscriptionEnabled}">
+                        <TextBlock Text="Inference backend"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <ComboBox ItemsSource="{x:Static vm:SettingsViewModel.TranscriptionBackendOptions}"
+                                  SelectedItem="{Binding TranscriptionBackend}"
+                                  FontSize="12"
+                                  Width="200"
+                                  HorizontalAlignment="Left"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4"
+                                IsVisible="{Binding TranscriptionEnabled}">
+                        <TextBlock Text="Language"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <ComboBox ItemsSource="{Binding TranscriptionLanguageOptions}"
+                                  SelectedItem="{Binding SelectedTranscriptionLanguage}"
+                                  DisplayMemberBinding="{Binding DisplayName}"
+                                  Width="200"
+                                  FontSize="12"
+                                  HorizontalAlignment="Left"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4"
+                                IsVisible="{Binding TranscriptionEnabled}">
+                        <TextBlock Text="SRT output folder (empty = next to clip file)"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding TranscriptionSrtFolder}"
+                                     Watermark="Leave empty to save next to the clip"
+                                     FontSize="12"/>
+                            <Button Grid.Column="1"
+                                    Click="OnBrowseTranscriptionSrtFolderClicked"
+                                    ToolTip.Tip="Browse for folder"
+                                    Margin="6,0,0,0"
+                                    Padding="8">
+                                <icons:MaterialIcon Kind="FolderOpen" Width="16" Height="16"/>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+
+                    <Expander Header="Advanced"
+                              IsVisible="{Binding TranscriptionEnabled}">
+                        <StackPanel Spacing="8" Margin="0,8,0,0">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Experimental: speaker diarization"
+                                           FontSize="12"
+                                           Opacity="0.7"/>
+                                <TextBlock Text="Attempts to label which speaker said each segment. No-op in the current release. May produce inaccurate labels when a future implementation is added."
+                                           FontSize="11"
+                                           Foreground="#E67E22"
+                                           Opacity="0.8"
+                                           TextWrapping="Wrap"/>
+                                <ToggleSwitch IsChecked="{Binding TranscriptionEnableDiarization}"
+                                              OnContent="Enabled (experimental)"
+                                              OffContent="Disabled"
+                                              FontSize="12"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Expander>
+
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
                 <!-- ===== Save ===== -->
                 <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                     <Button Command="{Binding SavePreferencesCommand}"

@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
+using ClipStudio.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LibVLCSharp.Shared;
@@ -38,6 +39,26 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     private readonly ClipStudio.Application.Interfaces.IGameTagAliasService _gameTagAliasService;
     private readonly ClipStudio.UI.Services.ISoundService _soundService;
     private readonly ClipStudio.Application.Interfaces.ITagSuggestionService _tagSuggestionService;
+    private readonly ITranscriptionService _transcriptionService;
+    private readonly ITranscriptionRepository _transcriptionRepository;
+
+    /// <summary>Gets the transcription panel view model for the current clip.</summary>
+    public TranscriptionViewModel Transcription { get; }
+
+    /// <summary>Gets or sets the SRT file path of the latest transcription, used for subtitle overlay.</summary>
+    private string? _latestSrtPath;
+
+    /// <summary>
+    /// Gets a value indicating whether a transcription exists for the current clip,
+    /// enabling the subtitle overlay toggle in the transport bar.
+    /// </summary>
+    [ObservableProperty] private bool _hasTranscription;
+
+    /// <summary>Gets or sets whether the subtitle overlay is currently active.</summary>
+    [ObservableProperty] private bool _isSubtitlesEnabled;
+
+    /// <summary>Gets the command that toggles the subtitle overlay on or off.</summary>
+    public IRelayCommand ToggleSubtitlesCommand { get; }
 
     private Clip? _clip;
     private Media? _media;
@@ -319,6 +340,14 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
     /// <summary>Gets or sets the output file path for the trimmed export.</summary>
     [ObservableProperty] private string _trimOutputPath = string.Empty;
+
+    /// <summary>Gets or sets whether an export job is currently being processed in the background.</summary>
+    [ObservableProperty] private bool _isExporting;
+
+    /// <summary>Gets or sets a status message shown while an export runs or after it completes.</summary>
+    [ObservableProperty] private string? _exportStatusMessage;
+
+    private bool _isProcessingExport;
 
     /// <summary>
     /// Gets or sets whether the trim export for this clip should use destructive mode
@@ -622,6 +651,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Gets the command that queues a trim export job for the current range.</summary>
     public IAsyncRelayCommand QueueTrimExportCommand { get; }
 
+    /// <summary>Gets the command that clears the export status bar.</summary>
+    public IRelayCommand DismissExportStatusCommand { get; }
+
     /// <summary>
     /// Gets the command that confirms a destructive trim after the user acknowledges the warning
     /// that highlights fall outside the trim range. Bypasses the warning check and queues immediately.
@@ -738,21 +770,33 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         ClipStudio.Application.Interfaces.IMixedAudioService mixedAudioService,
         ClipStudio.Application.Interfaces.IGameTagAliasService gameTagAliasService,
         ClipStudio.UI.Services.ISoundService soundService,
-        ClipStudio.Application.Interfaces.ITagSuggestionService tagSuggestionService)
+        ClipStudio.Application.Interfaces.ITagSuggestionService tagSuggestionService,
+        ITranscriptionService transcriptionService,
+        ITranscriptionRepository transcriptionRepository)
     {
-        _libVlc               = libVlc;
-        _clipService          = clipService;
-        _highlightService     = highlightService;
-        _screenshotService    = screenshotService;
-        _tagService           = tagService;
-        _exportService        = exportService;
-        _settingsService      = settingsService;
-        _playerService        = playerService;
-        _audioTrackService    = audioTrackService;
-        _mixedAudioService    = mixedAudioService;
-        _gameTagAliasService  = gameTagAliasService;
-        _soundService         = soundService;
-        _tagSuggestionService = tagSuggestionService;
+        _libVlc                   = libVlc;
+        _clipService              = clipService;
+        _highlightService         = highlightService;
+        _screenshotService        = screenshotService;
+        _tagService               = tagService;
+        _exportService            = exportService;
+        _settingsService          = settingsService;
+        _playerService            = playerService;
+        _audioTrackService        = audioTrackService;
+        _mixedAudioService        = mixedAudioService;
+        _gameTagAliasService      = gameTagAliasService;
+        _soundService             = soundService;
+        _tagSuggestionService     = tagSuggestionService;
+        _transcriptionService     = transcriptionService;
+        _transcriptionRepository  = transcriptionRepository;
+
+        Transcription = new TranscriptionViewModel(
+            _transcriptionService,
+            _transcriptionRepository,
+            _settingsService,
+            seekMs => SeekToMs(seekMs));
+        Transcription.TranscriptionCompleted += OnTranscriptionCompleted;
+        Transcription.SegmentTextEdited      += OnSegmentTextEdited;
 
         MediaPlayer = new MediaPlayer(_libVlc);
         // _masterVolume field initialiser bypasses the generated setter, so OnMasterVolumeChanged
@@ -794,6 +838,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         CommitTrimEndCommand      = new RelayCommand(CommitTrimEnd);
         QueueTrimExportCommand          = new AsyncRelayCommand(QueueTrimExportAsync);
         ConfirmDestructiveTrimCommand   = new AsyncRelayCommand(ConfirmDestructiveTrimAsync);
+        DismissExportStatusCommand      = new RelayCommand(() => ExportStatusMessage = null);
         UnlockHighlightCommand    = new RelayCommand(() => LockedHighlight = null);
         ToggleRepeatCommand       = new RelayCommand(CycleLoopMode);
         PreviousCommand                   = new RelayCommand(() => PreviousClipRequested?.Invoke());
@@ -822,6 +867,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         ShowClearAllDataConfirmCommand   = new RelayCommand(() => IsClearAllDataConfirmVisible   = true);
         ConfirmClearAllDataCommand       = new AsyncRelayCommand(ClearAllDataAsync);
         CancelClearAllDataConfirmCommand = new RelayCommand(() => IsClearAllDataConfirmVisible   = false);
+        ToggleSubtitlesCommand           = new RelayCommand(ToggleSubtitles);
     }
 
     // ---- Load ----
@@ -890,6 +936,14 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             await LoadPlayerPickerAsync();
             _ = _clipService.IncrementPlayCountAsync(clipId);
             _ = LoadTagSuggestionsAsync(clipId);
+
+            // Load any existing transcription for this clip.
+            var trackNames = AudioTracks.Select(t => t.DisplayName).ToList();
+            await Transcription.LoadAsync(clipId, trackNames);
+            HasTranscription  = Transcription.HasExistingTranscription;
+            _latestSrtPath    = Transcription.HasExistingTranscription
+                ? (await _transcriptionRepository.GetLatestByClipIdAsync(clipId))?.SrtFilePath
+                : null;
         }
 
         if (IsWatchMode || _settingsService.Current.AutoPlayOnOpen)
@@ -1002,12 +1056,22 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             $"{Path.GetFileNameWithoutExtension(_clip.FileName)}_{label}.mp4");
 
         var settings = _settingsService.Current;
-        await _exportService.QueueAsync(
-            _clip.Id,
-            highlight.HighlightId,
-            outputPath,
-            settings.DefaultTrimMode,
-            settings.DeleteOriginalAfterDestructiveTrim);
+        try
+        {
+            await _exportService.QueueAsync(
+                _clip.Id,
+                highlight.HighlightId,
+                outputPath,
+                settings.DefaultTrimMode,
+                settings.DeleteOriginalAfterDestructiveTrim);
+        }
+        catch (Exception ex)
+        {
+            ExportStatusMessage = $"Export failed: {ex.Message}";
+            return;
+        }
+
+        _ = RunExportQueueAsync();
     }
 
     private async Task LoadTagSuggestionsAsync(int clipId)
@@ -1203,6 +1267,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         // from inside the Playing-event handler — VLC's audio pipeline is not fully ready yet.
         await ApplyAudioRoutingAsync(System.Threading.CancellationToken.None, isInitialLoad: true);
         LogAudioDiagnostics("AfterRefreshAudioTracks");
+
+        // Push track names into the transcription panel so the track picker is populated.
+        Transcription.SetAvailableTracks(AudioTracks.Select(t => t.DisplayName).ToList());
     }
 
     private async Task SaveAudioSettingsAsync()
@@ -1413,6 +1480,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             _mixedPreviewPath = mkvPath;
             ReloadMedia(mkvPath);
             IsPlayingMixPreview = true;
+
         }
         catch (OperationCanceledException)
         {
@@ -1446,9 +1514,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// </param>
     private string GetAudioMixCachePath(int slot = -1)
     {
-        var folder = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ClipStudio", "audio_cache");
+        var folder = System.IO.Path.Combine(App.AppDataPath, "audio_cache");
         System.IO.Directory.CreateDirectory(folder);
         var slotToUse = slot < 0 ? _activeMixSlot : slot;
         var suffix    = slotToUse == 0 ? string.Empty : "_alt";
@@ -2003,22 +2069,58 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         if (_clip is null) return;
 
         var trimMode = IsTrimDestructive ? TrimMode.Destructive : TrimMode.NonDestructive;
-        await _exportService.QueueAsync(
-            _clip.Id,
-            null,
-            TrimOutputPath,
-            trimMode,
-            IsTrimDestructive,
-            _trimStart,
-            _trimEnd);
+        try
+        {
+            await _exportService.QueueAsync(
+                _clip.Id,
+                null,
+                TrimOutputPath,
+                trimMode,
+                IsTrimDestructive,
+                _trimStart,
+                _trimEnd);
+        }
+        catch (Exception ex)
+        {
+            ExportStatusMessage = $"Export failed: {ex.Message}";
+            return;
+        }
 
         IsTrimming = false;
+        _ = RunExportQueueAsync();
     }
 
     /// <summary>Clears the destructive-trim warning whenever the trim form is closed.</summary>
     partial void OnIsTrimmingChanged(bool value)
     {
         if (!value) TrimDestructiveWarning = null;
+    }
+
+    /// <summary>
+    /// Processes all pending export jobs in the background immediately after one is queued.
+    /// Guards against concurrent runs so multiple rapid queues do not race.
+    /// </summary>
+    private async Task RunExportQueueAsync()
+    {
+        if (_isProcessingExport) return;
+        _isProcessingExport    = true;
+        IsExporting            = true;
+        ExportStatusMessage    = "Exporting...";
+
+        try
+        {
+            await _exportService.ProcessQueueAsync();
+            ExportStatusMessage = "Export complete.";
+        }
+        catch (Exception ex)
+        {
+            ExportStatusMessage = $"Export failed: {ex.Message}";
+        }
+        finally
+        {
+            IsExporting         = false;
+            _isProcessingExport = false;
+        }
     }
 
     // ---- Delete / trash ----
@@ -2101,6 +2203,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         Dispatcher.UIThread.Post(() =>
         {
             var ts = TimeSpan.FromMilliseconds(e.Time);
+
+            Transcription.UpdatePlaybackPosition(e.Time);
 
             if (IsWatchMode)
             {
@@ -2352,6 +2456,87 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     private static string FormatTime(TimeSpan ts) =>
         ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
 
+    // ---- Transcription helpers ----
+
+    /// <summary>
+    /// Seeks the media player to the given absolute position in milliseconds.
+    /// Used as the seek callback passed to <see cref="TranscriptionViewModel"/> so that
+    /// clicking a segment row in the transcription panel moves the playhead.
+    /// </summary>
+    /// <param name="ms">Target position in milliseconds from the start of the clip.</param>
+    private void SeekToMs(long ms)
+    {
+        _ignoreTimeChangedBeforeMs = ms - 200;
+        MediaPlayer.Time = ms;
+    }
+
+    /// <summary>
+    /// Called when <see cref="TranscriptionViewModel"/> raises <c>TranscriptionCompleted</c>
+    /// after a successful transcription run. Updates <see cref="HasTranscription"/> and caches
+    /// the SRT path so that <see cref="ToggleSubtitlesCommand"/> can apply the subtitle slave.
+    /// </summary>
+    /// <param name="srtPath">Absolute path to the generated <c>.srt</c> file.</param>
+    private void OnTranscriptionCompleted(string srtPath)
+    {
+        _latestSrtPath  = srtPath;
+        HasTranscription = true;
+    }
+
+    /// <summary>
+    /// Called when a segment's text has been edited and the SRT file on disk has been rewritten.
+    /// If the subtitle overlay is currently active, reloads the media with the updated slave so
+    /// LibVLC picks up the changed file content.
+    /// </summary>
+    private void OnSegmentTextEdited()
+    {
+        if (!IsSubtitlesEnabled || _clip is null || string.IsNullOrEmpty(_latestSrtPath))
+            return;
+
+        var posMs = MediaPlayer.Time;
+        var uri   = new Uri(_latestSrtPath).AbsoluteUri;
+
+        _media?.Dispose();
+        _media = new Media(_libVlc, _clip.FilePath, FromType.FromPath);
+        MediaPlayer.Media = _media;
+        _ignoreTimeChangedBeforeMs = posMs - 200;
+        MediaPlayer.Play();
+        MediaPlayer.AddSlave(MediaSlaveType.Subtitle, uri, true);
+        MediaPlayer.Time = posMs;
+    }
+
+    /// <summary>
+    /// Toggles the LibVLC subtitle slave on or off. When enabling, attaches the latest
+    /// <c>.srt</c> file as a subtitle slave; when disabling, reloads the media without any slave.
+    /// </summary>
+    private void ToggleSubtitles()
+    {
+        if (!HasTranscription || string.IsNullOrEmpty(_latestSrtPath))
+            return;
+
+        if (!IsSubtitlesEnabled)
+        {
+            // Enable: attach the SRT file as a subtitle slave.
+            var uri = new Uri(_latestSrtPath).AbsoluteUri;
+            MediaPlayer.AddSlave(MediaSlaveType.Subtitle, uri, true);
+            IsSubtitlesEnabled = true;
+        }
+        else
+        {
+            // Disable: reload the current media without any slave attached.
+            IsSubtitlesEnabled = false;
+            if (_clip is not null)
+            {
+                var posMs = MediaPlayer.Time;
+                _media?.Dispose();
+                _media = new Media(_libVlc, _clip.FilePath, FromType.FromPath);
+                MediaPlayer.Media = _media;
+                _ignoreTimeChangedBeforeMs = posMs - 200;
+                MediaPlayer.Play();
+                MediaPlayer.Time = posMs;
+            }
+        }
+    }
+
     // ---- IDisposable ----
 
     /// <inheritdoc/>
@@ -2364,6 +2549,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _mixApplyCts?.Cancel();
         _mixApplyCts?.Dispose();
         _mixApplyCts = null;
+
+        Transcription.SegmentTextEdited -= OnSegmentTextEdited;
 
         MediaPlayer.TimeChanged -= OnPlayerTimeChanged;
         MediaPlayer.Playing     -= OnPlayerPlaying;

@@ -16,6 +16,7 @@ public sealed class ClipService : IClipService
     private readonly IClipRepository _clips;
     private readonly ITagRepository _tags;
     private readonly IRecycleBinService _recycleBin;
+    private readonly ITranscriptionRepository _transcriptions;
     private readonly ILogger<ClipService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="ClipService"/>.</summary>
@@ -23,12 +24,14 @@ public sealed class ClipService : IClipService
         IClipRepository clips,
         ITagRepository tags,
         IRecycleBinService recycleBin,
+        ITranscriptionRepository transcriptions,
         ILogger<ClipService> logger)
     {
-        _clips      = clips;
-        _tags       = tags;
-        _recycleBin = recycleBin;
-        _logger     = logger;
+        _clips          = clips;
+        _tags           = tags;
+        _recycleBin     = recycleBin;
+        _transcriptions = transcriptions;
+        _logger         = logger;
     }
 
     /// <inheritdoc/>
@@ -51,6 +54,15 @@ public sealed class ClipService : IClipService
             ? await _clips.GetByTagsAsync(effectiveTagIds, cancellationToken)
             : await _clips.GetAllAsync(cancellationToken);
 
+        // Fetch caption-matched clip IDs upfront so they can be used in the synchronous Where chain.
+        // This is only executed when the user has explicitly opted in to caption search.
+        HashSet<int>? captionIds = null;
+        if (query.SearchCaptions && !string.IsNullOrEmpty(query.SearchText))
+        {
+            var ids = await _transcriptions.SearchClipIdsBySegmentTextAsync(query.SearchText, cancellationToken);
+            captionIds = new HashSet<int>(ids);
+        }
+
         // Apply remaining in-memory filters.
         return candidates
             .Where(c => query.Status == null || c.Status == query.Status)
@@ -67,7 +79,8 @@ public sealed class ClipService : IClipService
                         c.FileName.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase) ||
                         (c.Notes != null && c.Notes.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase)) ||
                         c.Highlights.Any(h =>
-                            h.Label != null && h.Label.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase)))
+                            h.Label != null && h.Label.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase)) ||
+                        (captionIds != null && captionIds.Contains(c.Id)))
             .Where(c => query.PlayerIds.Count == 0 ||
                         c.ClipPlayers.Any(cp => query.PlayerIds.Contains(cp.PlayerId)))
             .Where(c => query.ExcludedTagIds.Count == 0 ||
@@ -242,6 +255,7 @@ public sealed class ClipService : IClipService
         if (!string.IsNullOrEmpty(clip.TrashPath) && File.Exists(clip.TrashPath))
             _recycleBin.TryMoveToRecycleBin(clip.TrashPath);
 
+        await DeleteTranscriptionsForClipAsync(clipId, cancellationToken);
         await _clips.DeleteAsync(clipId, cancellationToken);
         _logger.LogInformation("Clip {ClipId} permanently deleted.", clipId);
     }
@@ -264,8 +278,36 @@ public sealed class ClipService : IClipService
             }
         }
 
+        await DeleteTranscriptionsForClipAsync(clipId, cancellationToken);
         await _clips.DeleteAsync(clipId, cancellationToken);
         _logger.LogInformation("Clip {ClipId} irrecoverably deleted (no recycle bin).", clipId);
+    }
+
+    /// <summary>
+    /// Deletes all transcription DB records for the given clip and removes the associated
+    /// SRT files from disk.  Called before the clip record itself is deleted.
+    /// </summary>
+    private async Task DeleteTranscriptionsForClipAsync(int clipId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var srtPaths = await _transcriptions.DeleteByClipIdAsync(clipId, cancellationToken);
+            foreach (var path in srtPaths)
+            {
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                {
+                    try { File.Delete(path); }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to delete SRT file {Path} for clip {ClipId}.", path, clipId);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete transcriptions for clip {ClipId}.", clipId);
+        }
     }
 
     /// <inheritdoc/>

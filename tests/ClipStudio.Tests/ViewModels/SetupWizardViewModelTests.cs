@@ -23,14 +23,15 @@ public sealed class SetupWizardViewModelTests
         _settingsMock.Setup(s => s.Current).Returns(_settings);
         _settingsMock.Setup(s => s.SaveAsync(default)).Returns(Task.CompletedTask);
 
-        var welcome       = new WelcomeStepViewModel();
-        var sourceFolders = new SourceFoldersStepViewModel(
+        var welcome        = new WelcomeStepViewModel();
+        var sourceFolders  = new SourceFoldersStepViewModel(
             new Mock<ClipStudio.Core.Interfaces.ISourceFolderRepository>().Object,
             new Mock<ILibraryWatcherService>().Object);
-        var ffmpeg        = new FfmpegStepViewModel();
-        var finish        = new FinishStepViewModel(_settingsMock.Object);
+        var ffmpeg         = new FfmpegStepViewModel();
+        var transcription  = new TranscriptionSetupStepViewModel(_settingsMock.Object);
+        var finish         = new FinishStepViewModel(_settingsMock.Object);
 
-        _wizard = new SetupWizardViewModel(welcome, sourceFolders, ffmpeg, finish);
+        _wizard = new SetupWizardViewModel(welcome, sourceFolders, ffmpeg, transcription, finish);
     }
 
     // ---- Initial state ----

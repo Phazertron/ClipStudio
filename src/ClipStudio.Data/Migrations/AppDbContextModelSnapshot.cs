@@ -543,6 +543,70 @@ namespace ClipStudio.Data.Migrations
                     b.ToTable("TagRelations", (string)null);
                 });
 
+            modelBuilder.Entity("ClipStudio.Core.Entities.Transcription", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClipId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ModelName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SrtFilePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClipId");
+
+                    b.ToTable("Transcriptions", (string)null);
+                });
+
+            modelBuilder.Entity("ClipStudio.Core.Entities.TranscriptionSegment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("EndMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("IndexNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("StartMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TranscriptionId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TranscriptionId");
+
+                    b.ToTable("TranscriptionSegments", (string)null);
+                });
+
             modelBuilder.Entity("ClipStudio.Core.Entities.AudioTrackSetting", b =>
                 {
                     b.HasOne("ClipStudio.Core.Entities.Clip", "Clip")
@@ -713,6 +777,28 @@ namespace ClipStudio.Data.Migrations
                     b.Navigation("Tag");
                 });
 
+            modelBuilder.Entity("ClipStudio.Core.Entities.Transcription", b =>
+                {
+                    b.HasOne("ClipStudio.Core.Entities.Clip", "Clip")
+                        .WithMany("Transcriptions")
+                        .HasForeignKey("ClipId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Clip");
+                });
+
+            modelBuilder.Entity("ClipStudio.Core.Entities.TranscriptionSegment", b =>
+                {
+                    b.HasOne("ClipStudio.Core.Entities.Transcription", "Transcription")
+                        .WithMany("Segments")
+                        .HasForeignKey("TranscriptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Transcription");
+                });
+
             modelBuilder.Entity("ClipStudio.Core.Entities.Clip", b =>
                 {
                     b.Navigation("AudioTracks");
@@ -726,6 +812,8 @@ namespace ClipStudio.Data.Migrations
                     b.Navigation("Highlights");
 
                     b.Navigation("Screenshots");
+
+                    b.Navigation("Transcriptions");
                 });
 
             modelBuilder.Entity("ClipStudio.Core.Entities.Highlight", b =>
@@ -754,6 +842,11 @@ namespace ClipStudio.Data.Migrations
                     b.Navigation("HighlightTags");
 
                     b.Navigation("Relations");
+                });
+
+            modelBuilder.Entity("ClipStudio.Core.Entities.Transcription", b =>
+                {
+                    b.Navigation("Segments");
                 });
 #pragma warning restore 612, 618
         }

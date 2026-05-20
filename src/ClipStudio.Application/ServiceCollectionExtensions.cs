@@ -1,5 +1,7 @@
 using ClipStudio.Application.Interfaces;
+using ClipStudio.Application.Models;
 using ClipStudio.Application.Services;
+using ClipStudio.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -18,11 +20,19 @@ public static class ServiceCollectionExtensions
     /// <param name="settingsFilePath">
     /// The absolute path to the JSON settings file. The file will be created if it does not exist.
     /// </param>
+    /// <param name="appDataPath">
+    /// The absolute path to the application data root directory. Defaults to
+    /// <c>%AppData%\ClipStudio</c> but may be overridden by a <c>--profile</c> launch argument.
+    /// </param>
     /// <returns>The same service collection for chaining.</returns>
     public static IServiceCollection AddClipStudioApplication(
         this IServiceCollection services,
-        string settingsFilePath)
+        string settingsFilePath,
+        string appDataPath)
     {
+        // Resolved paths singleton — consumed by services that write to the data directory.
+        services.AddSingleton(new AppDataPaths(appDataPath));
+
         // Settings must be registered first as other services depend on it.
         services.AddSingleton<ISettingsService>(sp =>
             new SettingsService(
@@ -44,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<ITagSuggestionService, TagSuggestionService>();
         services.AddScoped<IFilterPresetService, FilterPresetService>();
+        services.AddScoped<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<IRecycleBinService, RecycleBinService>();
 
         // Steam game search: credential-free, uses a named HttpClient.
