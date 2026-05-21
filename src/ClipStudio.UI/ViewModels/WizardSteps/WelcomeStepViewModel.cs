@@ -1,3 +1,5 @@
+using System;
+
 namespace ClipStudio.UI.ViewModels.WizardSteps;
 
 /// <summary>
@@ -11,4 +13,7 @@ public sealed class WelcomeStepViewModel : WizardStepViewModel
 
     /// <inheritdoc/>
     public override int StepNumber => 1;
+
+    /// <summary>Gets a value indicating whether the app is running on Linux.</summary>
+    public bool IsLinux => OperatingSystem.IsLinux();
 }
