@@ -60,6 +60,29 @@
 
         </StackPanel>
 
+        <!-- Linux Vulkan note -->
+        <Border CornerRadius="6"
+                Background="#1AE67E22"
+                BorderBrush="#27E67E22"
+                BorderThickness="1"
+                Padding="12,10"
+                IsVisible="{Binding IsLinux}">
+            <StackPanel Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:MaterialIcon Kind="Memory" Width="16" Height="16"
+                                        Foreground="#E67E22" VerticalAlignment="Center"/>
+                    <TextBlock Text="Linux: GPU (Vulkan) backend requires libvulkan1"
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="#E67E22" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                           Text="The default CPU backend works without any extra packages. For faster transcription using your GPU, install the Vulkan runtime:"/>
+                <TextBlock Text="sudo apt-get install libvulkan1"
+                           FontSize="11" FontFamily="Monospace"
+                           Opacity="0.85"/>
+            </StackPanel>
+        </Border>
+
         <TextBlock Text="You can configure transcription at any time in Settings > Transcription."
                    FontSize="11"
                    Opacity="0.5"

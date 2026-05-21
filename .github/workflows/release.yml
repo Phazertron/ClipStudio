@@ -155,6 +155,11 @@ jobs:
           chmod +x publish/macos/ClipStudio.sh
           chmod +x publish/macos/ClipStudio.UI
 
+      - name: Ad-hoc code sign
+        run: |
+          codesign --deep --force --sign - publish/macos/ClipStudio.UI
+          codesign --deep --force --sign - publish/macos/ClipStudio.sh
+
       - name: Bundle FFmpeg (macOS)
         run: |
           brew install ffmpeg
