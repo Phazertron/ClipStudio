@@ -52,11 +52,38 @@ Built for players who record everything but never have time to find the good mom
 
 ### Requirements
 
+#### Windows
 | Dependency | Notes |
 |---|---|
 | [.NET 9 Runtime](https://dot.net/download) | Required to run the app |
-| [VLC media player](https://www.videolan.org/) | Required on macOS and Linux for native LibVLC libraries; on Windows, VLC libraries are bundled |
-| FFmpeg | **Bundled automatically** in the installer. For development builds, install to system PATH or configure the path in Settings |
+| FFmpeg | Bundled automatically in the installer |
+| LibVLC | Bundled automatically in the installer |
+
+#### macOS
+| Dependency | Notes |
+|---|---|
+| [.NET 9 Runtime](https://dot.net/download) | Required to run the app |
+| [VLC media player](https://www.videolan.org/) | Must be installed — LibVLC is loaded from the system VLC installation |
+| FFmpeg | Bundled automatically in the installer |
+
+#### Linux
+| Dependency | Notes |
+|---|---|
+| [.NET 9 Runtime](https://dot.net/download) | Required to run the app |
+| `libvlc5` | Provides the LibVLC shared library used for video playback |
+| FFmpeg | Bundled automatically in the installer |
+
+Install Linux dependencies on Debian/Ubuntu:
+```bash
+sudo apt-get install libvlc5
+```
+
+Use the provided launcher script instead of running the binary directly — it automatically resolves the LibVLC library path so no developer packages are required:
+```bash
+./ClipStudio.sh
+```
+
+> **Why not bundled on Linux?** VideoLAN does not publish an official Linux NuGet bundle (unlike Windows). Linux `.so` files are compiled against a specific distro ABI and glibc version, so there is no single binary that works across all distributions. VLC also ships hundreds of codec plugin files that would add ~100 MB to every release. Using the system VLC keeps the package small and ensures security patches flow through your distro's package manager automatically.
 
 ### Download
 
@@ -98,7 +125,7 @@ The bundled OBS script renames each replay buffer save to embed the active game 
 
 **Produced filename format:**
 ```
-Replay 2025-03-03 22-49-45 [Apex Legends].mp4
+Replay 2025-03-03 22-49-45 [Battlefield 1].mp4
 ```
 
 **Installation:**

@@ -31,6 +31,30 @@
                        MaxWidth="440"/>
         </StackPanel>
 
+        <!-- Linux prerequisites notice -->
+        <Border CornerRadius="6"
+                Background="#1A2980B9"
+                BorderBrush="#272980B9"
+                BorderThickness="1"
+                Padding="12,10"
+                IsVisible="{Binding IsLinux}">
+            <StackPanel Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:MaterialIcon Kind="Linux" Width="16" Height="16"
+                                        Foreground="#2980B9" VerticalAlignment="Center"/>
+                    <TextBlock Text="Linux prerequisite: libvlc5"
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="#2980B9" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap">
+                    <Run Text="Video playback requires the VLC runtime library. Install it with:"/>
+                </TextBlock>
+                <TextBlock Text="sudo apt-get install libvlc5"
+                           FontSize="11" FontFamily="Monospace"
+                           Opacity="0.85"/>
+            </StackPanel>
+        </Border>
+
         <!-- Feature bullets -->
         <StackPanel Spacing="10" HorizontalAlignment="Center">
 

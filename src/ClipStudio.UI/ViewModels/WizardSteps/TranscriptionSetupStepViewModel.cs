@@ -40,6 +40,9 @@ public sealed partial class TranscriptionSetupStepViewModel : WizardStepViewMode
     /// <summary>Gets a value indicating whether the model picker row should be visible.</summary>
     public bool ShowModelPicker => IsEnabled;
 
+    /// <summary>Gets a value indicating whether the app is running on Linux.</summary>
+    public bool IsLinux => System.OperatingSystem.IsLinux();
+
     /// <summary>Gets the command that opens a file picker to browse for a model file.</summary>
     public IAsyncRelayCommand BrowseModelCommand { get; }
 

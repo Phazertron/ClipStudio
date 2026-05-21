@@ -14,10 +14,9 @@ internal sealed class Program
 {
     /// <summary>
     /// GitHub repository URL used for automatic update checks.
-    /// Set this to <c>https://github.com/OWNER/ClipStudio</c> before publishing a release.
-    /// Leave <see langword="null"/> to disable background update checks entirely.
+    /// Set this to <see langword="null"/> to disable background update checks entirely.
     /// </summary>
-    private static readonly string? AutoUpdateRepositoryUrl = null;
+    private static readonly string? AutoUpdateRepositoryUrl = "https://github.com/Phazertron/ClipStudio";
 
     /// <summary>
     /// Main entry point. Velopack's bootstrap call MUST be the very first statement so that
@@ -32,9 +31,7 @@ internal sealed class Program
         // (e.g. a "demo" profile for screenshots) can coexist without touching the real library.
         var profileName = ParseProfileArg(args);
         var folderName  = profileName is not null ? $"ClipStudio_{profileName}" : "ClipStudio";
-        App.AppDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            folderName);
+        App.AppDataPath = ResolvePlatformAppDataPath(folderName);
 
         // Strip --profile and its value from the args passed to Avalonia so the framework
         // does not treat them as unknown arguments.
@@ -101,6 +98,24 @@ internal sealed class Program
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();
+
+    /// <summary>
+    /// Returns the platform-appropriate application data directory for the given folder name.
+    /// Windows: %AppData%\&lt;name&gt;
+    /// macOS:   ~/Library/Application Support/&lt;name&gt;
+    /// Linux:   ~/.config/&lt;name&gt;
+    /// </summary>
+    private static string ResolvePlatformAppDataPath(string folderName)
+    {
+        if (OperatingSystem.IsWindows())
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), folderName);
+
+        if (OperatingSystem.IsMacOS())
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", folderName);
+
+        // Linux and other POSIX platforms
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", folderName);
+    }
 
     /// <summary>
     /// Returns the value of the <c>--profile</c> argument, or <see langword="null"/> if it was
