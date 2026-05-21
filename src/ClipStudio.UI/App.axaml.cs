@@ -299,7 +299,22 @@ public partial class App : AvaloniaApp
         services.AddClipStudioData(dbPath);
         services.AddClipStudioApplication(settingsPath, AppDataPath);
 
-        // LibVLC — single shared instance for the lifetime of the app
+        // LibVLC — single shared instance for the lifetime of the app.
+        // On macOS the dylibs and plugins live inside the VLC.app bundle and are not
+        // on the dynamic linker path. Both must be pointed at explicitly before the
+        // first LibVLC instance is created.
+        if (OperatingSystem.IsMacOS())
+        {
+            var vlcBase    = "/Applications/VLC.app/Contents/MacOS";
+            var vlcLib     = Path.Combine(vlcBase, "lib");
+            var vlcPlugins = Path.Combine(vlcBase, "plugins");
+            if (Directory.Exists(vlcLib))
+            {
+                Environment.SetEnvironmentVariable("VLC_PLUGIN_PATH", vlcPlugins);
+                LibVLCSharp.Shared.Core.Initialize(vlcLib);
+            }
+        }
+
         services.AddSingleton<LibVLC>(_ => new LibVLC(enableDebugLogs: false));
 
         // Sound effects — singleton so the SoundPlayer instance is reused across calls
