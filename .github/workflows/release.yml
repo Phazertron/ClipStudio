@@ -139,7 +139,7 @@ jobs:
         run: |
           dotnet publish ${{ env.PROJECT }} \
             --configuration Release \
-            --runtime osx-x64 \
+            --runtime osx-arm64 \
             --self-contained true \
             --output publish/macos \
             -p:Version=${{ needs.metadata.outputs.version }} \
@@ -198,6 +198,9 @@ jobs:
 
       - name: Restore
         run: dotnet restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-restore --verbosity minimal
 
       - name: Publish
         run: |
