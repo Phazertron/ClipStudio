@@ -70,12 +70,17 @@ Built for players who record everything but never have time to find the good mom
 | Dependency | Notes |
 |---|---|
 | [.NET 9 Runtime](https://dot.net/download) | Required to run the app |
-| `libvlc-dev` | Provides the LibVLC shared library used for video playback |
+| `libvlc5` | Provides the LibVLC shared library used for video playback |
 | FFmpeg | Bundled automatically in the installer |
 
 Install Linux dependencies on Debian/Ubuntu:
 ```bash
-sudo apt-get install libvlc-dev
+sudo apt-get install libvlc5
+```
+
+Use the provided launcher script instead of running the binary directly — it automatically resolves the LibVLC library path so no developer packages are required:
+```bash
+./ClipStudio.sh
 ```
 
 > **Why not bundled on Linux?** VideoLAN does not publish an official Linux NuGet bundle (unlike Windows). Linux `.so` files are compiled against a specific distro ABI and glibc version, so there is no single binary that works across all distributions. VLC also ships hundreds of codec plugin files that would add ~100 MB to every release. Using the system VLC keeps the package small and ensures security patches flow through your distro's package manager automatically.

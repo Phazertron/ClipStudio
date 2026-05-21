@@ -216,6 +216,11 @@ jobs:
       - name: Copy OBS scripts
         run: cp -r obs-scripts publish/linux/obs-scripts
 
+      - name: Add Linux launcher script
+        run: |
+          cp clipstudio.sh publish/linux/ClipStudio.sh
+          chmod +x publish/linux/ClipStudio.sh
+
       - name: Bundle FFmpeg (Linux)
         run: |
           sudo apt-get update -qq
