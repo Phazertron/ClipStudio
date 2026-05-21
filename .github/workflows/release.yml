@@ -139,7 +139,7 @@ jobs:
         run: |
           dotnet publish ${{ env.PROJECT }} \
             --configuration Release \
-            --runtime osx-x64 \
+            --runtime osx-arm64 \
             --self-contained true \
             --output publish/macos \
             -p:Version=${{ needs.metadata.outputs.version }} \
@@ -148,6 +148,17 @@ jobs:
 
       - name: Copy OBS scripts
         run: cp -r obs-scripts publish/macos/obs-scripts
+
+      - name: Add macOS launcher script
+        run: |
+          cp clipstudio-mac.sh publish/macos/ClipStudio.sh
+          chmod +x publish/macos/ClipStudio.sh
+          chmod +x publish/macos/ClipStudio.UI
+
+      - name: Ad-hoc code sign
+        run: |
+          codesign --deep --force --sign - publish/macos/ClipStudio.UI
+          codesign --deep --force --sign - publish/macos/ClipStudio.sh
 
       - name: Bundle FFmpeg (macOS)
         run: |
@@ -163,7 +174,7 @@ jobs:
             --packId ClipStudio \
             --packVersion ${{ needs.metadata.outputs.version }} \
             --packDir publish/macos \
-            --mainExe ClipStudio.UI \
+            --mainExe ClipStudio.sh \
             --outputDir releases/macos \
             --channel ${{ needs.metadata.outputs.channel }} \
             --packTitle "ClipStudio" \
@@ -199,6 +210,9 @@ jobs:
       - name: Restore
         run: dotnet restore
 
+      - name: Test
+        run: dotnet test --configuration Release --no-restore --verbosity minimal
+
       - name: Publish
         run: |
           dotnet publish ${{ env.PROJECT }} \
@@ -212,6 +226,11 @@ jobs:
 
       - name: Copy OBS scripts
         run: cp -r obs-scripts publish/linux/obs-scripts
+
+      - name: Add Linux launcher script
+        run: |
+          cp clipstudio.sh publish/linux/ClipStudio.sh
+          chmod +x publish/linux/ClipStudio.sh
 
       - name: Bundle FFmpeg (Linux)
         run: |
