@@ -42,4 +42,20 @@
     <ProjectReference Include="..\ClipStudio.Application\ClipStudio.Application.csproj" />
     <ProjectReference Include="..\ClipStudio.Core\ClipStudio.Core.csproj" />
   </ItemGroup>
+
+  <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('linux'))">
+    <None Include="..\..\clipstudio.sh">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <TargetPath>ClipStudio.sh</TargetPath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('osx'))">
+    <None Include="..\..\clipstudio-mac.sh">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <TargetPath>ClipStudio.sh</TargetPath>
+    </None>
+  </ItemGroup>
 </Project>

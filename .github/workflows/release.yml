@@ -149,6 +149,12 @@ jobs:
       - name: Copy OBS scripts
         run: cp -r obs-scripts publish/macos/obs-scripts
 
+      - name: Add macOS launcher script
+        run: |
+          cp clipstudio-mac.sh publish/macos/ClipStudio.sh
+          chmod +x publish/macos/ClipStudio.sh
+          chmod +x publish/macos/ClipStudio.UI
+
       - name: Bundle FFmpeg (macOS)
         run: |
           brew install ffmpeg
@@ -163,7 +169,7 @@ jobs:
             --packId ClipStudio \
             --packVersion ${{ needs.metadata.outputs.version }} \
             --packDir publish/macos \
-            --mainExe ClipStudio.UI \
+            --mainExe ClipStudio.sh \
             --outputDir releases/macos \
             --channel ${{ needs.metadata.outputs.channel }} \
             --packTitle "ClipStudio" \

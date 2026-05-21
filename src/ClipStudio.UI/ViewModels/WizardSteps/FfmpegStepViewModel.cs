@@ -101,7 +101,21 @@ public sealed partial class FfmpegStepViewModel : WizardStepViewModel
             return Task.CompletedTask;
         }
 
-        // 3. Not found — ask the user
+        // 3. Well-known out-of-PATH locations (macOS Homebrew on Apple Silicon and Intel)
+        if (OperatingSystem.IsMacOS())
+        {
+            foreach (var candidate in new[] { "/opt/homebrew/bin", "/usr/local/bin" })
+            {
+                if (File.Exists(Path.Combine(candidate, exeName)))
+                {
+                    DetectedFolder  = candidate;
+                    DetectionStatus = FfmpegDetectionStatus.FoundOnPath;
+                    return Task.CompletedTask;
+                }
+            }
+        }
+
+        // 4. Not found — ask the user
         DetectionStatus = FfmpegDetectionStatus.NotFound;
         return Task.CompletedTask;
     }
