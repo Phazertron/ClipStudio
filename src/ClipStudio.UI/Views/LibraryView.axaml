@@ -16,7 +16,8 @@
                 Padding="16,10"
                 BorderBrush="{DynamicResource SystemChromeHighColor}"
                 BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+            <StackPanel Spacing="0">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto">
 
                 <!-- Search box + captions toggle -->
                 <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="2" HorizontalAlignment="Left">
@@ -78,8 +79,18 @@
                     <icons:MaterialIcon Kind="CheckboxMultipleMarked" Width="16" Height="16"/>
                 </Button>
 
-                <!-- Refresh button -->
+                <!-- Remove broken clips (visible only when broken clips exist) -->
                 <Button Grid.Column="5"
+                        Command="{Binding ShowRemoveAllBrokenConfirmCommand}"
+                        IsVisible="{Binding HasBrokenClips}"
+                        ToolTip.Tip="Remove all clips with missing source files"
+                        Margin="4,0,0,0"
+                        Foreground="#FFCC0000">
+                    <icons:MaterialIcon Kind="AlertCircleOutline" Width="16" Height="16"/>
+                </Button>
+
+                <!-- Refresh button -->
+                <Button Grid.Column="6"
                         Command="{Binding LoadCommand}"
                         ToolTip.Tip="Refresh"
                         Margin="4,0,0,0">
@@ -87,6 +98,61 @@
                 </Button>
 
             </Grid>
+
+            <!-- Confirmation strip for "remove all broken" -->
+            <Border IsVisible="{Binding IsRemoveAllBrokenConfirmVisible}"
+                    Background="#CC3A1010"
+                    CornerRadius="4"
+                    Padding="10,8"
+                    Margin="0,8,0,0">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="Permanently remove all clips with missing source files from the library? This cannot be undone."
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Foreground="White"
+                               VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="12,0,0,0">
+                        <Button Command="{Binding ConfirmRemoveAllBrokenClipsCommand}"
+                                FontSize="11"
+                                Padding="10,4"
+                                Background="#E74C3C"
+                                Foreground="White">
+                            Remove all
+                        </Button>
+                        <Button Command="{Binding ShowRemoveAllBrokenConfirmCommand}"
+                                FontSize="11"
+                                Padding="10,4">
+                            Cancel
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Transient error / status message strip -->
+            <Border IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    Background="#CC1A1A2E"
+                    CornerRadius="4"
+                    Padding="10,8"
+                    Margin="0,8,0,0">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding StatusMessage}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Foreground="#FF8C8C"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Command="{Binding ClearStatusMessageCommand}"
+                            Padding="8,2"
+                            Margin="12,0,0,0"
+                            FontSize="11">
+                        Dismiss
+                    </Button>
+                </Grid>
+            </Border>
+
+            </StackPanel>
         </Border>
 
         <!-- ===== Loading indicator ===== -->
@@ -521,17 +587,35 @@
                                                                 HorizontalAlignment="Center"
                                                                 VerticalAlignment="Center"/>
 
-                                            <!-- Broken: red overlay + alert icon -->
+                                            <!-- Broken: red overlay + alert icon + relocate button -->
                                             <Border IsVisible="{Binding IsBroken}"
-                                                    Background="#7AFF2020"/>
+                                                    Background="#7AFF2020"
+                                                    IsHitTestVisible="False"/>
                                             <icons:MaterialIcon Kind="AlertCircle"
                                                                 Width="32" Height="32"
                                                                 Foreground="White"
                                                                 Opacity="0.85"
                                                                 IsVisible="{Binding IsBroken}"
+                                                                IsHitTestVisible="False"
                                                                 HorizontalAlignment="Center"
                                                                 VerticalAlignment="Center"
                                                                 ToolTip.Tip="Source file missing or unreadable"/>
+                                            <Button IsVisible="{Binding IsBroken}"
+                                                    Click="OnRelocateClicked"
+                                                    VerticalAlignment="Bottom"
+                                                    HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Center"
+                                                    Padding="4,4"
+                                                    FontSize="11"
+                                                    Background="#CC000000"
+                                                    Foreground="White"
+                                                    CornerRadius="0"
+                                                    ToolTip.Tip="Find the clip at its new location">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <icons:MaterialIcon Kind="FolderSearch" Width="12" Height="12"/>
+                                                    <TextBlock Text="Relocate"/>
+                                                </StackPanel>
+                                            </Button>
 
                                             <!-- Archived notice overlay -->
                                             <Border IsVisible="{Binding IsArchivedNoticeVisible}"
@@ -751,13 +835,28 @@
                                                 <Border Background="{DynamicResource SystemChromeLowColor}"
                                                         IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
                                             </Panel>
-                                            <TextBlock Grid.Column="2"
-                                                       Text="{Binding FileName}"
-                                                       FontSize="{Binding DetailsFontSize}"
-                                                       FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       VerticalAlignment="Center"
-                                                       ToolTip.Tip="{Binding FileName}"/>
+                                            <!-- File name cell: shows relocate button when broken -->
+                                            <Grid Grid.Column="2" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding FileName}"
+                                                           FontSize="{Binding DetailsFontSize}"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center"
+                                                           ToolTip.Tip="{Binding FileName}"/>
+                                                <Button Grid.Column="1"
+                                                        IsVisible="{Binding IsBroken}"
+                                                        Click="OnRelocateClicked"
+                                                        Padding="6,2"
+                                                        FontSize="11"
+                                                        Margin="6,0,0,0"
+                                                        ToolTip.Tip="Find the clip at its new location">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <icons:MaterialIcon Kind="FolderSearch" Width="12" Height="12"/>
+                                                        <TextBlock Text="Relocate"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
                                             <!-- Game: cover image when available, text fallback; click to quick-filter -->
                                             <Button Grid.Column="3"
                                                     Command="{Binding QuickFilterByGameCommand}"
@@ -1555,6 +1654,19 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
+
+                        <!-- Archive broken (visible only when broken clips are selected) -->
+                        <Button Command="{Binding BulkArchiveBrokenCommand}"
+                                IsVisible="{Binding HasSelectedBrokenClips}"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center"
+                                FontSize="12"
+                                ToolTip.Tip="Archive selected broken clips — keeps them in the library but out of the main view">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <icons:MaterialIcon Kind="ArchiveArrowDown" Width="14" Height="14" Foreground="#E67E22"/>
+                                <TextBlock Text="Archive Broken Selected"/>
+                            </StackPanel>
+                        </Button>
 
                             <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
 

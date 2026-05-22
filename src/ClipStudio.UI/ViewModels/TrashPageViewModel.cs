@@ -1,7 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using ClipStudio.Application.Interfaces;
+using ClipStudio.Core.Entities;
+using ClipStudio.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
@@ -80,6 +85,7 @@ public sealed partial class TrashPageViewModel : ViewModelBase
                 Items.Add(new TrashedClipRowViewModel(
                     clip,
                     onRestore:           () => RestoreClipAsync(clipId),
+                    onRelocate:          () => { },
                     onDeletePermanently: () => PermanentlyDeleteClipAsync(clipId),
                     onDeleteForever:     () => TrueDeleteClipAsync(clipId)));
             }
@@ -166,5 +172,69 @@ public sealed partial class TrashPageViewModel : ViewModelBase
         {
             IsLoading = false;
         }
+    }
+
+    /// <summary>Returns the file-system paths of all configured source folders.</summary>
+    public async Task<IReadOnlyList<string>> GetSourcePathsAsync()
+    {
+        using var scope    = _scopeFactory.CreateScope();
+        var folderRepo     = scope.ServiceProvider.GetRequiredService<ISourceFolderRepository>();
+        var folders        = await folderRepo.GetAllAsync();
+        return folders.Select(f => f.Path).ToList();
+    }
+
+    /// <summary>
+    /// Relocates a broken-trashed clip by updating its DB record to point at
+    /// <paramref name="newFilePath"/>, clears the IsDeleted flag so it re-enters
+    /// the library, and optionally registers the file's parent folder as a new source.
+    /// </summary>
+    /// <param name="clipId">Database identifier of the clip to relocate.</param>
+    /// <param name="newFilePath">Absolute path to the clip file at its new location.</param>
+    /// <param name="addSourceFolderPath">
+    /// If non-null, the parent folder is added to the source-folder list and watched.
+    /// </param>
+    public async Task RelocateClipAsync(int clipId, string newFilePath, string? addSourceFolderPath)
+    {
+        using var scope    = _scopeFactory.CreateScope();
+        var clipService    = scope.ServiceProvider.GetRequiredService<IClipService>();
+        var folderRepo     = scope.ServiceProvider.GetRequiredService<ISourceFolderRepository>();
+        var watcher        = scope.ServiceProvider.GetRequiredService<ILibraryWatcherService>();
+
+        var allFolders     = await folderRepo.GetAllAsync();
+        int? newSourceFolderId = null;
+
+        if (!string.IsNullOrEmpty(addSourceFolderPath))
+        {
+            var normalised = Path.GetFullPath(addSourceFolderPath);
+            var existing   = allFolders.FirstOrDefault(f =>
+            {
+                try { return string.Equals(Path.GetFullPath(f.Path), normalised, StringComparison.OrdinalIgnoreCase); }
+                catch { return false; }
+            });
+
+            if (existing is not null)
+            {
+                newSourceFolderId = existing.Id;
+            }
+            else
+            {
+                var folder = new SourceFolder { Path = addSourceFolderPath, IsActive = true };
+                await folderRepo.AddAsync(folder);
+                watcher.StartWatching(folder.Path, folder.Id);
+                newSourceFolderId = folder.Id;
+            }
+        }
+        else
+        {
+            // MoveBack or file already in an existing source — resolve source by path prefix.
+            newSourceFolderId = allFolders.FirstOrDefault(f =>
+            {
+                try { return newFilePath.StartsWith(Path.GetFullPath(f.Path), StringComparison.OrdinalIgnoreCase); }
+                catch { return false; }
+            })?.Id;
+        }
+
+        await clipService.RelocateAsync(clipId, newFilePath, newSourceFolderId);
+        await LoadAsync();
     }
 }

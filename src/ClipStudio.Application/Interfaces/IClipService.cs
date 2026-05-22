@@ -150,4 +150,20 @@ public interface IClipService
     /// <param name="clipId">The identifier of the clip to update.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     Task IncrementPlayCountAsync(int clipId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the stored file path of a clip to a new location, clears <see cref="Clip.IsBroken"/>,
+    /// optionally reassigns <see cref="Clip.SourceFolderId"/>, and — if the clip was previously
+    /// trashed as a missing-file entry — also restores it to the library.
+    /// Does not move or copy any file on disk; the caller is responsible for ensuring the file exists
+    /// at <paramref name="newFilePath"/> before invoking this method.
+    /// </summary>
+    /// <param name="clipId">The identifier of the clip to relocate.</param>
+    /// <param name="newFilePath">The absolute path where the clip file now resides.</param>
+    /// <param name="newSourceFolderId">
+    /// When provided, the clip's <see cref="Clip.SourceFolderId"/> is updated so that future
+    /// archive / wipe operations targeting the new source folder correctly affect this clip.
+    /// </param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    Task RelocateAsync(int clipId, string newFilePath, int? newSourceFolderId = null, CancellationToken cancellationToken = default);
 }

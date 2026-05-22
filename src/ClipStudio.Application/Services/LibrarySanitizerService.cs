@@ -106,6 +106,17 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
 
             if (!File.Exists(clip.FilePath))
             {
+                // Clip is already flagged broken by the watcher or a previous sanitize pass.
+                // Leave it in place — do not attempt ghost repair or re-mark it; the user
+                // decides what to do via Relocate or Remove.
+                // Still protect cached media from the orphan-cleanup sweep below.
+                if (clip.IsBroken)
+                {
+                    if (!string.IsNullOrEmpty(clip.ThumbnailPath))    referencedPaths.Add(clip.ThumbnailPath);
+                    if (!string.IsNullOrEmpty(clip.PreviewStripPath)) referencedPaths.Add(clip.PreviewStripPath);
+                    continue;
+                }
+
                 // Source file missing. If the clip's own trash path exists the file was moved to
                 // the app trash but the DB record was not marked as deleted (e.g. due to a prior
                 // crash or EF tracking bug). Repair by marking the record deleted so it appears

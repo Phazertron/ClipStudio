@@ -415,6 +415,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         if (_libraryNavItem is not null)
             _libraryNavItem.IsScanning = true;
+        _ = TryClearBrokenByPathAsync(e.FilePath);
         _ = RefreshUnreviewedCountAsync();
     }
 
@@ -429,18 +430,51 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             await _clipService.SetBrokenByFilePathAsync(filePath, isBroken);
 
-            // Reflect the change immediately in the library card without a full reload.
             if (_library is not null)
             {
-                var card = _library.Clips.FirstOrDefault(
-                    c => string.Equals(c.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
-                if (card is not null)
-                    card.IsBroken = isBroken;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var card = _library.Clips.FirstOrDefault(
+                        c => string.Equals(c.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+                    if (card is not null)
+                        card.IsBroken = isBroken;
+                    _library.RefreshHasBrokenClips();
+                });
             }
         }
         catch
         {
             // Logging is handled at the service layer.
+        }
+    }
+
+    /// <summary>
+    /// Clears <see cref="Core.Entities.Clip.IsBroken"/> for any clip whose file path matches
+    /// <paramref name="filePath"/>. Called when the file watcher detects a file reappearing in
+    /// a watched source folder so broken clips are automatically restored without a manual scan.
+    /// </summary>
+    private async Task TryClearBrokenByPathAsync(string filePath)
+    {
+        try
+        {
+            await _clipService.SetBrokenByFilePathAsync(filePath, isBroken: false);
+
+            if (_library is not null)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var card = _library.Clips.FirstOrDefault(
+                        c => string.Equals(c.FilePath, filePath, StringComparison.OrdinalIgnoreCase)
+                            && c.IsBroken);
+                    if (card is null) return;
+                    card.IsBroken = false;
+                    _library.RefreshHasBrokenClips();
+                });
+            }
+        }
+        catch
+        {
+            // Non-fatal: next sanitize pass or manual relocate will pick it up.
         }
     }
 

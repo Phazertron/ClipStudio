@@ -202,6 +202,18 @@ public sealed class ClipService : IClipService
         if (clip.IsDeleted)
             return;
 
+        // If the source file is already missing (broken clip), skip the file move and
+        // just mark the DB record as deleted so the user can still "trash" it from the UI.
+        if (!File.Exists(clip.FilePath))
+        {
+            clip.IsDeleted = true;
+            clip.DeletedAt = DateTime.UtcNow;
+            clip.TrashPath = null;
+            await _clips.UpdateAsync(clip, cancellationToken);
+            _logger.LogWarning("Clip {ClipId} trashed (source file already missing, DB-only).", clipId);
+            return;
+        }
+
         var originalDir = Path.GetDirectoryName(clip.FilePath) ?? string.Empty;
         var trashDir    = Path.Combine(originalDir, ".clipstudio_trash");
         Directory.CreateDirectory(trashDir);
@@ -452,6 +464,29 @@ public sealed class ClipService : IClipService
     /// <inheritdoc/>
     public Task IncrementPlayCountAsync(int clipId, CancellationToken cancellationToken = default)
         => _clips.IncrementPlayCountAsync(clipId, cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task RelocateAsync(int clipId, string newFilePath, int? newSourceFolderId = null, CancellationToken cancellationToken = default)
+    {
+        var clip = await RequireClipAsync(clipId, cancellationToken);
+
+        clip.FilePath  = newFilePath;
+        clip.FileName  = Path.GetFileName(newFilePath);
+        clip.IsBroken  = false;
+
+        if (newSourceFolderId.HasValue)
+            clip.SourceFolderId = newSourceFolderId.Value;
+
+        // If the clip was trashed as a missing-file entry (TrashPath null), restore it.
+        if (clip.IsDeleted && string.IsNullOrEmpty(clip.TrashPath))
+        {
+            clip.IsDeleted = false;
+            clip.DeletedAt = null;
+        }
+
+        await _clips.UpdateAsync(clip, cancellationToken);
+        _logger.LogInformation("Clip {ClipId} relocated to '{NewPath}'.", clipId, newFilePath);
+    }
 
     private void TryDeleteFile(string? path)
     {

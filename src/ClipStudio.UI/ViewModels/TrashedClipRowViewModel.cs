@@ -36,8 +36,20 @@ public sealed class TrashedClipRowViewModel : ViewModelBase
     public string DaysRemainingDisplay =>
         DaysRemaining > 0 ? $"{DaysRemaining}d remaining" : "Purge pending";
 
+    /// <summary>
+    /// Gets a value indicating whether this clip's file was missing when it was trashed
+    /// (i.e. it has no trash path and cannot be restored to its original location).
+    /// </summary>
+    public bool IsBroken { get; }
+
     /// <summary>Gets the command that restores this clip from the trash to the library.</summary>
     public IAsyncRelayCommand RestoreCommand { get; }
+
+    /// <summary>
+    /// Gets the command that opens the Relocate dialog for this broken-trashed clip.
+    /// Only relevant when <see cref="IsBroken"/> is <see langword="true"/>.
+    /// </summary>
+    public IRelayCommand RelocateCommand { get; }
 
     /// <summary>
     /// Gets the command that moves this clip's file to the operating-system recycle bin
@@ -56,11 +68,13 @@ public sealed class TrashedClipRowViewModel : ViewModelBase
     /// </summary>
     /// <param name="clip">The trashed clip entity to project.</param>
     /// <param name="onRestore">Async action invoked when <see cref="RestoreCommand"/> is executed.</param>
+    /// <param name="onRelocate">Action invoked when <see cref="RelocateCommand"/> is executed (view opens dialog).</param>
     /// <param name="onDeletePermanently">Async action invoked when <see cref="DeletePermanentlyCommand"/> is executed.</param>
     /// <param name="onDeleteForever">Async action invoked when <see cref="DeleteForeverCommand"/> is executed.</param>
     public TrashedClipRowViewModel(
         Clip clip,
         Func<Task> onRestore,
+        Action onRelocate,
         Func<Task> onDeletePermanently,
         Func<Task> onDeleteForever)
     {
@@ -68,11 +82,13 @@ public sealed class TrashedClipRowViewModel : ViewModelBase
         FileName     = clip.FileName;
         OriginalPath = clip.FilePath;
         TrashedAt    = clip.DeletedAt ?? DateTime.UtcNow;
+        IsBroken     = string.IsNullOrEmpty(clip.TrashPath);
 
         var elapsed    = (DateTime.UtcNow - TrashedAt).TotalDays;
         DaysRemaining  = Math.Max(0, RetentionDays - (int)Math.Floor(elapsed));
 
         RestoreCommand           = new AsyncRelayCommand(onRestore);
+        RelocateCommand          = new RelayCommand(onRelocate);
         DeletePermanentlyCommand = new AsyncRelayCommand(onDeletePermanently);
         DeleteForeverCommand     = new AsyncRelayCommand(onDeleteForever);
     }

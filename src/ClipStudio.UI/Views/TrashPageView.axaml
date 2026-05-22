@@ -116,10 +116,18 @@
 
                                     <!-- Name + original path -->
                                     <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding FileName}"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold"
-                                                   TextTrimming="CharacterEllipsis"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <icons:MaterialIcon Kind="AlertCircleOutline"
+                                                                Width="14" Height="14"
+                                                                Foreground="#E74C3C"
+                                                                VerticalAlignment="Center"
+                                                                IsVisible="{Binding IsBroken}"
+                                                                ToolTip.Tip="File was missing when this clip was trashed — cannot be restored"/>
+                                            <TextBlock Text="{Binding FileName}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
                                         <TextBlock Text="{Binding OriginalPath}"
                                                    FontSize="10"
                                                    Opacity="0.4"
@@ -150,12 +158,22 @@
                                                 HorizontalAlignment="Right"
                                                 VerticalAlignment="Center"
                                                 Margin="8,0,0,0">
-                                        <Button Command="{Binding RestoreCommand}"
+                                        <Button IsVisible="{Binding !IsBroken}"
+                                                Command="{Binding RestoreCommand}"
                                                 ToolTip.Tip="Restore clip to library"
                                                 Padding="6,3">
                                             <StackPanel Orientation="Horizontal" Spacing="4">
                                                 <icons:MaterialIcon Kind="Restore" Width="12" Height="12"/>
                                                 <TextBlock Text="Restore" FontSize="11"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button IsVisible="{Binding IsBroken}"
+                                                Click="OnRelocateClicked"
+                                                ToolTip.Tip="Find the file at its new location to restore this clip"
+                                                Padding="6,3">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <icons:MaterialIcon Kind="FolderSearch" Width="12" Height="12"/>
+                                                <TextBlock Text="Relocate" FontSize="11"/>
                                             </StackPanel>
                                         </Button>
                                         <Button Command="{Binding DeletePermanentlyCommand}"

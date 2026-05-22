@@ -63,6 +63,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Gets the observable collection of clip cards shown in the library.</summary>
     public ObservableCollection<ClipCardViewModel> Clips { get; } = new();
 
+    /// <summary>Gets a value indicating whether any loaded clip has a missing source file.</summary>
+    public bool HasBrokenClips => Clips.Any(c => c.IsBroken);
+
+    /// <summary>Gets a value indicating whether any currently selected clip has a missing source file.</summary>
+    public bool HasSelectedBrokenClips => SelectedClips.Any(c => c.IsBroken);
+
     // ---- Multi-select ----
 
     /// <summary>Gets the ordered collection of currently selected clips.</summary>
@@ -145,6 +151,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     /// <summary>Gets or sets whether the bulk delete confirmation strip is visible.</summary>
     [ObservableProperty] private bool _isBulkDeleteConfirmVisible;
+
+    /// <summary>Gets or sets whether the "remove all broken clips" toolbar confirmation strip is visible.</summary>
+    [ObservableProperty] private bool _isRemoveAllBrokenConfirmVisible;
+
+    /// <summary>Gets or sets a transient status or error message shown in the library toolbar.</summary>
+    [ObservableProperty] private string? _statusMessage;
 
     /// <summary>Gets or sets whether the "remove all tags from selection" confirmation strip is visible.</summary>
     [ObservableProperty] private bool _isRemoveAllTagsConfirmVisible;
@@ -411,6 +423,18 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Gets the command that trashes all selected clips after confirmation.</summary>
     public IAsyncRelayCommand BulkTrashCommand { get; }
 
+    /// <summary>Gets the command that shows the remove-all-broken confirmation strip.</summary>
+    public IRelayCommand ShowRemoveAllBrokenConfirmCommand { get; }
+
+    /// <summary>Gets the command that permanently removes all broken (missing-file) clips from the library after confirmation.</summary>
+    public IAsyncRelayCommand ConfirmRemoveAllBrokenClipsCommand { get; }
+
+    /// <summary>Gets the command that archives all selected broken clips.</summary>
+    public IAsyncRelayCommand BulkArchiveBrokenCommand { get; }
+
+    /// <summary>Gets the command that clears the transient status message from the toolbar.</summary>
+    public IRelayCommand ClearStatusMessageCommand { get; }
+
     // ---- Destructive bulk remove per category ----
 
     /// <summary>Gets the command that shows the "remove all tags" confirmation strip.</summary>
@@ -527,8 +551,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
         ApplyBulkEditsCommand  = new AsyncRelayCommand(ApplyBulkEditsAsync);
         CancelBulkEditsCommand = new RelayCommand(CancelBulkEdits);
 
-        ShowBulkDeleteConfirmCommand = new RelayCommand(() => IsBulkDeleteConfirmVisible = true);
-        BulkTrashCommand             = new AsyncRelayCommand(BulkTrashAsync);
+        ShowBulkDeleteConfirmCommand        = new RelayCommand(() => IsBulkDeleteConfirmVisible = true);
+        BulkTrashCommand                    = new AsyncRelayCommand(BulkTrashAsync);
+        ShowRemoveAllBrokenConfirmCommand   = new RelayCommand(() => IsRemoveAllBrokenConfirmVisible = !IsRemoveAllBrokenConfirmVisible);
+        ConfirmRemoveAllBrokenClipsCommand  = new AsyncRelayCommand(RemoveAllBrokenClipsAsync);
+        BulkArchiveBrokenCommand            = new AsyncRelayCommand(BulkArchiveBrokenAsync);
+        ClearStatusMessageCommand           = new RelayCommand(() => StatusMessage = null);
 
         ShowRemoveAllTagsConfirmCommand    = new RelayCommand(() => IsRemoveAllTagsConfirmVisible    = !IsRemoveAllTagsConfirmVisible);
         ConfirmRemoveAllTagsCommand        = new AsyncRelayCommand(RemoveAllTagsFromSelectedAsync);
@@ -566,6 +594,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsMultiSelectMode));
         OnPropertyChanged(nameof(IsCopyFormatButtonEnabled));
         OnPropertyChanged(nameof(SelectedClipsCountDisplay));
+        OnPropertyChanged(nameof(HasSelectedBrokenClips));
         OnPropertyChanged(nameof(CanBulkTranscribe));
         BulkTranscribeCommand.NotifyCanExecuteChanged();
 
@@ -593,11 +622,14 @@ public sealed partial class LibraryViewModel : ViewModelBase
             return;
         }
 
+        // Broken clips cannot be opened — the source file is missing.
+        if (card.IsBroken) return;
+
         // Record this clip as the last opened before navigating away.
         _lastOpenedClipId = card.ClipId;
 
         // Archived clips are not openable; exclude them from the navigation sequence.
-        var sequence = Clips.Where(c => !c.IsArchived).Select(c => c.ClipId).ToList();
+        var sequence = Clips.Where(c => !c.IsArchived && !c.IsBroken).Select(c => c.ClipId).ToList();
         var index    = sequence.IndexOf(card.ClipId);
         ClipOpenRequested?.Invoke(card.ClipId, sequence, index);
     }
@@ -667,6 +699,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
             _ = Task.WhenAll(Clips.Select(c => c.LoadThumbnailAsync()));
             if (App.Services.GetRequiredService<ISettingsService>().Current.ShowImagesInLists)
                 _ = Task.WhenAll(Clips.Select(c => c.LoadImagesAsync()));
+
+            OnPropertyChanged(nameof(HasBrokenClips));
         }
         finally
         {
@@ -1070,6 +1104,24 @@ public sealed partial class LibraryViewModel : ViewModelBase
         if (SelectedClips.Count == 0) return;
         var ids = SelectedClips.Select(c => c.ClipId).ToList();
         await _clipService.BulkTrashAsync(ids);
+        DeselectAll();
+        await LoadAsync();
+    }
+
+    private async Task RemoveAllBrokenClipsAsync()
+    {
+        var broken = Clips.Where(c => c.IsBroken).Select(c => c.ClipId).ToList();
+        foreach (var id in broken)
+            await _clipService.PermanentlyDeleteAsync(id);
+        IsRemoveAllBrokenConfirmVisible = false;
+        await LoadAsync();
+    }
+
+    private async Task BulkArchiveBrokenAsync()
+    {
+        var brokenSelected = SelectedClips.Where(c => c.IsBroken).Select(c => c.ClipId).ToList();
+        foreach (var id in brokenSelected)
+            await _clipService.SetStatusAsync(id, ClipStatus.Archived);
         DeselectAll();
         await LoadAsync();
     }
@@ -1509,11 +1561,21 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// </summary>
     /// <param name="clipId">The database identifier of the affected clip.</param>
     /// <param name="isBroken"><see langword="true"/> to mark broken; <see langword="false"/> to clear.</param>
+    /// <summary>
+    /// Notifies bindings that <see cref="HasBrokenClips"/> may have changed.
+    /// Must be called on the UI thread.
+    /// </summary>
+    public void RefreshHasBrokenClips() => OnPropertyChanged(nameof(HasBrokenClips));
+
     public void UpdateClipBrokenState(int clipId, bool isBroken)
     {
-        var card = Clips.FirstOrDefault(c => c.ClipId == clipId);
-        if (card is not null)
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            var card = Clips.FirstOrDefault(c => c.ClipId == clipId);
+            if (card is null) return;
             card.IsBroken = isBroken;
+            OnPropertyChanged(nameof(HasBrokenClips));
+        });
     }
 
     // ---- Bulk transcription ----
@@ -1606,6 +1668,73 @@ public sealed partial class LibraryViewModel : ViewModelBase
     }
 
     private void CancelBulkTranscribe() => _bulkTranscribeCts?.Cancel();
+
+    /// <summary>
+    /// Returns the paths of all currently registered source folders.
+    /// Called by the view code-behind before opening the Relocate dialog.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetSourcePathsAsync()
+    {
+        using var scope   = _scopeFactory.CreateScope();
+        var folderRepo    = scope.ServiceProvider.GetRequiredService<ISourceFolderRepository>();
+        var folders       = await folderRepo.GetAllAsync();
+        return folders.Select(f => f.Path).ToList();
+    }
+
+    /// <summary>
+    /// Relocates the given clip to a new file path and optionally registers the new folder as a source.
+    /// Called by the view code-behind after the Relocate dialog is confirmed.
+    /// </summary>
+    /// <param name="clipId">Database identifier of the clip to relocate.</param>
+    /// <param name="newFilePath">Absolute path of the file in its new location.</param>
+    /// <param name="addSourceFolderPath">
+    /// When not <see langword="null"/>, the folder at this path is added as a watched source and
+    /// the file watcher is started for it.
+    /// </param>
+    public async Task RelocateClipAsync(int clipId, string newFilePath, string? addSourceFolderPath)
+    {
+        using var scope    = _scopeFactory.CreateScope();
+        var clipService    = scope.ServiceProvider.GetRequiredService<IClipService>();
+        var folderRepo     = scope.ServiceProvider.GetRequiredService<ISourceFolderRepository>();
+        var watcher        = scope.ServiceProvider.GetRequiredService<ILibraryWatcherService>();
+
+        var allFolders     = await folderRepo.GetAllAsync();
+        int? newSourceFolderId = null;
+
+        if (!string.IsNullOrEmpty(addSourceFolderPath))
+        {
+            var normalised = Path.GetFullPath(addSourceFolderPath);
+            var existing   = allFolders.FirstOrDefault(f =>
+            {
+                try { return string.Equals(Path.GetFullPath(f.Path), normalised, StringComparison.OrdinalIgnoreCase); }
+                catch { return false; }
+            });
+
+            if (existing is not null)
+            {
+                newSourceFolderId = existing.Id;
+            }
+            else
+            {
+                var folder = new SourceFolder { Path = addSourceFolderPath, IsActive = true };
+                await folderRepo.AddAsync(folder);
+                watcher.StartWatching(folder.Path, folder.Id);
+                newSourceFolderId = folder.Id;
+            }
+        }
+        else
+        {
+            // MoveBack or file already in an existing source — resolve source by path prefix.
+            newSourceFolderId = allFolders.FirstOrDefault(f =>
+            {
+                try { return newFilePath.StartsWith(Path.GetFullPath(f.Path), StringComparison.OrdinalIgnoreCase); }
+                catch { return false; }
+            })?.Id;
+        }
+
+        await clipService.RelocateAsync(clipId, newFilePath, newSourceFolderId);
+        await LoadAsync();
+    }
 
     /// <summary>
     /// Parses a comma-separated string of 0-based FFmpeg audio stream indices.

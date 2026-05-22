@@ -221,6 +221,49 @@ public partial class LibraryView : UserControl
         }
     }
 
+    /// <summary>
+    /// Opens the Relocate Clip dialog for the broken clip whose Relocate button was clicked.
+    /// </summary>
+    private async void OnRelocateClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control ctrl) return;
+        if (ctrl.DataContext is not ClipCardViewModel card) return;
+        if (DataContext is not LibraryViewModel libVm) return;
+        if (TopLevel.GetTopLevel(this) is not Window window) return;
+
+        // Stop the tap from also hitting OnClipCardTapped on the row.
+        e.Handled = true;
+
+        var sourcePaths = await libVm.GetSourcePathsAsync();
+        var dialogVm    = new RelocateClipDialogViewModel(card.FileName, card.FilePath, sourcePaths);
+        var dialog      = new RelocateClipDialog(dialogVm);
+        var confirmed   = await dialog.ShowDialog<bool>(window);
+
+        if (!confirmed) return;
+
+        if (dialogVm.Mode == RelocateMode.MoveBack)
+        {
+            try
+            {
+                var dir = System.IO.Path.GetDirectoryName(dialogVm.OriginalPath);
+                if (!string.IsNullOrEmpty(dir))
+                    System.IO.Directory.CreateDirectory(dir);
+                System.IO.File.Move(dialogVm.SelectedFilePath, dialogVm.OriginalPath, overwrite: false);
+            }
+            catch (Exception ex)
+            {
+                libVm.StatusMessage = $"Could not move file: {ex.Message}";
+                return;
+            }
+            await libVm.RelocateClipAsync(card.ClipId, dialogVm.OriginalPath, null);
+        }
+        else
+        {
+            var addSource = dialogVm.WillAddNewSource ? dialogVm.NewFolderPath : null;
+            await libVm.RelocateClipAsync(card.ClipId, dialogVm.SelectedFilePath, addSource);
+        }
+    }
+
     /// <summary>Maps the sort ComboBox selection index to <see cref="LibraryViewModel.SortBy"/>.</summary>
     private void OnSortChanged(object? sender, SelectionChangedEventArgs e)
     {

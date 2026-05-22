@@ -1,0 +1,176 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ClipStudio.UI.ViewModels"
+        xmlns:icons="using:Material.Icons.Avalonia"
+        x:Class="ClipStudio.UI.Views.RelocateClipDialog"
+        x:DataType="vm:RelocateClipDialogViewModel"
+        Title="Relocate Clip"
+        Width="540"
+        MinWidth="440"
+        MinHeight="300"
+        MaxHeight="560"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False">
+
+    <Grid RowDefinitions="*,Auto" Margin="20">
+
+        <!-- Content -->
+        <StackPanel Grid.Row="0" Spacing="14">
+
+            <!-- Icon + heading -->
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <icons:MaterialIcon Kind="FileAlert" Width="28" Height="28"
+                                    Foreground="#E67E22" VerticalAlignment="Center"/>
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding FileName}"
+                               FontSize="14" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="430"/>
+                    <TextBlock Text="Source file could not be found. Choose how to fix it."
+                               FontSize="12" Opacity="0.6"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Original path -->
+            <StackPanel Spacing="3">
+                <TextBlock Text="Original location" FontSize="11" Opacity="0.5" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding OriginalPath}"
+                           FontSize="11" Opacity="0.7"
+                           TextTrimming="CharacterEllipsis"
+                           MaxWidth="500"
+                           ToolTip.Tip="{Binding OriginalPath}"/>
+            </StackPanel>
+
+            <!-- Mode selection -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="How would you like to fix this?" FontSize="12" FontWeight="SemiBold"/>
+
+                <!-- Move back -->
+                <Border Background="{DynamicResource SystemChromeLowColor}"
+                        BorderBrush="{DynamicResource SystemChromeHighColor}"
+                        BorderThickness="1" CornerRadius="4" Padding="10,8">
+                    <StackPanel Spacing="4">
+                        <RadioButton GroupName="RelocateMode"
+                                     IsChecked="{Binding IsMoveBack}"
+                                     FontSize="12" FontWeight="SemiBold">
+                            Move file back to original folder
+                        </RadioButton>
+                        <TextBlock Text="Locate the file wherever it is now — ClipStudio will move it back to the original folder."
+                                   FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                                   Margin="24,0,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Register new source -->
+                <Border Background="{DynamicResource SystemChromeLowColor}"
+                        BorderBrush="{DynamicResource SystemChromeHighColor}"
+                        BorderThickness="1" CornerRadius="4" Padding="10,8">
+                    <StackPanel Spacing="4">
+                        <RadioButton GroupName="RelocateMode"
+                                     IsChecked="{Binding IsRegisterNewSource}"
+                                     FontSize="12" FontWeight="SemiBold">
+                            Register new location as a source
+                        </RadioButton>
+                        <TextBlock Text="Locate the file at its new location. The new folder will be registered as a watched source."
+                                   FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                                   Margin="24,0,0,0"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Browse row -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Current file location" FontSize="11" Opacity="0.5" FontWeight="SemiBold"/>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Grid.Column="0"
+                             Text="{Binding SelectedFilePath}"
+                             Watermark="No file selected — click Browse..."
+                             IsReadOnly="True"
+                             FontSize="12"/>
+                    <Button Grid.Column="1"
+                            Click="OnBrowseClicked"
+                            Padding="12,6">
+                        Browse...
+                    </Button>
+                </Grid>
+            </StackPanel>
+
+            <!-- Move-back destination notice -->
+            <Border IsVisible="{Binding IsMoveBack}"
+                    Background="#182196F3"
+                    BorderBrush="#402196F3"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10,8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:MaterialIcon Kind="FolderMove" Width="16" Height="16"
+                                        Foreground="#2196F3" VerticalAlignment="Top"
+                                        Margin="0,1,0,0"/>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="The file will be moved to:" FontSize="11" Opacity="0.7"/>
+                        <TextBlock Text="{Binding OriginalFolder}"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="450"
+                                   ToolTip.Tip="{Binding OriginalFolder}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Identity warning (file content cannot be verified without stored hashes) -->
+            <Border IsVisible="{Binding CanConfirm}"
+                    Background="#18FFCC00"
+                    BorderBrush="#40FFCC00"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10,8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:MaterialIcon Kind="ShieldAlertOutline" Width="16" Height="16"
+                                        Foreground="#FFCC00" VerticalAlignment="Top"
+                                        Margin="0,1,0,0"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.85" MaxWidth="450">
+                        File identity cannot be verified — make sure you are selecting the correct clip.
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Register-new-source notice -->
+            <Border IsVisible="{Binding WillAddNewSource}"
+                    Background="#18E67E22"
+                    BorderBrush="#40E67E22"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10,8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:MaterialIcon Kind="FolderPlus" Width="16" Height="16"
+                                        Foreground="#E67E22" VerticalAlignment="Top"
+                                        Margin="0,1,0,0"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="11" MaxWidth="450">
+                        <Run Text="The folder "/>
+                        <Run Text="{Binding NewFolderName}" FontWeight="SemiBold"/>
+                        <Run Text=" will be added as a watched source to keep this clip managed."/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <Button Click="OnCancelClicked" Padding="16,6">Cancel</Button>
+            <Button Click="OnConfirmClicked"
+                    IsEnabled="{Binding CanConfirm}"
+                    Padding="16,6"
+                    Classes="accent">
+                Relocate
+            </Button>
+        </StackPanel>
+
+    </Grid>
+</Window>
