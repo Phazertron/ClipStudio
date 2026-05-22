@@ -80,10 +80,6 @@ public partial class LibraryView : UserControl
             // Load row height from persisted settings before the first load.
             _vm.LoadRowHeightFromSettings();
 
-            // Apply any persisted column widths to the header grid immediately.
-            // Data rows are applied after the first load completes (via IsLoading → false).
-            ApplyPersistedColumnWidthsToHeader();
-
             _vm.LoadCommand.Execute(null);
         }
     }
@@ -132,6 +128,8 @@ public partial class LibraryView : UserControl
     /// </summary>
     private void OnLoadCompleted()
     {
+        // Apply persisted widths to header and rows together so they are always in sync.
+        ApplyPersistedColumnWidthsToHeader();
         ApplyPersistedColumnWidthsToDataRows();
 
         if (_savedScrollY > 0)
@@ -156,26 +154,26 @@ public partial class LibraryView : UserControl
 
         // Reset header columns to AXAML defaults.
         var defs = DetailsHeaderGrid.ColumnDefinitions;
-        defs[2].Width = new GridLength(1, GridUnitType.Star);
+        defs[2].Width = new GridLength(200);
         defs[3].Width = new GridLength(110);
         defs[4].Width = new GridLength(130);
         defs[5].Width = new GridLength(100);
         defs[6].Width = new GridLength(140);
         defs[7].Width = new GridLength(80);
-        defs[8].Width = new GridLength(60);
+        defs[8].Width = new GridLength(80);
 
         // Reset data-row columns to the same defaults.
         foreach (var grid in DetailsItemsControl.GetVisualDescendants()
                      .OfType<Grid>()
                      .Where(g => g.Name == "DetailRowGrid"))
         {
-            grid.ColumnDefinitions[2].Width = new GridLength(1, GridUnitType.Star);
+            grid.ColumnDefinitions[2].Width = new GridLength(200);
             grid.ColumnDefinitions[3].Width = new GridLength(110);
             grid.ColumnDefinitions[4].Width = new GridLength(130);
             grid.ColumnDefinitions[5].Width = new GridLength(100);
             grid.ColumnDefinitions[6].Width = new GridLength(140);
             grid.ColumnDefinitions[7].Width = new GridLength(80);
-            grid.ColumnDefinitions[8].Width = new GridLength(60);
+            grid.ColumnDefinitions[8].Width = new GridLength(80);
         }
     }
 

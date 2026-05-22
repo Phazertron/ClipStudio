@@ -682,7 +682,7 @@
                     <ScrollViewer HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Disabled"
                                   IsVisible="{Binding IsDetailsView}">
-                    <StackPanel MinWidth="844">
+                    <StackPanel MinWidth="1058">
 
                         <!-- Column headers -->
                         <Border Padding="8,4"
@@ -703,7 +703,7 @@
                                     </MenuItem>
                                 </ContextMenu>
                             </Border.ContextMenu>
-                            <Grid x:Name="DetailsHeaderGrid" ColumnDefinitions="24,80,*,110,130,100,140,80,60,20">
+                            <Grid x:Name="DetailsHeaderGrid" ColumnDefinitions="24,170,200,110,130,100,140,80,80,24">
                                 <TextBlock Grid.Column="0" Text="" Width="24"/>
                                 <Button Grid.Column="2"
                                         Command="{Binding SetSortCommand}" CommandParameter="Name"
@@ -793,31 +793,31 @@
                                             BorderBrush="{DynamicResource SystemChromeHighColor}"
                                             BorderThickness="0,0,0,1"
                                             Tapped="OnClipCardTapped">
-                                        <Grid x:Name="DetailRowGrid" ColumnDefinitions="24,80,*,110,130,100,140,80,60,20"
+                                        <Grid x:Name="DetailRowGrid" ColumnDefinitions="24,170,200,110,130,100,140,80,80,24"
                                               MinHeight="{Binding DetailsRowHeight}">
                                             <!-- Selection highlight (left accent border) -->
-                                            <Border Grid.ColumnSpan="10"
+                                            <Border Grid.Column="0" Grid.ColumnSpan="10"
                                                     IsVisible="{Binding IsSelected}"
                                                     Background="#18A020FF"
                                                     IsHitTestVisible="False"
                                                     BorderBrush="{DynamicResource SystemAccentColor}"
                                                     BorderThickness="3,0,0,0"/>
                                             <!-- Copy-format source highlight -->
-                                            <Border Grid.ColumnSpan="10"
+                                            <Border Grid.Column="0" Grid.ColumnSpan="10"
                                                     IsVisible="{Binding IsCopyFormatSource}"
                                                     Background="#22007AFF"
                                                     IsHitTestVisible="False"
                                                     BorderBrush="{DynamicResource SystemAccentColor}"
                                                     BorderThickness="3,0,0,0"/>
                                             <!-- Last-visited subtle highlight -->
-                                            <Border Grid.ColumnSpan="10"
+                                            <Border Grid.Column="0" Grid.ColumnSpan="10"
                                                     IsVisible="{Binding IsLastVisited}"
-                                                    Background="#18FFD700"
+                                                    Background="#28FFD700"
                                                     IsHitTestVisible="False"
                                                     BorderBrush="#80FFD700"
                                                     BorderThickness="3,0,0,0"/>
                                             <!-- Broken: red left-accent border -->
-                                            <Border Grid.ColumnSpan="10"
+                                            <Border Grid.Column="0" Grid.ColumnSpan="10"
                                                     IsVisible="{Binding IsBroken}"
                                                     Background="#18FF2020"
                                                     IsHitTestVisible="False"
@@ -828,13 +828,25 @@
                                                       IsChecked="{Binding IsSelected, Mode=OneWay}"
                                                       VerticalAlignment="Center"
                                                       Click="OnClipCheckBoxClicked"/>
-                                            <Panel Grid.Column="1" Height="{Binding DetailsThumbnailHeight}" Margin="0,2,8,2">
-                                                <Image Source="{Binding ThumbnailBitmap}"
-                                                       Stretch="Uniform"
-                                                       IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"/>
-                                                <Border Background="{DynamicResource SystemChromeLowColor}"
-                                                        IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
-                                            </Panel>
+                                            <Border Grid.Column="1"
+                                                    Width="160" Height="90"
+                                                    CornerRadius="4"
+                                                    ClipToBounds="True"
+                                                    Background="{DynamicResource SystemChromeLowColor}"
+                                                    VerticalAlignment="Center"
+                                                    Margin="0,0,8,0">
+                                                <Panel>
+                                                    <Image Source="{Binding ThumbnailBitmap}"
+                                                           Stretch="UniformToFill"
+                                                           IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                                    <TextBlock Text="No Preview"
+                                                               FontSize="10"
+                                                               Opacity="0.3"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               IsVisible="{Binding ThumbnailBitmap, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                                </Panel>
+                                            </Border>
                                             <!-- File name cell: shows relocate button when broken -->
                                             <Grid Grid.Column="2" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
                                                 <TextBlock Grid.Column="0"
@@ -942,7 +954,7 @@
                                                        Opacity="0.7"
                                                        VerticalAlignment="Center"/>
                                             <!-- Rating: coloured stars -->
-                                            <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="1" VerticalAlignment="Center">
+                                            <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
                                                 <Panel>
                                                     <icons:MaterialIcon Kind="Star"       Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#FFD700" IsVisible="{Binding IsRated1OrMore}"/>
                                                     <icons:MaterialIcon Kind="StarBorder" Width="{Binding DetailsStarSize}" Height="{Binding DetailsStarSize}" Foreground="#505050" IsVisible="{Binding !IsRated1OrMore}"/>
