@@ -136,9 +136,7 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     {
         <= 38 => 10,
         <= 52 => 12,
-        <= 72 => 15,
-        <= 100 => 18,
-        _      => 22,
+        _     => 14,
     };
 
     /// <summary>

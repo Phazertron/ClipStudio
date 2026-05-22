@@ -38,7 +38,7 @@ public partial class LibraryView : UserControl
     private static readonly string[] DetailColKeys = ["Name", "Game", "Tags", "Players", "Date", "Duration", "Rating"];
 
     // Minimum and maximum pixel width for any resizable column.
-    private const double ColMinWidth = 40.0;
+    private const double ColMinWidth = 80.0;
     private const double ColMaxWidth = 600.0;
 
     // ---- Active drag state ----
@@ -118,6 +118,17 @@ public partial class LibraryView : UserControl
             Dispatcher.UIThread.Post(
                 () => Dispatcher.UIThread.Post(OnLoadCompleted, DispatcherPriority.Loaded),
                 DispatcherPriority.Loaded);
+
+        // When the user switches from tiles to details view, the detail rows weren't in the visual
+        // tree during the initial load, so column widths were never applied to them. Re-apply now.
+        if (e.PropertyName == nameof(LibraryViewModel.IsDetailsView) && _vm is { IsDetailsView: true })
+            Dispatcher.UIThread.Post(
+                () => Dispatcher.UIThread.Post(() =>
+                {
+                    ApplyPersistedColumnWidthsToHeader();
+                    ApplyPersistedColumnWidthsToDataRows();
+                }, DispatcherPriority.Background),
+                DispatcherPriority.Background);
     }
 
     // ---- Post-load and scroll helpers ----
@@ -457,7 +468,7 @@ public partial class LibraryView : UserControl
         for (int i = 0; i < DetailColKeys.Length; i++)
         {
             if (widths.TryGetValue(DetailColKeys[i], out var w) && w > 0)
-                defs[i + 2].Width = new GridLength(w);
+                defs[i + 2].Width = new GridLength(Math.Max(w, ColMinWidth));
         }
     }
 }

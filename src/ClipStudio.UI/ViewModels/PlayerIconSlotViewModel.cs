@@ -1,4 +1,5 @@
 using System;
+using Avalonia;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 
@@ -17,7 +18,7 @@ public sealed class PlayerIconSlotViewModel
     public int Size { get; }
 
     /// <summary>Gets the corner radius for the circular clip border (half of <see cref="Size"/>).</summary>
-    public int Radius => Size / 2;
+    public CornerRadius Radius => new CornerRadius(Size / 2.0);
 
     /// <summary>Gets the database identifier of the player this slot represents.</summary>
     public int PlayerId { get; }
