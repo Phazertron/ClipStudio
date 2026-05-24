@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -24,13 +24,6 @@ public sealed class CrashReportDialogViewModel : ObservableObject
 /// </summary>
 public partial class CrashReportDialog : Window
 {
-    /// <summary>
-    /// GitHub Issues URL used when the user clicks "Send Report".
-    /// The <c>body</c> parameter is left empty so the user can paste the crash text manually;
-    /// URL-encoding the full stack trace causes URLs to exceed browser limits.
-    /// Replace <c>Phazertron</c> and <c>REPO</c> with actual values before shipping.
-    /// </summary>
-    private const string FeedbackUrl = "https://github.com/Phazertron/ClipStudio/issues/new?labels=crash&title=Crash+report";
 
     /// <summary>
     /// Parameterless constructor required by the Avalonia XAML runtime loader and the visual designer.
@@ -47,20 +40,32 @@ public partial class CrashReportDialog : Window
 
     private void OnSendReportClicked(object? sender, RoutedEventArgs e)
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo(FeedbackUrl) { UseShellExecute = true });
-        }
-        catch
-        {
-            // Opening a browser is best-effort.
-        }
-
-        // Delete the dump after sending so it is not shown again.
         if (DataContext is CrashReportDialogViewModel vm)
+        {
+            var url = GitHubIssueHelper.BuildCrashIssueUrl(vm.CrashText);
+            try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+            catch { /* opening a browser is best-effort */ }
+
             CrashReporter.DeleteCrashDump(vm.DumpFilePath);
+        }
 
         Close();
+    }
+
+
+    private async void OnCopyClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not CrashReportDialogViewModel vm) return;
+
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard is null) return;
+
+        await clipboard.SetTextAsync(vm.CrashText);
+
+        // Briefly change the button label to confirm the copy.
+        CopyButton.Content = "Copied!";
+        await Task.Delay(1500);
+        CopyButton.Content = "Copy";
     }
 
     private void OnDismissClicked(object? sender, RoutedEventArgs e)

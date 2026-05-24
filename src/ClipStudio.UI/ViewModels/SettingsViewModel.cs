@@ -749,19 +749,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
         });
     }
 
-    /// <summary>Opens the GitHub Issues page so the user can submit feedback.</summary>
+    /// <summary>Opens GitHub Issues with a pre-filled feedback template and auto-detected environment info.</summary>
     private static void SendFeedback()
     {
-        // Replace Phazertron/ClipStudio with the real repository path before shipping.
-        const string url = "https://github.com/Phazertron/ClipStudio/issues/new";
-        try
-        {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
-        catch
-        {
-            // Opening a browser is best-effort.
-        }
+        try { Process.Start(new ProcessStartInfo(GitHubIssueHelper.BuildFeedbackIssueUrl()) { UseShellExecute = true }); }
+        catch { /* opening a browser is best-effort */ }
     }
 
     // ---- Transcription management ----
