@@ -108,12 +108,38 @@ public sealed class HighlightService : IHighlightService
         if (endTime <= startTime)
             throw new ArgumentException("EndTime must be greater than StartTime.");
 
-        var highlight = await RequireHighlightAsync(highlightId, cancellationToken);
+        var highlight       = await RequireHighlightAsync(highlightId, cancellationToken);
+        var timesChanged    = highlight.StartTime != startTime || highlight.EndTime != endTime;
         highlight.StartTime = startTime;
-        highlight.EndTime = endTime;
-        highlight.Label = label;
-        highlight.Notes = notes;
+        highlight.EndTime   = endTime;
+        highlight.Label     = label;
+        highlight.Notes     = notes;
         await _highlights.UpdateAsync(highlight, cancellationToken);
+
+        // Regenerate the thumbnail when the time range changes so the midpoint image
+        // stays in sync with the new bounds, matching the behaviour of CreateAsync.
+        if (!timesChanged) return;
+
+        try
+        {
+            var clip = await _clips.GetByIdAsync(highlight.ClipId, cancellationToken);
+            if (clip is not null && File.Exists(clip.FilePath))
+            {
+                var midpoint      = startTime + TimeSpan.FromSeconds((endTime - startTime).TotalSeconds / 2.0);
+                var outputDir     = Path.GetDirectoryName(clip.ThumbnailPath) ?? Path.GetTempPath();
+                var thumbnailPath = await _media.GenerateThumbnailAsync(
+                    clip.FilePath, outputDir, midpoint, $"hl{highlight.Id}", cancellationToken);
+
+                highlight.ThumbnailPath = thumbnailPath;
+                await _highlights.UpdateAsync(highlight, cancellationToken);
+                _logger.LogDebug(
+                    "Regenerated thumbnail for highlight {Id} after time range change.", highlight.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to regenerate thumbnail for highlight {Id}.", highlight.Id);
+        }
     }
 
     /// <inheritdoc/>
