@@ -162,8 +162,8 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
         EndTime            = highlight.EndTime;
         Duration           = highlight.Duration;
         CreatedAt          = highlight.CreatedAt;
-        StartTimeDisplay   = FormatTime(highlight.StartTime);
-        EndTimeDisplay     = FormatTime(highlight.EndTime);
+        StartTimeDisplay   = FormatTimePrecise(highlight.StartTime);
+        EndTimeDisplay     = FormatTimePrecise(highlight.EndTime);
         DurationDisplay    = FormatTime(highlight.Duration);
         TagsDisplay        = highlight.HighlightTags.Count > 0
             ? string.Join(", ", highlight.HighlightTags
@@ -286,4 +286,7 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
         => ts.TotalHours >= 1
             ? $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
             : $"{ts.Minutes}:{ts.Seconds:D2}";
+
+    private static string FormatTimePrecise(TimeSpan ts)
+        => ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss\.f") : ts.ToString(@"m\:ss\.f");
 }

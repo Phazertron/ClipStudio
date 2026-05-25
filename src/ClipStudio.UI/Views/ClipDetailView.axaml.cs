@@ -4,7 +4,9 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -33,6 +35,15 @@ public partial class ClipDetailView : UserControl
 
         HighlightHandleCanvas.SizeChanged += (_, _) => UpdateHandlePositions();
         TrimHandleCanvas.SizeChanged      += (_, _) => UpdateTrimHandlePositions();
+
+        // Re-measure handle positions once the slider's template is applied so the
+        // thumb element exists in the visual tree and GetSliderTrackMetrics() returns
+        // the real thumb half-width instead of the fallback.
+        PositionSlider.TemplateApplied += (_, _) =>
+        {
+            UpdateHandlePositions();
+            UpdateTrimHandlePositions();
+        };
 
         // The Slider template marks pointer events as Handled internally (thumb capture, track click).
         // Register with handledEventsToo: true so our BeginScrub/EndScrub handlers always fire.
@@ -87,6 +98,16 @@ public partial class ClipDetailView : UserControl
             OnGeneralTagPickerKeyDown,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+
+        // New-highlight tag picker reuses the per-highlight state machine.
+        _highlightPickerStates[NewHighlightTagPicker] = new HighlightPickerState();
+        NewHighlightTagPicker.SelectionChanged += OnHighlightTagPickerSelectionChanged;
+        NewHighlightTagPicker.DropDownClosed   += OnHighlightTagPickerDropDownClosed;
+        NewHighlightTagPicker.AddHandler(
+            InputElement.KeyDownEvent,
+            OnHighlightTagPickerKeyDown,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
     }
 
     // ---- DataContext wiring ----
@@ -122,23 +143,69 @@ public partial class ClipDetailView : UserControl
     private void UpdateHandlePositions()
     {
         if (_vm is null) return;
+        var (inset, usable) = GetSliderTrackMetrics();
+        if (usable <= 0) return;
 
-        var width = HighlightHandleCanvas.Bounds.Width;
-        if (width <= 0) return;
-
-        Canvas.SetLeft(HandleStart, _vm.HighlightStartFraction * width - 8);
-        Canvas.SetLeft(HandleEnd,   _vm.HighlightEndFraction   * width - 8);
+        Canvas.SetLeft(HandleStart, inset + _vm.HighlightStartFraction * usable - 8);
+        Canvas.SetLeft(HandleEnd,   inset + _vm.HighlightEndFraction   * usable - 8);
     }
 
     private void UpdateTrimHandlePositions()
     {
         if (_vm is null) return;
+        var (inset, usable) = GetSliderTrackMetrics();
+        if (usable <= 0) return;
 
-        var width = TrimHandleCanvas.Bounds.Width;
-        if (width <= 0) return;
+        Canvas.SetLeft(TrimHandleStart, inset + _vm.TrimStartFraction * usable - 8);
+        Canvas.SetLeft(TrimHandleEnd,   inset + _vm.TrimEndFraction   * usable - 8);
+    }
 
-        Canvas.SetLeft(TrimHandleStart, _vm.TrimStartFraction * width - 8);
-        Canvas.SetLeft(TrimHandleEnd,   _vm.TrimEndFraction   * width - 8);
+    /// <summary>
+    /// Returns the pixel inset from the canvas left edge to where the slider thumb centre
+    /// sits at fraction 0, and the total distance the thumb centre can travel (usable width).
+    /// Derived from the thumb's actual current rendered position so it is accurate regardless
+    /// of theme, DPI, or internal Fluent template padding.
+    /// Falls back to 8 px on each side if layout has not yet completed.
+    /// </summary>
+    private (double inset, double usableWidth) GetSliderTrackMetrics()
+    {
+        var sliderWidth = PositionSlider.Bounds.Width;
+        var fallback    = (8.0, Math.Max(1.0, sliderWidth - 16.0));
+
+        var track = PositionSlider.GetVisualDescendants().OfType<Track>().FirstOrDefault();
+        if (track?.Thumb is null) return fallback;
+
+        var thumb = track.Thumb;
+
+        // Prefer Bounds (post-arrange); fall back to DesiredSize (post-measure).
+        var thumbWidth = thumb.Bounds.Width > 0 ? thumb.Bounds.Width : thumb.DesiredSize.Width;
+        if (thumbWidth <= 0) return fallback;
+
+        var trackWidth = track.Bounds.Width > 0 ? track.Bounds.Width : sliderWidth;
+        if (trackWidth <= thumbWidth) return fallback;
+
+        var usableWidth = trackWidth - thumbWidth;
+
+        // Walk up from the thumb to PositionSlider summing Bounds.X at each level.
+        // This gives the thumb's left-edge position in slider-local coordinates without
+        // relying on TransformToVisual (which can fail across template boundaries).
+        var thumbXInSlider = 0.0;
+        for (Visual? v = thumb; v is not null && !ReferenceEquals(v, PositionSlider); v = v.GetVisualParent())
+            thumbXInSlider += v.Bounds.X;
+
+        // At the current value fraction f: thumbLeft = trackOriginX + f * usableWidth
+        // Therefore: trackOriginX = thumbLeft - f * usableWidth
+        // And: inset (thumb centre at f=0) = trackOriginX + thumbWidth/2
+        var fraction    = PositionSlider.Maximum > 0
+            ? Math.Clamp(PositionSlider.Value / PositionSlider.Maximum, 0.0, 1.0)
+            : 0.0;
+        var trackOriginX = thumbXInSlider - fraction * usableWidth;
+        var inset        = trackOriginX + thumbWidth / 2.0;
+
+        // Sanity check — inset must be a small positive offset (the thumb half-width).
+        if (inset < 0 || inset > sliderWidth / 4.0) return fallback;
+
+        return (inset, usableWidth);
     }
 
     // ---- Keyboard shortcuts ----
@@ -631,25 +698,33 @@ public partial class ClipDetailView : UserControl
     }
 
     /// <summary>
-    /// Resolves a tag from an AutoCompleteBox inside a highlight row using text-based fallback.
+    /// Resolves a tag from a highlight-row or new-highlight AutoCompleteBox using text-based fallback.
     /// </summary>
-    private static Tag? ResolveHighlightTag(AutoCompleteBox picker)
+    private Tag? ResolveHighlightTag(AutoCompleteBox picker)
     {
         if (picker.SelectedItem is Tag selected) return selected;
 
         var text = picker.Text;
         if (string.IsNullOrWhiteSpace(text)) return null;
 
-        if (picker.DataContext is not HighlightViewModel hvm) return null;
+        IReadOnlyList<Tag> source;
+        if (ReferenceEquals(picker, NewHighlightTagPicker) && DataContext is ClipDetailViewModel cdvm)
+            source = cdvm.AvailableGeneralTags;
+        else if (picker.DataContext is HighlightViewModel hvm)
+            source = hvm.AvailableTags;
+        else
+            return null;
 
-        return hvm.AvailableTags.FirstOrDefault(t => string.Equals(t.Name, text, StringComparison.OrdinalIgnoreCase))
-            ?? hvm.AvailableTags.FirstOrDefault(t => t.Name.Contains(text, StringComparison.OrdinalIgnoreCase));
+        return source.FirstOrDefault(t => string.Equals(t.Name, text, StringComparison.OrdinalIgnoreCase))
+            ?? source.FirstOrDefault(t => t.Name.Contains(text, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Invokes the highlight view model's direct tag-add method.</summary>
-    private static void CommitHighlightTag(AutoCompleteBox picker, Tag tag)
+    /// <summary>Commits a tag to the new-highlight pending list or to an existing highlight.</summary>
+    private void CommitHighlightTag(AutoCompleteBox picker, Tag tag)
     {
-        if (picker.DataContext is HighlightViewModel hvm)
+        if (ReferenceEquals(picker, NewHighlightTagPicker) && DataContext is ClipDetailViewModel vm)
+            vm.AddPendingHighlightTag(tag);
+        else if (picker.DataContext is HighlightViewModel hvm)
             _ = hvm.AddTagDirectlyAsync(tag);
     }
 
@@ -762,9 +837,10 @@ public partial class ClipDetailView : UserControl
     private void OnHighlightCanvasPointerMoved(object? sender, PointerEventArgs e)
     {
         if (_draggingHighlightHandle is null || _vm is null) return;
-        var width = HighlightHandleCanvas.Bounds.Width;
-        if (width <= 0) return;
-        var fraction = Math.Clamp(e.GetPosition(HighlightHandleCanvas).X / width, 0.0, 1.0);
+        var (inset, usable) = GetSliderTrackMetrics();
+        if (usable <= 0) return;
+        var pointerX  = e.GetPosition(HighlightHandleCanvas).X;
+        var fraction  = Math.Clamp((pointerX - inset) / usable, 0.0, 1.0);
         if (_draggingHighlightHandle == "start")
             _vm.SetHighlightStartFromFraction(fraction);
         else
@@ -800,9 +876,10 @@ public partial class ClipDetailView : UserControl
     private void OnTrimCanvasPointerMoved(object? sender, PointerEventArgs e)
     {
         if (_draggingTrimHandle is null || _vm is null) return;
-        var width = TrimHandleCanvas.Bounds.Width;
-        if (width <= 0) return;
-        var fraction = Math.Clamp(e.GetPosition(TrimHandleCanvas).X / width, 0.0, 1.0);
+        var (inset, usable) = GetSliderTrackMetrics();
+        if (usable <= 0) return;
+        var pointerX  = e.GetPosition(TrimHandleCanvas).X;
+        var fraction  = Math.Clamp((pointerX - inset) / usable, 0.0, 1.0);
         if (_draggingTrimHandle == "start")
             _vm.SetTrimStartFromFraction(fraction);
         else

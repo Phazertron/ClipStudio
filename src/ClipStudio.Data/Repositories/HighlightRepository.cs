@@ -27,6 +27,7 @@ internal sealed class HighlightRepository : IHighlightRepository
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Highlight>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.Highlights
+            .AsNoTracking()
             .Where(h => h.Clip.Status != ClipStatus.Archived && !h.Clip.IsDeleted)
             .Include(h => h.Clip)
                 .ThenInclude(c => c.ClipTags)

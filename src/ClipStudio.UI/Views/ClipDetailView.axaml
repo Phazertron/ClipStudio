@@ -218,11 +218,10 @@
 
             <!-- Trim handle canvas: pointing up, sits above the slider -->
             <Canvas x:Name="TrimHandleCanvas"
-                    Background="Transparent"
                     IsVisible="{Binding IsTrimming}"
                     Height="16"
                     VerticalAlignment="Top"
-                    Margin="7,-4,7,0"
+                    Margin="0,-4,0,0"
                     PointerMoved="OnTrimCanvasPointerMoved"
                     PointerReleased="OnTrimCanvasPointerReleased">
                 <!-- Trim start handle (blue triangle pointing up) -->
@@ -245,11 +244,10 @@
 
             <!-- Highlight handle canvas: pointing down, sits below the slider -->
             <Canvas x:Name="HighlightHandleCanvas"
-                    Background="Transparent"
-                    IsVisible="{Binding IsAddingHighlight}"
+                    IsVisible="{Binding IsAddingOrEditingHighlight}"
                     Height="16"
                     VerticalAlignment="Bottom"
-                    Margin="7,0,7,-4"
+                    Margin="0,0,0,-4"
                     PointerMoved="OnHighlightCanvasPointerMoved"
                     PointerReleased="OnHighlightCanvasPointerReleased">
                 <!-- Start handle (green triangle pointing down) -->
@@ -995,47 +993,118 @@
                             </Grid>
 
                             <!-- Add-highlight form -->
-                            <StackPanel Spacing="6"
-                                        IsVisible="{Binding IsAddingHighlight}">
-                                <TextBox Text="{Binding NewHighlightLabel}"
-                                         Watermark="Label (optional)"
-                                         FontSize="12"/>
-
-                                <Grid ColumnDefinitions="*,Auto"
-                                      RowDefinitions="Auto,Auto"
-                                      RowSpacing="4">
-                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                               Text="{Binding HighlightStartDisplay}"
-                                               FontFamily="Consolas,Courier New,monospace"
-                                               FontSize="12"
-                                               VerticalAlignment="Center"/>
-                                    <Button Grid.Row="0" Grid.Column="1"
-                                            Command="{Binding MarkHighlightStartCommand}"
-                                            Content="Mark Start"
-                                            FontSize="11"
-                                            Padding="6,3"/>
-
-                                    <TextBlock Grid.Row="1" Grid.Column="0"
-                                               Text="{Binding HighlightEndDisplay}"
-                                               FontFamily="Consolas,Courier New,monospace"
-                                               FontSize="12"
-                                               VerticalAlignment="Center"/>
-                                    <Button Grid.Row="1" Grid.Column="1"
-                                            Command="{Binding MarkHighlightEndCommand}"
-                                            Content="Mark End"
-                                            FontSize="11"
-                                            Padding="6,3"/>
-                                </Grid>
-
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <Button Command="{Binding SaveHighlightCommand}"
-                                            Content="Save"
-                                            FontSize="11"/>
-                                    <Button Command="{Binding CancelAddHighlightCommand}"
-                                            Content="Cancel"
-                                            FontSize="11"/>
+                            <Border Margin="0,0,0,6"
+                                    Padding="8,6"
+                                    CornerRadius="6"
+                                    Background="{DynamicResource SystemChromeLowColor}"
+                                    IsVisible="{Binding IsAddingHighlight}">
+                                <StackPanel Spacing="4">
+                                    <!-- Label row -->
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <TextBox Grid.Column="0"
+                                                 Text="{Binding NewHighlightLabel}"
+                                                 Watermark="Label (optional)"
+                                                 FontSize="12"/>
+                                        <Button Grid.Column="1"
+                                                Command="{Binding SaveHighlightCommand}"
+                                                ToolTip.Tip="Save highlight"
+                                                Padding="4"
+                                                Margin="4,0,2,0">
+                                            <icons:MaterialIcon Kind="CheckCircle" Width="16" Height="16"/>
+                                        </Button>
+                                        <Button Grid.Column="2"
+                                                Command="{Binding CancelAddHighlightCommand}"
+                                                ToolTip.Tip="Cancel"
+                                                Padding="4">
+                                            <icons:MaterialIcon Kind="CloseCircle" Width="16" Height="16"/>
+                                        </Button>
+                                    </Grid>
+                                    <!-- Time range row -->
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,*,Auto" ColumnSpacing="4">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Start"
+                                                   FontSize="11"
+                                                   Opacity="0.6"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding HighlightStartDisplay}"
+                                                 Watermark="m:ss"
+                                                 FontSize="11"
+                                                 FontFamily="Consolas,Courier New,monospace"/>
+                                        <Button Grid.Column="2"
+                                                Command="{Binding MarkHighlightStartCommand}"
+                                                ToolTip.Tip="Set start to current position"
+                                                FontSize="10"
+                                                Padding="4,2"
+                                                Margin="2,0">
+                                            <icons:MaterialIcon Kind="Target" Width="12" Height="12"/>
+                                        </Button>
+                                        <TextBlock Grid.Column="3"
+                                                   Text="End"
+                                                   FontSize="11"
+                                                   Opacity="0.6"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="4"
+                                                 Text="{Binding HighlightEndDisplay}"
+                                                 Watermark="m:ss"
+                                                 FontSize="11"
+                                                 FontFamily="Consolas,Courier New,monospace"/>
+                                        <Button Grid.Column="5"
+                                                Command="{Binding MarkHighlightEndCommand}"
+                                                ToolTip.Tip="Set end to current position"
+                                                FontSize="10"
+                                                Padding="4,2"
+                                                Margin="2,0">
+                                            <icons:MaterialIcon Kind="Target" Width="12" Height="12"/>
+                                        </Button>
+                                    </Grid>
+                                    <!-- Validation error -->
+                                    <TextBlock Text="{Binding HighlightAddError}"
+                                               FontSize="11"
+                                               Foreground="#E74C3C"
+                                               IsVisible="{Binding HighlightAddError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                    <!-- Pending tag chips -->
+                                    <ItemsControl ItemsSource="{Binding PendingHighlightTags}"
+                                                  IsVisible="{Binding PendingHighlightTags.Count}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="vm:TagChipViewModel">
+                                                <Border CornerRadius="8"
+                                                        Padding="5,2"
+                                                        Margin="2,1"
+                                                        Background="{DynamicResource SystemAccentColorDark2}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontSize="10"
+                                                                   VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding RemoveCommand}"
+                                                                Padding="0"
+                                                                Width="12" Height="12"
+                                                                VerticalAlignment="Center">
+                                                            <icons:MaterialIcon Kind="Close" Width="8" Height="8"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <!-- New highlight tag picker -->
+                                    <AutoCompleteBox
+                                        x:Name="NewHighlightTagPicker"
+                                        ItemsSource="{Binding AvailableGeneralTags}"
+                                        ValueMemberBinding="{Binding Name}"
+                                        FilterMode="ContainsOrdinal"
+                                        IsTextCompletionEnabled="True"
+                                        MinimumPrefixLength="0"
+                                        HorizontalAlignment="Stretch"
+                                        FontSize="11"
+                                        Watermark="Add tag..."/>
                                 </StackPanel>
-                            </StackPanel>
+                            </Border>
 
                             <!-- Empty state -->
                             <TextBlock Text="No highlights yet."
@@ -1125,7 +1194,7 @@
                                                         </Button>
                                                     </Grid>
                                                     <!-- Time range row -->
-                                                    <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="4">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,*,Auto" ColumnSpacing="4">
                                                         <TextBlock Grid.Column="0"
                                                                    Text="Start"
                                                                    FontSize="11"
@@ -1136,16 +1205,32 @@
                                                                  Watermark="m:ss"
                                                                  FontSize="11"
                                                                  FontFamily="Consolas,Courier New,monospace"/>
-                                                        <TextBlock Grid.Column="2"
+                                                        <Button Grid.Column="2"
+                                                                Command="{Binding MarkEditStartCommand}"
+                                                                ToolTip.Tip="Set start to current position"
+                                                                FontSize="10"
+                                                                Padding="4,2"
+                                                                Margin="2,0">
+                                                            <icons:MaterialIcon Kind="Target" Width="12" Height="12"/>
+                                                        </Button>
+                                                        <TextBlock Grid.Column="3"
                                                                    Text="End"
                                                                    FontSize="11"
                                                                    Opacity="0.6"
                                                                    VerticalAlignment="Center"/>
-                                                        <TextBox Grid.Column="3"
+                                                        <TextBox Grid.Column="4"
                                                                  Text="{Binding EditEndDisplay}"
                                                                  Watermark="m:ss"
                                                                  FontSize="11"
                                                                  FontFamily="Consolas,Courier New,monospace"/>
+                                                        <Button Grid.Column="5"
+                                                                Command="{Binding MarkEditEndCommand}"
+                                                                ToolTip.Tip="Set end to current position"
+                                                                FontSize="10"
+                                                                Padding="4,2"
+                                                                Margin="2,0">
+                                                            <icons:MaterialIcon Kind="Target" Width="12" Height="12"/>
+                                                        </Button>
                                                     </Grid>
                                                     <!-- Validation error -->
                                                     <TextBlock Text="{Binding EditError}"

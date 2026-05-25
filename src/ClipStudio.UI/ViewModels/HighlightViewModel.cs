@@ -22,6 +22,8 @@ public sealed partial class HighlightViewModel : ViewModelBase
     private readonly Func<HighlightViewModel, string, TimeSpan, TimeSpan, Task> _onUpdate;
     private readonly Func<HighlightViewModel, int, Task>? _onSetRating;
     private readonly Func<HighlightViewModel, Task>? _onToggleFavorite;
+    private readonly Action<HighlightViewModel, bool>? _onEditingChanged;
+    private readonly Func<TimeSpan>? _getPlayerPosition;
 
     /// <summary>Gets the database identifier of the highlight.</summary>
     public int HighlightId { get; }
@@ -66,9 +68,9 @@ public sealed partial class HighlightViewModel : ViewModelBase
     public TimeSpan Duration => EndTime - StartTime;
 
     /// <summary>
-    /// Gets a formatted time-range string, e.g. <c>1:23 - 1:45</c>.
+    /// Gets a formatted time-range string with sub-second precision, e.g. <c>1:23.4 - 1:45.7</c>.
     /// </summary>
-    public string TimeRangeDisplay => $"{FormatTime(StartTime)} - {FormatTime(EndTime)}";
+    public string TimeRangeDisplay => $"{FormatTimePrecise(StartTime)} - {FormatTimePrecise(EndTime)}";
 
     /// <summary>
     /// Gets the proportional start offset of this highlight within the clip (0.0-1.0).
@@ -142,6 +144,12 @@ public sealed partial class HighlightViewModel : ViewModelBase
     /// <summary>Gets the command that toggles the favourite flag on this highlight.</summary>
     public IAsyncRelayCommand ToggleFavoriteCommand { get; }
 
+    /// <summary>Gets the command that sets <see cref="EditStartDisplay"/> to the current player position.</summary>
+    public IRelayCommand MarkEditStartCommand { get; }
+
+    /// <summary>Gets the command that sets <see cref="EditEndDisplay"/> to the current player position.</summary>
+    public IRelayCommand MarkEditEndCommand { get; }
+
     /// <summary>
     /// Initialises a new <see cref="HighlightViewModel"/>.
     /// </summary>
@@ -167,14 +175,18 @@ public sealed partial class HighlightViewModel : ViewModelBase
         Func<HighlightViewModel, Task> onExport,
         Func<HighlightViewModel, string, TimeSpan, TimeSpan, Task> onUpdate,
         Func<HighlightViewModel, int, Task>? onSetRating = null,
-        Func<HighlightViewModel, Task>? onToggleFavorite = null)
+        Func<HighlightViewModel, Task>? onToggleFavorite = null,
+        Action<HighlightViewModel, bool>? onEditingChanged = null,
+        Func<TimeSpan>? getPlayerPosition = null)
     {
-        _onAddTag         = onAddTag;
-        _onRemoveTag      = onRemoveTag;
-        _onExport         = onExport;
-        _onUpdate         = onUpdate;
-        _onSetRating      = onSetRating;
-        _onToggleFavorite = onToggleFavorite;
+        _onAddTag          = onAddTag;
+        _onRemoveTag       = onRemoveTag;
+        _onExport          = onExport;
+        _onUpdate          = onUpdate;
+        _onSetRating       = onSetRating;
+        _onToggleFavorite  = onToggleFavorite;
+        _onEditingChanged  = onEditingChanged;
+        _getPlayerPosition = getPlayerPosition;
 
         HighlightId   = highlight.Id;
         _label        = string.IsNullOrWhiteSpace(highlight.Label) ? "(unlabelled)" : highlight.Label;
@@ -216,13 +228,29 @@ public sealed partial class HighlightViewModel : ViewModelBase
             if (_onToggleFavorite is not null)
                 await _onToggleFavorite(this);
         });
+        MarkEditStartCommand = new RelayCommand(() =>
+        {
+            if (_getPlayerPosition is not null)
+                EditStartDisplay = FormatTimePrecise(_getPlayerPosition());
+        });
+        MarkEditEndCommand = new RelayCommand(() =>
+        {
+            if (_getPlayerPosition is not null)
+                EditEndDisplay = FormatTimePrecise(_getPlayerPosition());
+        });
     }
+
+    /// <summary>
+    /// Called by the source generator when <see cref="IsEditingLabel"/> changes.
+    /// Notifies the parent view model so it can show or hide the timeline edit handles.
+    /// </summary>
+    partial void OnIsEditingLabelChanged(bool value) => _onEditingChanged?.Invoke(this, value);
 
     private void BeginEditLabel()
     {
         EditLabel        = Label == "(unlabelled)" ? string.Empty : Label;
-        EditStartDisplay = FormatTime(StartTime);
-        EditEndDisplay   = FormatTime(EndTime);
+        EditStartDisplay = FormatTimePrecise(StartTime);
+        EditEndDisplay   = FormatTimePrecise(EndTime);
         EditError        = null;
         IsEditingLabel   = true;
     }
@@ -273,20 +301,29 @@ public sealed partial class HighlightViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Attempts to parse a user-entered time string in <c>m:ss</c> or <c>h:mm:ss</c> format.
+    /// Attempts to parse a user-entered time string in <c>m:ss</c>, <c>m:ss.f</c>,
+    /// or <c>h:mm:ss</c> / <c>h:mm:ss.f</c> format.
     /// </summary>
     private static bool TryParseTime(string? input, out TimeSpan result)
     {
         result = TimeSpan.Zero;
         if (string.IsNullOrWhiteSpace(input)) return false;
 
-        if (TimeSpan.TryParseExact(input.Trim(), [@"m\:ss", @"h\:mm\:ss", @"mm\:ss"], null, out result))
+        if (TimeSpan.TryParseExact(input.Trim(),
+            [
+                @"m\:ss", @"mm\:ss", @"h\:mm\:ss",
+                @"m\:ss\.f", @"mm\:ss\.f", @"h\:mm\:ss\.f",
+                @"m\:ss\.ff", @"mm\:ss\.ff", @"h\:mm\:ss\.ff",
+                @"m\:ss\.fff", @"mm\:ss\.fff", @"h\:mm\:ss\.fff",
+            ], null, out result))
             return true;
 
-        // Fallback: try the standard colon-separated formats.
         return TimeSpan.TryParse(input.Trim(), out result);
     }
 
     private static string FormatTime(TimeSpan ts) =>
         ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
+
+    private static string FormatTimePrecise(TimeSpan ts) =>
+        ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss\.f") : ts.ToString(@"m\:ss\.f");
 }

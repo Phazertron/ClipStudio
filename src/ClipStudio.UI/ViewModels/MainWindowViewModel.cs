@@ -25,6 +25,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private LibraryViewModel? _library;
     private UnreviewedQueueViewModel? _unreviewedQueue;
+    private HighlightsPageViewModel? _highlights;
 
     private ViewModelBase? _previousPage;
     private IServiceScope? _detailScope;
@@ -102,6 +103,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _serviceProvider = serviceProvider;
         _library         = library;
         _unreviewedQueue = unreviewedQueue;
+        _highlights      = highlights;
 
         // Wire navigation callbacks so child VMs can request clip-open with sequence context.
         library.ClipOpenRequested         = (id, seq, idx) => OpenClipDetail(id, seq, idx);
@@ -261,6 +263,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             var queueCard = _unreviewedQueue?.Clips.FirstOrDefault(c => c.ClipId == id);
             if (queueCard is not null) queueCard.FileName = newName;
         };
+
+        // Reload Highlights page whenever a highlight is created, edited, or deleted.
+        _currentDetailVm.HighlightsChanged = () => _highlights?.LoadCommand.Execute(null);
 
         CurrentPage = _currentDetailVm;
 
