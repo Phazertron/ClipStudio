@@ -75,32 +75,32 @@ public sealed class SoundService : ISoundService
             SoundEffect.HighlightCreated => new[]
             {
                 // Single soft tick: 880 Hz, 90 ms, quiet
-                (880.0, 90, 0.25),
+                (880.0, 90, 0.12),
             },
 
             SoundEffect.ImportComplete => new[]
             {
                 // Ascending two-tone: C5→E5, 140 ms each
-                (523.25, 140, 0.30),
-                (659.25, 160, 0.30),
+                (523.25, 140, 0.15),
+                (659.25, 160, 0.15),
             },
 
             SoundEffect.ClipTrashed => new[]
             {
                 // Descending tone: A4→E4, 130 ms each
-                (440.0, 130, 0.25),
-                (329.63, 150, 0.20),
+                (440.0, 130, 0.12),
+                (329.63, 150, 0.10),
             },
 
             SoundEffect.ExportComplete => new[]
             {
                 // Success three-tone: C5→E5→G5, 120 ms each
-                (523.25, 120, 0.30),
-                (659.25, 120, 0.30),
-                (783.99, 150, 0.30),
+                (523.25, 120, 0.15),
+                (659.25, 120, 0.15),
+                (783.99, 150, 0.15),
             },
 
-            _ => new[] { (440.0, 100, 0.20) },
+            _ => new[] { (440.0, 100, 0.10) },
         };
 
         // Build PCM sample array.
