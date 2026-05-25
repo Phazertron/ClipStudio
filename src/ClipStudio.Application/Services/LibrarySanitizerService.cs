@@ -17,6 +17,8 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
     private readonly IMediaService _media;
     private readonly ISettingsService _settings;
     private readonly ITranscriptionRepository _transcriptions;
+    private readonly ISourceFolderRepository _folders;
+    private readonly IRecycleBinService _recycleBin;
     private readonly AppDataPaths _paths;
     private readonly ILogger<LibrarySanitizerService> _logger;
 
@@ -27,6 +29,8 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         IMediaService media,
         ISettingsService settings,
         ITranscriptionRepository transcriptions,
+        ISourceFolderRepository folders,
+        IRecycleBinService recycleBin,
         AppDataPaths paths,
         ILogger<LibrarySanitizerService> logger)
     {
@@ -35,6 +39,8 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         _media          = media;
         _settings       = settings;
         _transcriptions = transcriptions;
+        _folders        = folders;
+        _recycleBin     = recycleBin;
         _paths          = paths;
         _logger         = logger;
     }
@@ -414,9 +420,94 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             _logger.LogWarning(ex, "SRT orphan cleanup encountered an error.");
         }
 
-        var summary = $"Sanitize complete: {repaired} file(s) regenerated, {deleted} orphan(s) removed, "
+        // ---- .clipstudio_trash reverse scan ----
+        // Walk every source folder's .clipstudio_trash subdirectory and classify each file:
+        //
+        //   A. File is the TrashPath of a DB-trashed clip      → leave it alone.
+        //   B. File's stem matches an active/broken DB clip     → the clip was moved to trash
+        //      outside the app; soft-delete the DB record so it appears in the Trash page.
+        //   C. File is not referenced by any DB record at all   → intruder; send to OS bin.
+        //
+        // This catches files that ended up in the trash folder through external means (e.g. user
+        // dragged the clip file directly into the folder in Explorer) and ensures the DB stays
+        // consistent with what is physically in the app trash.
+        var knownTrashPaths = new HashSet<string>(
+            trashedClips
+                .Where(c => !string.IsNullOrEmpty(c.TrashPath))
+                .Select(c => c.TrashPath!),
+            StringComparer.OrdinalIgnoreCase);
+
+        // Build a set of active+broken clip IDs already processed so Case B does not run twice
+        // if a stem matches multiple allClips entries.
+        var softDeletedIds = new HashSet<int>();
+
+        var sourceFolders = await _folders.GetAllAsync(ct);
+        var trashNuked    = 0;
+
+        foreach (var folder in sourceFolders)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var trashDir = Path.Combine(folder.Path, ".clipstudio_trash");
+            if (!Directory.Exists(trashDir)) continue;
+
+            foreach (var file in Directory.EnumerateFiles(trashDir))
+            {
+                ct.ThrowIfCancellationRequested();
+
+                // Case A — legitimate trash entry
+                if (knownTrashPaths.Contains(file)) continue;
+
+                // Case B — matches an active or broken clip by filename stem (with optional
+                // timestamp suffix appended during collision avoidance, e.g. "name_20240101_123456")
+                var fileStem = Path.GetFileNameWithoutExtension(file);
+                var matched  = allClips.FirstOrDefault(c =>
+                {
+                    if (softDeletedIds.Contains(c.Id)) return false;
+                    var clipStem = Path.GetFileNameWithoutExtension(c.FilePath);
+                    return string.Equals(fileStem, clipStem, StringComparison.OrdinalIgnoreCase)
+                        || (fileStem.Length > clipStem.Length
+                            && fileStem.StartsWith(clipStem, StringComparison.OrdinalIgnoreCase)
+                            && fileStem[clipStem.Length] == '_');
+                });
+
+                if (matched is not null)
+                {
+                    softDeletedIds.Add(matched.Id);
+                    matched.IsDeleted = true;
+                    matched.IsBroken  = false;
+                    matched.TrashPath = file;
+                    matched.DeletedAt ??= DateTime.UtcNow;
+                    await _clips.UpdateAsync(matched, ct);
+                    repaired++;
+                    _logger.LogWarning(
+                        "Clip {Id} soft-deleted by trash scan: file found in trash folder at '{Path}'.",
+                        matched.Id, file);
+                    progress?.Report($"Ghost clip repaired: {matched.FileName}");
+                    continue;
+                }
+
+                // Case C — intruder; not referenced by any DB record
+                try
+                {
+                    _recycleBin.TryMoveToRecycleBin(file);
+                    trashNuked++;
+                    _logger.LogInformation(
+                        "Intruder file removed from .clipstudio_trash: '{File}'.", file);
+                    progress?.Report($"Intruder removed: {Path.GetFileName(file)}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Failed to remove intruder from .clipstudio_trash: '{File}'.", file);
+                }
+            }
+        }
+
+        var summary = $"Sanitize complete: {repaired} repair(s), {deleted} orphan(s) removed, "
                     + $"{audioCleaned} orphan audio cache file(s) removed, "
-                    + $"{srtCleaned} orphan SRT file(s) removed.";
+                    + $"{srtCleaned} orphan SRT file(s) removed, "
+                    + $"{trashNuked} trash intruder(s) removed.";
         progress?.Report(summary);
         _logger.LogInformation("{Summary}", summary);
     }
