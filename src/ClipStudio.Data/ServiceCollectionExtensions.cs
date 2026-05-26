@@ -22,7 +22,8 @@ public static class ServiceCollectionExtensions
         string databasePath)
     {
         services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlite($"Data Source={databasePath}"));
+            options.UseSqlite($"Data Source={databasePath}")
+                   .AddInterceptors(new SqliteWalInterceptor()));
 
         services.AddScoped<ISourceFolderRepository, SourceFolderRepository>();
         services.AddScoped<IClipRepository, ClipRepository>();

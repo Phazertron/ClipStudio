@@ -431,10 +431,13 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         // This catches files that ended up in the trash folder through external means (e.g. user
         // dragged the clip file directly into the folder in Explorer) and ensures the DB stays
         // consistent with what is physically in the app trash.
+        // Normalise stored paths with Path.GetFullPath so that minor formatting
+        // differences (mixed separators, redundant dots, trailing slashes) never
+        // prevent Case A from recognising a legitimately trashed file.
         var knownTrashPaths = new HashSet<string>(
             trashedClips
                 .Where(c => !string.IsNullOrEmpty(c.TrashPath))
-                .Select(c => c.TrashPath!),
+                .Select(c => Path.GetFullPath(c.TrashPath!)),
             StringComparer.OrdinalIgnoreCase);
 
         // Build a set of active+broken clip IDs already processed so Case B does not run twice
@@ -456,7 +459,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 ct.ThrowIfCancellationRequested();
 
                 // Case A — legitimate trash entry
-                if (knownTrashPaths.Contains(file)) continue;
+                if (knownTrashPaths.Contains(Path.GetFullPath(file))) continue;
 
                 // Case B — matches an active or broken clip by filename stem (with optional
                 // timestamp suffix appended during collision avoidance, e.g. "name_20240101_123456")

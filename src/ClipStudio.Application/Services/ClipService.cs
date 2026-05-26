@@ -228,12 +228,30 @@ public sealed class ClipService : IClipService
             trashPath = Path.Combine(trashDir, $"{stem}_{DateTime.UtcNow:yyyyMMddHHmmss}{ext}");
         }
 
-        File.Move(clip.FilePath, trashPath);
-
+        // Update the DB record BEFORE moving the file so that the file-watcher's Deleted event
+        // (which fires the moment File.Move removes the file from the source folder) sees
+        // IsDeleted=true and skips marking the clip as broken — preventing a lost-update race
+        // where SetBrokenByFilePathAsync loads the old state and overwrites the TrashPath.
         clip.IsDeleted = true;
         clip.DeletedAt = DateTime.UtcNow;
         clip.TrashPath = trashPath;
+        clip.IsBroken  = false;
         await _clips.UpdateAsync(clip, cancellationToken);
+
+        try
+        {
+            File.Move(clip.FilePath, trashPath);
+        }
+        catch
+        {
+            // Roll back the DB change so the clip stays visible in the library.
+            clip.IsDeleted = false;
+            clip.DeletedAt = null;
+            clip.TrashPath = null;
+            await _clips.UpdateAsync(clip, cancellationToken);
+            throw;
+        }
+
         _logger.LogInformation("Clip {ClipId} moved to trash: {TrashPath}", clipId, trashPath);
     }
 
@@ -243,8 +261,47 @@ public sealed class ClipService : IClipService
         var clip = await _clips.GetByIdAsync(clipId, cancellationToken)
             ?? throw new InvalidOperationException($"Clip with id {clipId} was not found.");
 
-        if (!clip.IsDeleted || string.IsNullOrEmpty(clip.TrashPath))
+        if (!clip.IsDeleted)
             return;
+
+        // TrashPath can be null when the clip was trashed while its source file was already
+        // missing, or when a prior race condition left the DB record without a TrashPath.
+        // Try to locate the file in the expected .clipstudio_trash subfolder as a fallback.
+        if (string.IsNullOrEmpty(clip.TrashPath))
+        {
+            var expectedTrashDir = Path.Combine(
+                Path.GetDirectoryName(clip.FilePath) ?? string.Empty,
+                ".clipstudio_trash");
+            var stem = Path.GetFileNameWithoutExtension(clip.FilePath);
+            var foundPath = Directory.Exists(expectedTrashDir)
+                ? Directory.EnumerateFiles(expectedTrashDir).FirstOrDefault(f =>
+                {
+                    var fn = Path.GetFileNameWithoutExtension(f);
+                    return string.Equals(fn, stem, StringComparison.OrdinalIgnoreCase)
+                        || (fn.Length > stem.Length
+                            && fn.StartsWith(stem, StringComparison.OrdinalIgnoreCase)
+                            && fn[stem.Length] == '_');
+                })
+                : null;
+
+            if (foundPath is null)
+            {
+                // File not found anywhere — mark as untrashed with no file so it appears as broken.
+                clip.IsDeleted = false;
+                clip.DeletedAt = null;
+                clip.IsBroken  = true;
+                await _clips.UpdateAsync(clip, cancellationToken);
+                _logger.LogWarning(
+                    "Clip {ClipId} restored (DB-only): TrashPath was null and file not found in trash folder.",
+                    clipId);
+                return;
+            }
+
+            clip.TrashPath = foundPath;
+            _logger.LogWarning(
+                "Clip {ClipId} TrashPath was null; located file at '{Path}' for restore.",
+                clipId, foundPath);
+        }
 
         if (!File.Exists(clip.TrashPath))
             throw new FileNotFoundException("Trash file not found.", clip.TrashPath);
@@ -254,6 +311,7 @@ public sealed class ClipService : IClipService
         clip.IsDeleted = false;
         clip.DeletedAt = null;
         clip.TrashPath = null;
+        clip.IsBroken  = false;
         await _clips.UpdateAsync(clip, cancellationToken);
         _logger.LogInformation("Clip {ClipId} restored from trash.", clipId);
     }
@@ -450,6 +508,10 @@ public sealed class ClipService : IClipService
     {
         var clip = await _clips.GetByFilePathAsync(filePath, cancellationToken);
         if (clip is null)
+            return;
+
+        // Never mark a trashed clip as broken — it is intentionally absent from the source folder.
+        if (clip.IsDeleted)
             return;
 
         if (clip.IsBroken == isBroken)
