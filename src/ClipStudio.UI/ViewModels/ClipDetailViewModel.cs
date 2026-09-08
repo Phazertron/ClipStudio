@@ -2107,11 +2107,11 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         });
     }
 
-    /// <summary>
-    /// Writes a diagnostic snapshot of the current VLC audio state to
-    /// <c>%TEMP%\clipstudio_audio.log</c>. Remove once the audio issue is resolved.
-    /// </summary>
     /// <inheritdoc/>
+    /// <remarks>
+    /// Debug scaffolding, kept while the audio issues are open: it appends to
+    /// <c>%TEMP%\clipstudio_audio.log</c> on every play event. Remove once they are resolved.
+    /// </remarks>
     public void LogAudioDiagnostics(string context)
     {
         try

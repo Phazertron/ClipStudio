@@ -141,6 +141,14 @@ phase touches the same area.
   to apply the level once the output actually exists (first `TimeChanged` after a restart, or a
   short retry), so it needs its own runtime verification pass. Not yet confirmed whether audio is
   genuinely at the wrong level or only the query misreports.
+- [ ] `LogAudioDiagnostics` is debug scaffolding that still ships: it appends a snapshot to
+  `%TEMP%\clipstudio_audio.log` on every play event. Its own comment says to remove it once the
+  audio issues are resolved - do that together with the master-volume item above, since that is
+  what it is currently being used to diagnose.
+- [ ] `AudioMixerViewModel._mixedPreviewPath` is assigned in three places and never read. Dead
+  since before the extraction, moved across verbatim to keep that change behaviour-only. Drop it,
+  or start using it (the natural use is skipping a regeneration when the requested mix already
+  matches the loaded preview).
 - [ ] Screenshot output folder is not profile-scoped: with `--profile` set, captures still land in `Pictures\ClipStudio` (found while smoke-testing the wizard)
 
 ---
