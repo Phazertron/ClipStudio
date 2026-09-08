@@ -219,7 +219,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public void OpenClipDetail(int clipId, IReadOnlyList<int>? sequence = null, int sequenceIndex = -1)
     {
         // Preserve loop state so it persists when navigating between clips
-        var preserveLoopMode = _currentDetailVm?.LoopMode ?? LoopMode.Off;
+        var preserveLoopMode = _currentDetailVm?.Playback.LoopMode ?? LoopMode.Off;
 
         // Dispose any currently open detail view
         CloseClipDetail();
@@ -249,7 +249,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             };
         }
 
-        _currentDetailVm.LoopMode = preserveLoopMode;
+        _currentDetailVm.Playback.LoopMode = preserveLoopMode;
 
         // Refresh unreviewed badge whenever clip status changes (mark reviewed, trash).
         _currentDetailVm.ClipStatusChanged = () => _ = RefreshUnreviewedCountAsync();
@@ -319,7 +319,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _currentDetailVm.WatchHighlightRating     = currentRow?.Rating ?? 0;
         _currentDetailVm.WatchHighlightIsFavorite = currentRow?.IsFavorite ?? false;
 
-        _currentDetailVm.LoopMode            = initialLoopMode ?? LoopMode.LoopThis;
+        _currentDetailVm.Playback.LoopMode            = initialLoopMode ?? LoopMode.LoopThis;
         _currentDetailVm.BackRequested       = CloseClipDetail;
 
         // Wire sequence navigation when a highlight list is provided.
@@ -331,7 +331,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _currentDetailVm.PreviousHighlightRequested = () =>
             {
                 // Capture LoopMode before CloseClipDetail() nulls _currentDetailVm.
-                var loopMode = _currentDetailVm?.LoopMode ?? LoopMode.LoopThis;
+                var loopMode = _currentDetailVm?.Playback.LoopMode ?? LoopMode.LoopThis;
                 int prevIndex = sequenceIndex > 0 ? sequenceIndex - 1 : sequence.Count - 1;
                 var prev = sequence[prevIndex];
                 OpenHighlightWatchMode(prev.ClipId, prev.StartTime, prev.EndTime, sequence, prevIndex, loopMode);
@@ -340,7 +340,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _currentDetailVm.NextHighlightRequested = () =>
             {
                 // Capture LoopMode before CloseClipDetail() nulls _currentDetailVm.
-                var loopMode = _currentDetailVm?.LoopMode ?? LoopMode.LoopThis;
+                var loopMode = _currentDetailVm?.Playback.LoopMode ?? LoopMode.LoopThis;
                 // Wrap around from the last highlight back to the first for LoopAll cycling.
                 int nextIndex = sequenceIndex < sequence.Count - 1 ? sequenceIndex + 1 : 0;
                 var next = sequence[nextIndex];

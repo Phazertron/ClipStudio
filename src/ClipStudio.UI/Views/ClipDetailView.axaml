@@ -214,8 +214,8 @@
 
             <Slider x:Name="PositionSlider"
                     Minimum="0"
-                    Maximum="{Binding DurationSeconds}"
-                    Value="{Binding PositionSeconds, Mode=TwoWay}"/>
+                    Maximum="{Binding Playback.DurationSeconds}"
+                    Value="{Binding Playback.PositionSeconds, Mode=TwoWay}"/>
 
             <!-- Trim handle canvas: pointing up, sits above the slider -->
             <Canvas x:Name="TrimHandleCanvas"
@@ -296,45 +296,45 @@
 
             <!-- Skip back 10s -->
             <Button Grid.Column="1"
-                    Command="{Binding SkipBackCommand}"
+                    Command="{Binding Playback.SkipBackCommand}"
                     ToolTip.Tip="Skip back 10 seconds (Left)">
                 <icons:MaterialIcon Kind="Rewind10" Width="22" Height="22"/>
             </Button>
 
             <!-- Play / Pause -->
-            <Button Grid.Column="2" Margin="6,0" Command="{Binding PlayPauseCommand}"
+            <Button Grid.Column="2" Margin="6,0" Command="{Binding Playback.PlayPauseCommand}"
                     ToolTip.Tip="Play / Pause (Space)">
                 <Panel>
                     <icons:MaterialIcon Kind="PlayArrow" Width="26" Height="26"
-                                        IsVisible="{Binding !IsPlaying}"/>
+                                        IsVisible="{Binding !Playback.IsPlaying}"/>
                     <icons:MaterialIcon Kind="PauseCircle" Width="26" Height="26"
-                                        IsVisible="{Binding IsPlaying}"/>
+                                        IsVisible="{Binding Playback.IsPlaying}"/>
                 </Panel>
             </Button>
 
             <!-- Skip forward 10s -->
             <Button Grid.Column="3"
-                    Command="{Binding SkipForwardCommand}"
+                    Command="{Binding Playback.SkipForwardCommand}"
                     ToolTip.Tip="Skip forward 10 seconds (Right)">
                 <icons:MaterialIcon Kind="FastForward10" Width="22" Height="22"/>
             </Button>
 
             <!-- Loop mode toggle (Off / LoopThis / LoopAll) -->
             <Button Grid.Column="4"
-                    Command="{Binding ToggleRepeatCommand}"
+                    Command="{Binding Playback.ToggleRepeatCommand}"
                     ToolTip.Tip="Loop mode: Off / Loop This / Loop All"
                     Margin="4,0,0,0">
                 <Panel>
                     <!-- Off: RepeatOff icon, dimmed -->
                     <icons:MaterialIcon Kind="RepeatOff" Width="20" Height="20"
                                         Opacity="0.35"
-                                        IsVisible="{Binding IsLoopOff}"/>
+                                        IsVisible="{Binding Playback.IsLoopOff}"/>
                     <!-- LoopThis: RepeatOnce icon -->
                     <icons:MaterialIcon Kind="RepeatOnce" Width="20" Height="20"
-                                        IsVisible="{Binding IsLoopThis}"/>
+                                        IsVisible="{Binding Playback.IsLoopThis}"/>
                     <!-- LoopAll: Repeat icon -->
                     <icons:MaterialIcon Kind="Repeat" Width="20" Height="20"
-                                        IsVisible="{Binding IsLoopAll}"/>
+                                        IsVisible="{Binding Playback.IsLoopAll}"/>
                 </Panel>
             </Button>
 
@@ -343,11 +343,11 @@
                         Orientation="Horizontal"
                         VerticalAlignment="Center"
                         Margin="12,0">
-                <TextBlock Text="{Binding PositionDisplay}"
+                <TextBlock Text="{Binding Playback.PositionDisplay}"
                            FontFamily="Consolas,Courier New,monospace"
                            FontSize="13"/>
                 <TextBlock Text=" / " Opacity="0.45" FontSize="13"/>
-                <TextBlock Text="{Binding DurationDisplay}"
+                <TextBlock Text="{Binding Playback.DurationDisplay}"
                            FontFamily="Consolas,Courier New,monospace"
                            FontSize="13"
                            Opacity="0.65"/>

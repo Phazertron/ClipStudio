@@ -24,7 +24,7 @@ namespace ClipStudio.UI.ViewModels;
 /// highlight management, tag management, rename, trim/export, keyboard shortcuts, and queue navigation.
 /// Implements <see cref="IDisposable"/> to release the unmanaged MediaPlayer when the view is closed.
 /// </summary>
-public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackHost, IDisposable
+public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackHost, IPlaybackHost, IDisposable
 {
     private readonly LibVLC _libVlc;
     private readonly IClipService _clipService;
@@ -48,6 +48,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <summary>Gets the child view model that owns per-clip audio routing and mixing.</summary>
     public AudioMixerViewModel Audio { get; }
 
+    /// <summary>Gets the child view model that owns the playback transport.</summary>
+    public PlaybackViewModel Playback { get; }
+
     /// <summary>Gets or sets the SRT file path of the latest transcription, used for subtitle overlay.</summary>
     private string? _latestSrtPath;
 
@@ -65,8 +68,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     private Clip? _clip;
     private Media? _media;
-    private bool _isUpdatingFromPlayer;
-    private bool _isDragging;
 
 
 
@@ -89,12 +90,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
 
 
-    /// <summary>
-    /// After a programmatic seek, time-changed events reporting a position below this threshold
-    /// are discarded; they are stale pre-seek events fired by VLC before it finishes seeking.
-    /// Reset to -1 once a valid (post-seek) event arrives.
-    /// </summary>
-    private long _ignoreTimeChangedBeforeMs = -1;
 
     /// <summary>
     /// Indicates that the next <see cref="OnPlayerPlaying"/> callback should seek to
@@ -115,40 +110,23 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// </summary>
     private bool _watchModeEndPending;
 
-    // ---- Player state ----
-
-    /// <summary>
-    /// Gets the LibVLC <see cref="LibVLCSharp.Shared.MediaPlayer"/> instance.
-    /// Bound to the <c>VideoView</c> in the XAML.
-    /// </summary>
-    public MediaPlayer MediaPlayer { get; }
-
-    /// <summary>Gets or sets the filename / title shown in the detail header.</summary>
-    [ObservableProperty] private string _clipTitle = string.Empty;
-
-    /// <summary>Gets or sets a value indicating whether the player is currently playing.</summary>
-    [ObservableProperty] private bool _isPlaying;
-
-    /// <summary>
-    /// Gets or sets the current playback position in seconds.
-    /// Bound one-way (from VM to slider); seek on user interaction is handled via <see cref="EndScrub"/>.
-    /// </summary>
-    [ObservableProperty] private double _positionSeconds;
-
-    /// <summary>Gets or sets the total clip duration in seconds. Used as the slider maximum.</summary>
-    [ObservableProperty] private double _durationSeconds;
-
-    /// <summary>Gets or sets the formatted playback position string, e.g. <c>1:23</c>.</summary>
-    [ObservableProperty] private string _positionDisplay = "0:00";
-
-    /// <summary>Gets or sets the formatted total duration string.</summary>
-    [ObservableProperty] private string _durationDisplay = "0:00";
-
-    /// <summary>Stored clip duration, used to reformat <see cref="DurationDisplay"/> when precision mode changes.</summary>
-    private TimeSpan _clipDuration;
 
     /// <summary>Gets the pending tags to apply when the new highlight is saved.</summary>
     public ObservableCollection<TagChipViewModel> PendingHighlightTags { get; } = new();
+
+    // ---- Player ----
+
+    /// <summary>Gets the VLC media player driving this view.</summary>
+    public MediaPlayer MediaPlayer { get; }
+
+    /// <summary>Gets or sets the title shown in the header: the file name, or the highlight label in watch mode.</summary>
+    [ObservableProperty] private string _clipTitle = string.Empty;
+
+    /// <summary>
+    /// The length the transport is showing: the clip's duration, or the watched highlight's.
+    /// Kept here because the trim and highlight editors still clamp against it.
+    /// </summary>
+    private TimeSpan _clipDuration;
 
     // ---- Clip metadata ----
 
@@ -272,8 +250,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         get
         {
             if (_editingHighlight is not null)
-                return DurationSeconds > 0 ? _editHighlightStart.TotalSeconds / DurationSeconds : 0;
-            return DurationSeconds > 0 ? _highlightStart.TotalSeconds / DurationSeconds : 0;
+                return Playback.DurationSeconds > 0 ? _editHighlightStart.TotalSeconds / Playback.DurationSeconds : 0;
+            return Playback.DurationSeconds > 0 ? _highlightStart.TotalSeconds / Playback.DurationSeconds : 0;
         }
     }
 
@@ -287,8 +265,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         get
         {
             if (_editingHighlight is not null)
-                return DurationSeconds > 0 ? _editHighlightEnd.TotalSeconds / DurationSeconds : 0;
-            return DurationSeconds > 0 ? _highlightEnd.TotalSeconds / DurationSeconds : 0;
+                return Playback.DurationSeconds > 0 ? _editHighlightEnd.TotalSeconds / Playback.DurationSeconds : 0;
+            return Playback.DurationSeconds > 0 ? _highlightEnd.TotalSeconds / Playback.DurationSeconds : 0;
         }
     }
 
@@ -299,14 +277,14 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// Used to position the trim-start handle on the timeline overlay.
     /// </summary>
     public double TrimStartFraction =>
-        DurationSeconds > 0 ? _trimStart.TotalSeconds / DurationSeconds : 0;
+        Playback.DurationSeconds > 0 ? _trimStart.TotalSeconds / Playback.DurationSeconds : 0;
 
     /// <summary>
     /// Gets the proportional position (0.0-1.0) of the trim end mark within the clip.
     /// Used to position the trim-end handle on the timeline overlay.
     /// </summary>
     public double TrimEndFraction =>
-        DurationSeconds > 0 ? _trimEnd.TotalSeconds / DurationSeconds : 0;
+        Playback.DurationSeconds > 0 ? _trimEnd.TotalSeconds / Playback.DurationSeconds : 0;
 
     /// <summary>Gets or sets a value indicating whether the Trim and Export form is expanded.</summary>
     [ObservableProperty] private bool _isTrimming;
@@ -359,19 +337,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// </summary>
     [ObservableProperty] private HighlightViewModel? _lockedHighlight;
 
-    // ---- Loop mode and queue navigation ----
-
-    /// <summary>Gets or sets the loop behaviour when a clip or highlight reaches its end.</summary>
-    [ObservableProperty] private LoopMode _loopMode = LoopMode.Off;
-
-    /// <summary>Gets a value indicating whether loop mode is <see cref="LoopMode.Off"/>.</summary>
-    public bool IsLoopOff   => LoopMode == LoopMode.Off;
-
-    /// <summary>Gets a value indicating whether loop mode is <see cref="LoopMode.LoopThis"/>.</summary>
-    public bool IsLoopThis  => LoopMode == LoopMode.LoopThis;
-
-    /// <summary>Gets a value indicating whether loop mode is <see cref="LoopMode.LoopAll"/>.</summary>
-    public bool IsLoopAll   => LoopMode == LoopMode.LoopAll;
 
     /// <summary>Gets or sets whether a previous clip in the navigation sequence exists.</summary>
     [ObservableProperty] private bool _hasPrevious;
@@ -553,21 +518,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <summary>Gets the command that closes this view and returns to the library/queue.</summary>
     public IRelayCommand BackCommand { get; }
 
-    /// <summary>Gets the command that toggles playback between play and pause.</summary>
-    public IRelayCommand PlayPauseCommand { get; }
-
-    /// <summary>Gets the command that seeks the player 10 seconds backward.</summary>
-    public IRelayCommand SkipBackCommand { get; }
-
-    /// <summary>Gets the command that seeks the player 10 seconds forward.</summary>
-    public IRelayCommand SkipForwardCommand { get; }
-
-    /// <summary>Gets the command that steps the player back by one frame.</summary>
-    public IRelayCommand FrameBackCommand { get; }
-
-    /// <summary>Gets the command that steps the player forward by one frame.</summary>
-    public IRelayCommand FrameForwardCommand { get; }
-
     /// <summary>Gets the command that shows the add-highlight inline form.</summary>
     public IRelayCommand BeginAddHighlightCommand { get; }
 
@@ -642,9 +592,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     /// <summary>Gets the command that releases the active highlight loop lock.</summary>
     public IRelayCommand UnlockHighlightCommand { get; }
-
-    /// <summary>Gets the command that toggles the repeat flag.</summary>
-    public IRelayCommand ToggleRepeatCommand { get; }
 
     /// <summary>Gets the command that navigates to the previous clip in the queue.</summary>
     public IRelayCommand PreviousCommand { get; }
@@ -786,12 +733,11 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
         Audio.TracksRefreshed += names => Transcription.SetAvailableTracks(names);
 
+        Playback = new PlaybackViewModel(
+            this,
+            () => IsAddingOrEditingHighlight || IsTrimming);
+
         BackCommand               = new RelayCommand(() => BackRequested?.Invoke());
-        PlayPauseCommand          = new RelayCommand(TogglePlayPause);
-        SkipBackCommand           = new RelayCommand(() => SeekRelative(TimeSpan.FromSeconds(-10)));
-        SkipForwardCommand        = new RelayCommand(() => SeekRelative(TimeSpan.FromSeconds(10)));
-        FrameBackCommand          = new RelayCommand(() => SeekRelative(TimeSpan.FromSeconds(-FrameDuration)));
-        FrameForwardCommand       = new RelayCommand(() => SeekRelative(TimeSpan.FromSeconds(FrameDuration)));
         BeginAddHighlightCommand  = new RelayCommand(BeginAddHighlight);
         CancelAddHighlightCommand = new RelayCommand(ResetHighlightForm);
         MarkHighlightStartCommand = new RelayCommand(MarkHighlightStart);
@@ -816,7 +762,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         ConfirmDestructiveTrimCommand   = new AsyncRelayCommand(ConfirmDestructiveTrimAsync);
         DismissExportStatusCommand      = new RelayCommand(() => ExportStatusMessage = null);
         UnlockHighlightCommand    = new RelayCommand(() => LockedHighlight = null);
-        ToggleRepeatCommand       = new RelayCommand(CycleLoopMode);
         PreviousCommand                   = new RelayCommand(() => PreviousClipRequested?.Invoke());
         NextCommand                       = new RelayCommand(() => NextClipRequested?.Invoke());
         NavigatePreviousHighlightCommand  = new RelayCommand(() => PreviousHighlightRequested?.Invoke());
@@ -870,18 +815,19 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         IsUnreviewed             = _clip.Status == ClipStatus.Unreviewed;
         SuggestedGameNameDisplay = _clip.SuggestedGameName;
 
+        Playback.Reset();
         if (IsWatchMode)
         {
             var watchDuration = WatchEnd - WatchStart;
-            DurationSeconds = watchDuration.TotalSeconds;
-            _clipDuration   = watchDuration;
+            _clipDuration = watchDuration;
+            Playback.SetWindow(WatchStart, WatchEnd);
         }
         else
         {
-            DurationSeconds = _clip.Duration.TotalSeconds;
-            _clipDuration   = _clip.Duration;
+            _clipDuration = _clip.Duration;
+            Playback.SetWindow(null, null);
         }
-        UpdateDurationDisplay();
+        Playback.SetDuration(_clipDuration);
 
         // Reset audio so the new clip's tracks are rediscovered on its first play.
         Audio.SetClip(_clip);
@@ -979,6 +925,27 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <inheritdoc/>
     public void SetAudioTrack(int trackId) => MediaPlayer.SetAudioTrack(trackId);
 
+    // ---- IPlaybackHost ----
+
+    /// <inheritdoc/>
+    long IPlaybackHost.TimeMs
+    {
+        get => MediaPlayer.Time;
+        set => MediaPlayer.Time = value;
+    }
+
+    /// <inheritdoc/>
+    bool IPlaybackHost.IsPlayerPlaying => MediaPlayer.IsPlaying;
+
+    /// <inheritdoc/>
+    float IPlaybackHost.Fps => MediaPlayer.Fps;
+
+    /// <inheritdoc/>
+    void IPlaybackHost.Play() => MediaPlayer.Play();
+
+    /// <inheritdoc/>
+    void IPlaybackHost.Pause() => MediaPlayer.Pause();
+
     /// <inheritdoc/>
     public IReadOnlyList<AudioTrackDescriptor> GetAudioTracks()
         => MediaPlayer.AudioTrackDescription
@@ -989,29 +956,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     // ---- Scrub support (called from code-behind) ----
 
-    /// <summary>Signals that the user has started dragging the position slider.</summary>
-    public void BeginScrub() => _isDragging = true;
-
-    /// <summary>
-    /// Signals that the user has released the position slider and seeks to the given time.
-    /// </summary>
-    /// <param name="seconds">The target playback position in seconds.</param>
-    public void EndScrub(double seconds)
-    {
-        _isDragging = false;
-        // In watch mode the scrubber position is relative to WatchStart; translate to absolute.
-        var absoluteSeconds = IsWatchMode ? WatchStart.TotalSeconds + seconds : seconds;
-        var targetMs = (long)(absoluteSeconds * 1000);
-        // Ignore any TimeChanged events below this threshold — they are stale pre-seek events
-        // that VLC may fire before it finishes processing the seek request.
-        _ignoreTimeChangedBeforeMs = targetMs - 200;
-        MediaPlayer.Time = targetMs;
-        UpdatePositionDisplay(TimeSpan.FromSeconds(seconds));
-    }
-
     // ---- Private helpers ----
-
-    private double FrameDuration => MediaPlayer.Fps > 0 ? 1.0 / MediaPlayer.Fps : 1.0 / 30.0;
 
     private async Task RefreshHighlightsAsync()
     {
@@ -1046,7 +991,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
                 onSetRating:        async (hvm, r) => await _highlightService.SetRatingAsync(hvm.HighlightId, r),
                 onToggleFavorite:   async (hvm)    => await _highlightService.ToggleFavoriteAsync(hvm.HighlightId),
                 onEditingChanged:   OnHighlightEditingChanged,
-                getPlayerPosition:  () => TimeSpan.FromSeconds(PositionSeconds)));
+                getPlayerPosition:  () => TimeSpan.FromSeconds(Playback.PositionSeconds)));
         }
 
         // Re-apply locked state to the refreshed view models.
@@ -1076,7 +1021,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         OnPropertyChanged(nameof(IsAddingOrEditingHighlight));
         OnPropertyChanged(nameof(HighlightStartFraction));
         OnPropertyChanged(nameof(HighlightEndFraction));
-        UpdateDurationDisplay();
+        Playback.RefreshDurationDisplay();
     }
 
     /// <summary>
@@ -1103,7 +1048,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     partial void OnIsAddingHighlightChanged(bool value)
     {
         OnPropertyChanged(nameof(IsAddingOrEditingHighlight));
-        UpdateDurationDisplay();
+        Playback.RefreshDurationDisplay();
     }
 
     /// <summary>
@@ -1307,59 +1252,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         ClipPlayerChips.Remove(chip);
     }
 
-    private void TogglePlayPause()
-    {
-        if (MediaPlayer.IsPlaying)
-            MediaPlayer.Pause();
-        else
-            MediaPlayer.Play();
-    }
-
-    private void SeekRelative(TimeSpan offset)
-    {
-        if (IsWatchMode)
-        {
-            var watchStartMs = (long)WatchStart.TotalMilliseconds;
-            var watchEndMs   = (long)WatchEnd.TotalMilliseconds;
-            var newMs = Math.Max(watchStartMs,
-                Math.Min(watchEndMs, MediaPlayer.Time + (long)offset.TotalMilliseconds));
-            MediaPlayer.Time = newMs;
-            UpdatePositionDisplay(TimeSpan.FromMilliseconds(newMs - watchStartMs));
-            return;
-        }
-
-        var absNewMs = Math.Max(0,
-            Math.Min((long)(DurationSeconds * 1000),
-                MediaPlayer.Time + (long)offset.TotalMilliseconds));
-        MediaPlayer.Time = absNewMs;
-        UpdatePositionDisplay(TimeSpan.FromMilliseconds(absNewMs));
-    }
-
-    /// <summary>
-    /// Updates <see cref="PositionSeconds"/> and <see cref="PositionDisplay"/> from a known time value
-    /// without triggering a redundant seek via <see cref="OnPositionSecondsChanged"/>.
-    /// Required when VLC is paused and will not raise a <c>TimeChanged</c> event.
-    /// </summary>
-    /// <param name="ts">The target position.</param>
-    private void UpdatePositionDisplay(TimeSpan ts)
-    {
-        _isUpdatingFromPlayer = true;
-        PositionSeconds = ts.TotalSeconds;
-        PositionDisplay = (IsAddingOrEditingHighlight || IsTrimming)
-            ? FormatTimePrecise(ts)
-            : FormatTime(ts);
-        _isUpdatingFromPlayer = false;
-    }
-
-    /// <summary>
-    /// Reformats <see cref="DurationDisplay"/> to match the current precision mode.
-    /// Called whenever <see cref="IsAddingOrEditingHighlight"/> or <see cref="IsTrimming"/> changes.
-    /// </summary>
-    private void UpdateDurationDisplay()
-        => DurationDisplay = (IsAddingOrEditingHighlight || IsTrimming)
-            ? FormatTimePrecise(_clipDuration)
-            : FormatTime(_clipDuration);
-
     private void BeginAddHighlight()
     {
         // Mutual exclusion: close the trim form so both handle-sets never appear simultaneously.
@@ -1374,34 +1266,34 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     private void MarkHighlightStart()
     {
-        // Use PositionSeconds (what the slider shows) rather than MediaPlayer.Time (VLC internal
+        // Use Playback.PositionSeconds (what the slider shows) rather than MediaPlayer.Time (VLC internal
         // clock which can lag after a seek), so the triangle lands exactly on the slider thumb.
-        var t = TimeSpan.FromSeconds(PositionSeconds);
+        var t = TimeSpan.FromSeconds(Playback.PositionSeconds);
         if (_editingHighlight is not null)
         {
-            _editingHighlight.EditStartDisplay = FormatTimePrecise(t);
+            _editingHighlight.EditStartDisplay = PlaybackViewModel.FormatPrecise(t);
             _editHighlightStart                = t;
         }
         else
         {
             _highlightStart       = t;
-            HighlightStartDisplay = FormatTimePrecise(t);
+            HighlightStartDisplay = PlaybackViewModel.FormatPrecise(t);
         }
         OnPropertyChanged(nameof(HighlightStartFraction));
     }
 
     private void MarkHighlightEnd()
     {
-        var t = TimeSpan.FromSeconds(PositionSeconds);
+        var t = TimeSpan.FromSeconds(Playback.PositionSeconds);
         if (_editingHighlight is not null)
         {
-            _editingHighlight.EditEndDisplay = FormatTimePrecise(t);
+            _editingHighlight.EditEndDisplay = PlaybackViewModel.FormatPrecise(t);
             _editHighlightEnd                = t;
         }
         else
         {
             _highlightEnd       = t;
-            HighlightEndDisplay = FormatTimePrecise(t);
+            HighlightEndDisplay = PlaybackViewModel.FormatPrecise(t);
         }
         OnPropertyChanged(nameof(HighlightEndFraction));
     }
@@ -1413,16 +1305,16 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
     public void SetHighlightStartFromFraction(double fraction)
     {
-        var t = TimeSpan.FromSeconds(Math.Clamp(fraction * DurationSeconds, 0, DurationSeconds));
+        var t = TimeSpan.FromSeconds(Math.Clamp(fraction * Playback.DurationSeconds, 0, Playback.DurationSeconds));
         if (_editingHighlight is not null)
         {
-            _editingHighlight.EditStartDisplay = FormatTimePrecise(t);
+            _editingHighlight.EditStartDisplay = PlaybackViewModel.FormatPrecise(t);
             _editHighlightStart                = t;
         }
         else
         {
             _highlightStart       = t;
-            HighlightStartDisplay = FormatTimePrecise(t);
+            HighlightStartDisplay = PlaybackViewModel.FormatPrecise(t);
         }
         OnPropertyChanged(nameof(HighlightStartFraction));
     }
@@ -1434,16 +1326,16 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
     public void SetHighlightEndFromFraction(double fraction)
     {
-        var t = TimeSpan.FromSeconds(Math.Clamp(fraction * DurationSeconds, 0, DurationSeconds));
+        var t = TimeSpan.FromSeconds(Math.Clamp(fraction * Playback.DurationSeconds, 0, Playback.DurationSeconds));
         if (_editingHighlight is not null)
         {
-            _editingHighlight.EditEndDisplay = FormatTimePrecise(t);
+            _editingHighlight.EditEndDisplay = PlaybackViewModel.FormatPrecise(t);
             _editHighlightEnd                = t;
         }
         else
         {
             _highlightEnd       = t;
-            HighlightEndDisplay = FormatTimePrecise(t);
+            HighlightEndDisplay = PlaybackViewModel.FormatPrecise(t);
         }
         OnPropertyChanged(nameof(HighlightEndFraction));
     }
@@ -1455,8 +1347,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
     public void SetTrimStartFromFraction(double fraction)
     {
-        _trimStart       = TimeSpan.FromSeconds(Math.Clamp(fraction * DurationSeconds, 0, DurationSeconds));
-        TrimStartDisplay = FormatTimePrecise(_trimStart);
+        _trimStart       = TimeSpan.FromSeconds(Math.Clamp(fraction * Playback.DurationSeconds, 0, Playback.DurationSeconds));
+        TrimStartDisplay = PlaybackViewModel.FormatPrecise(_trimStart);
         TrimStartError   = null;
         OnPropertyChanged(nameof(TrimStartFraction));
     }
@@ -1468,8 +1360,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
     public void SetTrimEndFromFraction(double fraction)
     {
-        _trimEnd       = TimeSpan.FromSeconds(Math.Clamp(fraction * DurationSeconds, 0, DurationSeconds));
-        TrimEndDisplay = FormatTimePrecise(_trimEnd);
+        _trimEnd       = TimeSpan.FromSeconds(Math.Clamp(fraction * Playback.DurationSeconds, 0, Playback.DurationSeconds));
+        TrimEndDisplay = PlaybackViewModel.FormatPrecise(_trimEnd);
         TrimEndError   = null;
         OnPropertyChanged(nameof(TrimEndFraction));
     }
@@ -1771,8 +1663,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         IsTrimDestructive = _settingsService.Current.DefaultTrimMode == TrimMode.Destructive;
         _trimStart       = TimeSpan.Zero;
         _trimEnd         = _clip?.Duration ?? TimeSpan.Zero;
-        TrimStartDisplay = FormatTime(_trimStart);
-        TrimEndDisplay   = FormatTime(_trimEnd);
+        TrimStartDisplay = PlaybackViewModel.FormatPlain(_trimStart);
+        TrimEndDisplay   = PlaybackViewModel.FormatPlain(_trimEnd);
         OnPropertyChanged(nameof(TrimStartFraction));
         OnPropertyChanged(nameof(TrimEndFraction));
         IsTrimming       = true;
@@ -1780,16 +1672,16 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     private void MarkTrimStart()
     {
-        _trimStart       = TimeSpan.FromSeconds(PositionSeconds);
-        TrimStartDisplay = FormatTimePrecise(_trimStart);
+        _trimStart       = TimeSpan.FromSeconds(Playback.PositionSeconds);
+        TrimStartDisplay = PlaybackViewModel.FormatPrecise(_trimStart);
         TrimStartError   = null;
         OnPropertyChanged(nameof(TrimStartFraction));
     }
 
     private void MarkTrimEnd()
     {
-        _trimEnd       = TimeSpan.FromSeconds(PositionSeconds);
-        TrimEndDisplay = FormatTimePrecise(_trimEnd);
+        _trimEnd       = TimeSpan.FromSeconds(Playback.PositionSeconds);
+        TrimEndDisplay = PlaybackViewModel.FormatPrecise(_trimEnd);
         TrimEndError   = null;
         OnPropertyChanged(nameof(TrimEndFraction));
     }
@@ -1804,13 +1696,13 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         {
             _trimStart      = ts;
             TrimStartError  = null;
-            TrimStartDisplay = FormatTime(_trimStart);
+            TrimStartDisplay = PlaybackViewModel.FormatPlain(_trimStart);
             OnPropertyChanged(nameof(TrimStartFraction));
         }
         else
         {
             TrimStartError   = "Invalid time (use m:ss or h:mm:ss).";
-            TrimStartDisplay = FormatTime(_trimStart);
+            TrimStartDisplay = PlaybackViewModel.FormatPlain(_trimStart);
         }
     }
 
@@ -1824,13 +1716,13 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         {
             _trimEnd      = ts;
             TrimEndError  = null;
-            TrimEndDisplay = FormatTime(_trimEnd);
+            TrimEndDisplay = PlaybackViewModel.FormatPlain(_trimEnd);
             OnPropertyChanged(nameof(TrimEndFraction));
         }
         else
         {
             TrimEndError   = "Invalid time (use m:ss or h:mm:ss).";
-            TrimEndDisplay = FormatTime(_trimEnd);
+            TrimEndDisplay = PlaybackViewModel.FormatPlain(_trimEnd);
         }
     }
 
@@ -1934,7 +1826,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     partial void OnIsTrimmingChanged(bool value)
     {
         if (!value) TrimDestructiveWarning = null;
-        UpdateDurationDisplay();
+        Playback.RefreshDurationDisplay();
     }
 
     /// <summary>
@@ -2031,15 +1923,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     private void OnPlayerTimeChanged(object? sender, MediaPlayerTimeChangedEventArgs e)
     {
-        if (_isDragging) return;
-
-        // Discard stale pre-seek events that VLC fires after a programmatic seek.
-        if (_ignoreTimeChangedBeforeMs >= 0)
-        {
-            if (e.Time < _ignoreTimeChangedBeforeMs)
-                return;
-            _ignoreTimeChangedBeforeMs = -1; // first valid event arrived; resume normal updates
-        }
+        // Drops mid-drag updates and the stale pre-seek events VLC fires after a seek.
+        if (Playback.ShouldIgnoreTimeChanged(e.Time)) return;
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -2052,12 +1937,11 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
                 // When the watched highlight's end is reached, behaviour depends on LoopMode.
                 if (ts >= WatchEnd)
                 {
-                    switch (LoopMode)
+                    switch (Playback.LoopMode)
                     {
                         case LoopMode.LoopThis:
                             // Loop back to the start of this highlight.
-                            _ignoreTimeChangedBeforeMs = (long)WatchStart.TotalMilliseconds - 200;
-                            MediaPlayer.Time = (long)WatchStart.TotalMilliseconds;
+                            Playback.SeekToMs((long)WatchStart.TotalMilliseconds);
                             break;
 
                         case LoopMode.LoopAll:
@@ -2074,35 +1958,24 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
                             // Pause and seek back to highlight start so that pressing play
                             // restarts the current highlight rather than continuing into the clip.
                             MediaPlayer.Pause();
-                            _ignoreTimeChangedBeforeMs = (long)WatchStart.TotalMilliseconds - 200;
-                            MediaPlayer.Time = (long)WatchStart.TotalMilliseconds;
-                            _isUpdatingFromPlayer = true;
-                            PositionSeconds = 0;
-                            PositionDisplay = (IsAddingOrEditingHighlight || IsTrimming) ? FormatTimePrecise(TimeSpan.Zero) : FormatTime(TimeSpan.Zero);
-                            _isUpdatingFromPlayer = false;
+                            Playback.SeekToMs((long)WatchStart.TotalMilliseconds);
+                            Playback.UpdatePositionDisplay(TimeSpan.Zero);
                             break;
                     }
                     return;
                 }
 
-                // Display position relative to the highlight start.
-                _isUpdatingFromPlayer = true;
-                var relativeTs = ts > WatchStart ? ts - WatchStart : TimeSpan.Zero;
-                PositionSeconds = relativeTs.TotalSeconds;
-                PositionDisplay = (IsAddingOrEditingHighlight || IsTrimming) ? FormatTimePrecise(relativeTs) : FormatTime(relativeTs);
-                _isUpdatingFromPlayer = false;
+                // The child renders the position relative to the window start.
+                Playback.UpdatePositionFromPlayer(ts);
                 return;
             }
 
-            _isUpdatingFromPlayer = true;
-            PositionSeconds = ts.TotalSeconds;
-            PositionDisplay = (IsAddingOrEditingHighlight || IsTrimming) ? FormatTimePrecise(ts) : FormatTime(ts);
-            _isUpdatingFromPlayer = false;
+            Playback.UpdatePositionFromPlayer(ts);
 
             // Highlight loop: if a highlight is locked and the position has passed its end,
             // seek back only when looping is enabled.
             if (LockedHighlight is not null && ts >= LockedHighlight.EndTime
-                && LoopMode != LoopMode.Off)
+                && Playback.LoopMode != LoopMode.Off)
                 MediaPlayer.Time = (long)LockedHighlight.StartTime.TotalMilliseconds;
         });
     }
@@ -2134,7 +2007,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     private void OnPlayerPlaying(object? sender, EventArgs e)
         => Dispatcher.UIThread.Post(() =>
         {
-            IsPlaying = true;
+            Playback.IsPlaying = true;
             LogAudioDiagnostics("OnPlayerPlaying");
 
             // After a media reload (remux preview or clean-reload for mode transition), seek back
@@ -2142,9 +2015,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
             // the refresh below is skipped by the HasTracks guard.
             if (_mixReloadSeekMs >= 0)
             {
-                var seekTarget             = _mixReloadSeekMs;
-                _mixReloadSeekMs           = -1;
-                _ignoreTimeChangedBeforeMs = seekTarget - 200;
+                var seekTarget   = _mixReloadSeekMs;
+                _mixReloadSeekMs = -1;
+                Playback.ArmSeekGuard(seekTarget);
 
                 // Apply a deferred native track selection when dropping a remux preview and
                 // returning to the original file with a specific track selected.
@@ -2169,10 +2042,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
             {
                 _replayAfterEnd = false;
                 MediaPlayer.Pause();
-                _isUpdatingFromPlayer = true;
-                PositionSeconds = 0;
-                PositionDisplay = FormatTime(TimeSpan.Zero);
-                _isUpdatingFromPlayer = false;
+                Playback.UpdatePositionDisplay(TimeSpan.Zero);
                 return;
             }
 
@@ -2181,13 +2051,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
             if (_watchModeEndPending)
             {
                 _watchModeEndPending = false;
-                _ignoreTimeChangedBeforeMs = (long)WatchStart.TotalMilliseconds - 200;
-                MediaPlayer.Time = (long)WatchStart.TotalMilliseconds;
+                Playback.SeekToMs((long)WatchStart.TotalMilliseconds);
                 MediaPlayer.Pause();
-                _isUpdatingFromPlayer = true;
-                PositionSeconds = 0;
-                PositionDisplay = FormatTime(TimeSpan.Zero);
-                _isUpdatingFromPlayer = false;
+                Playback.UpdatePositionDisplay(TimeSpan.Zero);
                 return;
             }
 
@@ -2195,25 +2061,24 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
             if (_watchModeSeekPending)
             {
                 _watchModeSeekPending = false;
-                _ignoreTimeChangedBeforeMs = (long)WatchStart.TotalMilliseconds - 200;
-                MediaPlayer.Time = (long)WatchStart.TotalMilliseconds;
+                Playback.SeekToMs((long)WatchStart.TotalMilliseconds);
             }
         });
 
     private void OnPlayerPaused(object? sender, EventArgs e)
-        => Dispatcher.UIThread.Post(() => IsPlaying = false);
+        => Dispatcher.UIThread.Post(() => Playback.IsPlaying = false);
 
     private void OnPlayerStopped(object? sender, EventArgs e)
-        => Dispatcher.UIThread.Post(() => IsPlaying = false);
+        => Dispatcher.UIThread.Post(() => Playback.IsPlaying = false);
 
     private void OnPlayerEndReached(object? sender, EventArgs e)
         => Dispatcher.UIThread.Post(() =>
         {
-            IsPlaying = false;
+            Playback.IsPlaying = false;
 
             if (IsWatchMode)
             {
-                switch (LoopMode)
+                switch (Playback.LoopMode)
                 {
                     case LoopMode.Off:
                         // Clip reached its natural end exactly at WatchEnd. Restart media so we
@@ -2237,7 +2102,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
                 }
             }
 
-            switch (LoopMode)
+            switch (Playback.LoopMode)
             {
                 case LoopMode.LoopThis:
                     MediaPlayer.Stop();
@@ -2259,48 +2124,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
             }
         });
 
-    /// <summary>
-    /// Called by the source generator when <see cref="PositionSeconds"/> changes.
-    /// When the change originates from user interaction (not the player and not an active drag),
-    /// seeks the player and sets the stale-event ignore threshold.
-    /// During an active drag (<see cref="_isDragging"/> is true) the seek is deferred to
-    /// <see cref="EndScrub"/> so that VLC is not flooded with intermediate seek requests.
-    /// </summary>
-    partial void OnPositionSecondsChanged(double value)
-    {
-        if (_isUpdatingFromPlayer || _isDragging) return;
-        var targetMs = (long)(value * 1000);
-        _ignoreTimeChangedBeforeMs = targetMs - 200;
-        MediaPlayer.Time = targetMs;
-    }
-
-    /// <summary>Called by the source generator when <see cref="LoopMode"/> changes.</summary>
-    partial void OnLoopModeChanged(LoopMode value)
-    {
-        OnPropertyChanged(nameof(IsLoopOff));
-        OnPropertyChanged(nameof(IsLoopThis));
-        OnPropertyChanged(nameof(IsLoopAll));
-    }
-
-    /// <summary>
-    /// Advances <see cref="LoopMode"/> through the cycle Off → LoopThis → LoopAll → Off.
-    /// </summary>
-    private void CycleLoopMode()
-    {
-        LoopMode = LoopMode switch
-        {
-            LoopMode.Off      => LoopMode.LoopThis,
-            LoopMode.LoopThis => LoopMode.LoopAll,
-            _                 => LoopMode.Off,
-        };
-    }
-
-    private static string FormatTime(TimeSpan ts) =>
-        ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
-
-    private static string FormatTimePrecise(TimeSpan ts) =>
-        ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss\.f") : ts.ToString(@"m\:ss\.f");
-
     // ---- Transcription helpers ----
 
     /// <summary>
@@ -2309,11 +2132,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// clicking a segment row in the transcription panel moves the playhead.
     /// </summary>
     /// <param name="ms">Target position in milliseconds from the start of the clip.</param>
-    private void SeekToMs(long ms)
-    {
-        _ignoreTimeChangedBeforeMs = ms - 200;
-        MediaPlayer.Time = ms;
-    }
+    private void SeekToMs(long ms) => Playback.SeekToMs(ms);
 
     /// <summary>
     /// Called when <see cref="TranscriptionViewModel"/> raises <c>TranscriptionCompleted</c>
@@ -2343,7 +2162,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         _media?.Dispose();
         _media = new Media(_libVlc, _clip.FilePath, FromType.FromPath);
         MediaPlayer.Media = _media;
-        _ignoreTimeChangedBeforeMs = posMs - 200;
+        Playback.ArmSeekGuard(posMs);
         MediaPlayer.Play();
         MediaPlayer.AddSlave(MediaSlaveType.Subtitle, uri, true);
         MediaPlayer.Time = posMs;
@@ -2375,7 +2194,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
                 _media?.Dispose();
                 _media = new Media(_libVlc, _clip.FilePath, FromType.FromPath);
                 MediaPlayer.Media = _media;
-                _ignoreTimeChangedBeforeMs = posMs - 200;
+                Playback.ArmSeekGuard(posMs);
                 MediaPlayer.Play();
                 MediaPlayer.Time = posMs;
             }

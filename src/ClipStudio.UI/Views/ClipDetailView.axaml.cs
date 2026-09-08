@@ -228,23 +228,23 @@ public partial class ClipDetailView : UserControl
         switch (e.Key)
         {
             case Key.Space:
-                vm.PlayPauseCommand.Execute(null);
+                vm.Playback.PlayPauseCommand.Execute(null);
                 e.Handled = true;
                 break;
             case Key.Left:
-                vm.SkipBackCommand.Execute(null);
+                vm.Playback.SkipBackCommand.Execute(null);
                 e.Handled = true;
                 break;
             case Key.Right:
-                vm.SkipForwardCommand.Execute(null);
+                vm.Playback.SkipForwardCommand.Execute(null);
                 e.Handled = true;
                 break;
             case Key.OemComma:
-                vm.FrameBackCommand.Execute(null);
+                vm.Playback.FrameBackCommand.Execute(null);
                 e.Handled = true;
                 break;
             case Key.OemPeriod:
-                vm.FrameForwardCommand.Execute(null);
+                vm.Playback.FrameForwardCommand.Execute(null);
                 e.Handled = true;
                 break;
         }
@@ -258,7 +258,7 @@ public partial class ClipDetailView : UserControl
     private void OnVideoPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (DataContext is ClipDetailViewModel vm)
-            vm.PlayPauseCommand.Execute(null);
+            vm.Playback.PlayPauseCommand.Execute(null);
     }
 
     // ---- AutoCompleteBox tag pickers ----
@@ -904,7 +904,7 @@ public partial class ClipDetailView : UserControl
     private void OnSliderPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (DataContext is ClipDetailViewModel vm)
-            vm.BeginScrub();
+            vm.Playback.BeginScrub();
     }
 
     /// <summary>
@@ -914,6 +914,6 @@ public partial class ClipDetailView : UserControl
     private void OnSliderPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (DataContext is ClipDetailViewModel vm)
-            vm.EndScrub(PositionSlider.Value);
+            vm.Playback.EndScrub(PositionSlider.Value);
     }
 }

@@ -37,7 +37,7 @@ highlights 42/53, trim 49/40. Audio is the smallest but touches the fragile
 LibVLC ordering rules in DECISION_LOG (SetAudioTrack on initial load, explicit
 MediaPlayer.Volume) - verify by running the app, not just by building.
 
-- [ ] `PlaybackViewModel` - LibVLC player, position, volume, mute, loop, subtitles toggle
+- [x] `PlaybackViewModel` - position, loop, scrub, seek (volume/mute went to AudioMixerViewModel; subtitles stayed with the parent, which owns the media and SRT slave)
 - [ ] `TrimEditorViewModel` - trim start/end, destructive check against highlights, timestamp inputs
 - [ ] `HighlightEditorViewModel` - add/edit form, pending tags, timeline handles
 - [x] `AudioMixerViewModel` - track selection, per-track volume, MixedRemux cache
@@ -141,6 +141,14 @@ phase touches the same area.
   to apply the level once the output actually exists (first `TimeChanged` after a restart, or a
   short retry), so it needs its own runtime verification pass. Not yet confirmed whether audio is
   genuinely at the wrong level or only the query misreports.
+- [ ] Clicking the position slider track in watch mode seeks to the wrong place. The play-head
+  setter treats its value as an absolute media position, but in watch mode the slider is relative
+  to the highlight start, so a track-click lands `WatchStart` seconds early. Dragging is fine -
+  a drag is settled by `EndScrub`, which does convert. Carried over unchanged when the transport
+  was extracted, and marked in `PlaybackViewModel.OnPositionSecondsChanged`.
+- [ ] The play-head readout keeps the old precision until the next player update, so entering a
+  trim or highlight edit while paused leaves it at `m:ss` while the duration already reads
+  `m:ss.f`. Pre-existing; `PlaybackViewModel.RefreshDurationDisplay` deliberately preserves it.
 - [ ] `LogAudioDiagnostics` is debug scaffolding that still ships: it appends a snapshot to
   `%TEMP%\clipstudio_audio.log` on every play event. Its own comment says to remove it once the
   audio issues are resolved - do that together with the master-volume item above, since that is
