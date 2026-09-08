@@ -6,7 +6,7 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-08, end of session): 0 warnings, 391 tests passing, 17 commits
+Status (2026-09-08, end of session): 0 warnings, 399 tests passing, 23 commits
 ahead of origin/master and unpushed. **Phase 0 is complete.** Phase 1 (F-R
 duplicate detection) is the next thing to start.
 
@@ -205,9 +205,9 @@ phase touches the same area.
 
 ### Found during Phase 0 - needs a decision or investigation
 
-These came out of the split and the app-verification passes. They are recorded
-rather than fixed because each is either a behaviour change that deserves its
-own commit, or not yet fully diagnosed.
+These came out of the split and the app-verification passes. What remains here is
+blocked on runtime diagnosis rather than on effort. The rest were fixed after
+Phase 0 closed - see "Fixed after Phase 0" below.
 
 - [ ] **Master volume is lost after a clip restarts.** Every end-of-clip path in
   `OnPlayerEndReached` does `MediaPlayer.Stop()` then `Play()`, which tears down VLC's audio
@@ -220,27 +220,10 @@ own commit, or not yet fully diagnosed.
   a short retry), and needs its own runtime verification.
   *Still unknown:* whether audio is genuinely at the wrong level or only the query misreports.
   Establish that first - it decides whether this is a user-facing bug at all.
-- [ ] **Slider track-click seeks wrong in watch mode.** The play-head setter treats its value as
-  an absolute media position, but in watch mode the slider is relative to the highlight start, so
-  a track-click lands `WatchStart` seconds early. Dragging is fine - a drag is settled by
-  `EndScrub`, which does convert. Marked in `PlaybackViewModel.OnPositionSecondsChanged`; the fix
-  is to convert there the same way `EndScrub` does.
-- [ ] **Play-head readout keeps stale precision.** Entering a trim or highlight edit while paused
-  leaves the play head at `m:ss` while the duration already reads `m:ss.f`; it only catches up on
-  the next player update. `PlaybackViewModel.RefreshDurationDisplay` deliberately preserves this;
-  refreshing the position there too is a one-line change.
 - [ ] **`LogAudioDiagnostics` is debug scaffolding that still ships.** It appends a snapshot to
   `%TEMP%\clipstudio_audio.log` on every play event. Its own remark says to remove it once the
   audio issues are resolved - do that together with the master-volume item, since that is what it
   is currently being used to diagnose. (It is genuinely useful until then.)
-- [ ] **`AudioMixerViewModel._mixedPreviewPath` is dead.** Assigned in three places, never read.
-  Dead since before the extraction and moved across verbatim to keep that change behaviour-only.
-  Drop it, or start using it - the natural use is skipping a regeneration when the requested mix
-  already matches the loaded preview.
-- [ ] **Screenshot output folder is not profile-scoped.** With `--profile` set, captures still
-  land in `Pictures\ClipStudio`. Minor, but it breaks the isolation the profile flag otherwise
-  gives, which matters for the smoke-test recipe above.
-
 ### Pre-existing
 
 - [ ] Trash: sanitizer should detect clips moved to the system trash outside the app and drop their DB record (only on explicit sanitize run, never proactively)
@@ -252,9 +235,22 @@ own commit, or not yet fully diagnosed.
 - [ ] Transcription: drop base/small models from the picker (assessed as not useful)
 - [ ] Transcription: translation runs after recognition, should be a separate opt-in step
 - [ ] Installer: remove the "hide" option on the Velopack setup window
-- [ ] Replace the `OWNER/ClipStudio` GitHub URL placeholders in `CrashReportDialog.axaml.cs` and `SettingsViewModel.cs` before shipping
 
 ---
+
+## Fixed after Phase 0
+
+- [x] Slider track-click seeked `WatchStart` seconds early in watch mode. Both the
+  click and drag paths now share one `ToAbsoluteMs` conversion.
+- [x] Play-head readout kept its old precision while paused; `RefreshDurationDisplay`
+  now reformats both readouts. The test that asserted the old behaviour was updated.
+- [x] Screenshots escaped `--profile` into the user's real Pictures folder. The default
+  now comes from `AppDataPaths`, which takes an explicit `isProfileScoped` flag.
+- [x] Dropped the dead `AudioMixerViewModel._mixedPreviewPath`.
+- [x] Compiled bindings turned on across all 21 remaining views, so a missed rename is
+  a build error everywhere rather than a silent no-op at runtime.
+- [x] The `OWNER/ClipStudio` GitHub placeholders were already replaced with the real
+  repository URL; the backlog entry was stale.
 
 ## Done
 
