@@ -132,6 +132,7 @@ phase touches the same area.
 - [ ] Transcription: drop base/small models from the picker (assessed as not useful)
 - [ ] Transcription: translation runs after recognition, should be a separate opt-in step
 - [ ] Installer: remove the "hide" option on the Velopack setup window
+- [ ] Screenshot output folder is not profile-scoped: with `--profile` set, captures still land in `Pictures\ClipStudio` (found while smoke-testing the wizard)
 
 ---
 

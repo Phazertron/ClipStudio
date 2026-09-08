@@ -37,6 +37,7 @@ public sealed partial class SetupWizardViewModel : ViewModelBase
 
     /// <summary>Gets or sets the 0-based index of the currently visible step.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ProgressPercent))]
     private int _currentStepIndex;
 
     /// <summary>Gets the total number of steps in the wizard.</summary>

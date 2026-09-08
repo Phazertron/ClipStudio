@@ -243,4 +243,35 @@ public sealed class SetupWizardViewModelTests
         Assert.Equal(stepsAfterFirstCall, _wizard.TotalSteps);
         Assert.Equal(stepsAfterFirstCall, _wizard.StepIndicators.Count);
     }
+
+    [Fact]
+    public async Task NextCommand_RaisesProgressPercentChanged()
+    {
+        var raised = new List<string?>();
+        _wizard.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        await _wizard.NextCommand.ExecuteAsync(null);
+
+        Assert.Contains(nameof(_wizard.ProgressPercent), raised);
+    }
+
+    [Fact]
+    public async Task ProgressPercent_AdvancesWithTheCurrentStep()
+    {
+        var atFirstStep = _wizard.ProgressPercent;
+
+        await _wizard.NextCommand.ExecuteAsync(null);
+
+        Assert.True(_wizard.ProgressPercent > atFirstStep);
+        Assert.Equal(2.0 / _wizard.TotalSteps * 100.0, _wizard.ProgressPercent, 5);
+    }
+
+    [Fact]
+    public async Task ProgressPercent_ReachesOneHundredOnTheLastStep()
+    {
+        for (var i = 0; i < _wizard.TotalSteps - 1; i++)
+            await _wizard.NextCommand.ExecuteAsync(null);
+
+        Assert.Equal(100.0, _wizard.ProgressPercent, 5);
+    }
 }
