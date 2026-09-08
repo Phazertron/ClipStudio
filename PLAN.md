@@ -132,6 +132,15 @@ phase touches the same area.
 - [ ] Transcription: drop base/small models from the picker (assessed as not useful)
 - [ ] Transcription: translation runs after recognition, should be a separate opt-in step
 - [ ] Installer: remove the "hide" option on the Velopack setup window
+- [ ] Master volume is lost after a clip restarts. Every end-of-clip path in
+  `OnPlayerEndReached` does `MediaPlayer.Stop()` then `Play()`, which tears down VLC's audio
+  output; the rebuilt output starts at LibVLC's own default instead of the user's master level,
+  and `MediaPlayer.Volume` reads -1 afterwards. Investigated 2026-09-08: re-applying the level
+  from `AudioMixerViewModel.ReapplyVolume()` inside the `Playing` callback does NOT work - the
+  Volume setter is a no-op while no audio output exists, and the log still reads -1. The fix has
+  to apply the level once the output actually exists (first `TimeChanged` after a restart, or a
+  short retry), so it needs its own runtime verification pass. Not yet confirmed whether audio is
+  genuinely at the wrong level or only the query misreports.
 - [ ] Screenshot output folder is not profile-scoped: with `--profile` set, captures still land in `Pictures\ClipStudio` (found while smoke-testing the wizard)
 
 ---
