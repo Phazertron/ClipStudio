@@ -1,4 +1,5 @@
 using System;
+using ClipStudio.UI.Parsing;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -24,7 +25,7 @@ namespace ClipStudio.UI.ViewModels;
 /// highlight management, tag management, rename, trim/export, keyboard shortcuts, and queue navigation.
 /// Implements <see cref="IDisposable"/> to release the unmanaged MediaPlayer when the view is closed.
 /// </summary>
-public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackHost, IPlaybackHost, IDisposable
+public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackHost, IPlaybackHost, ITrimEditorHost, IDisposable
 {
     private readonly LibVLC _libVlc;
     private readonly IClipService _clipService;
@@ -50,6 +51,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     /// <summary>Gets the child view model that owns the playback transport.</summary>
     public PlaybackViewModel Playback { get; }
+
+    /// <summary>Gets the child view model that owns the trim and export form.</summary>
+    public TrimEditorViewModel Trim { get; }
 
     /// <summary>Gets or sets the SRT file path of the latest transcription, used for subtitle overlay.</summary>
     private string? _latestSrtPath;
@@ -270,39 +274,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         }
     }
 
-    // ---- Trim & Export ----
 
-    /// <summary>
-    /// Gets the proportional position (0.0-1.0) of the trim start mark within the clip.
-    /// Used to position the trim-start handle on the timeline overlay.
-    /// </summary>
-    public double TrimStartFraction =>
-        Playback.DurationSeconds > 0 ? _trimStart.TotalSeconds / Playback.DurationSeconds : 0;
-
-    /// <summary>
-    /// Gets the proportional position (0.0-1.0) of the trim end mark within the clip.
-    /// Used to position the trim-end handle on the timeline overlay.
-    /// </summary>
-    public double TrimEndFraction =>
-        Playback.DurationSeconds > 0 ? _trimEnd.TotalSeconds / Playback.DurationSeconds : 0;
-
-    /// <summary>Gets or sets a value indicating whether the Trim and Export form is expanded.</summary>
-    [ObservableProperty] private bool _isTrimming;
-
-    /// <summary>Gets or sets the formatted display of the trim start time.</summary>
-    [ObservableProperty] private string _trimStartDisplay = "0:00";
-
-    /// <summary>Gets or sets the formatted display of the trim end time.</summary>
-    [ObservableProperty] private string _trimEndDisplay = "0:00";
-
-    /// <summary>Gets or sets the validation error for the trim start input. Null when valid.</summary>
-    [ObservableProperty] private string? _trimStartError;
-
-    /// <summary>Gets or sets the validation error for the trim end input. Null when valid.</summary>
-    [ObservableProperty] private string? _trimEndError;
-
-    /// <summary>Gets or sets the output file path for the trimmed export.</summary>
-    [ObservableProperty] private string _trimOutputPath = string.Empty;
+    // ---- Export queue (shared with highlight export) ----
 
     /// <summary>Gets or sets whether an export job is currently being processed in the background.</summary>
     [ObservableProperty] private bool _isExporting;
@@ -312,21 +285,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     private bool _isProcessingExport;
 
-    /// <summary>
-    /// Gets or sets whether the trim export for this clip should use destructive mode
-    /// (re-encode and optionally delete original). Defaults to the setting's <see cref="AppSettings.DefaultTrimMode"/>.
-    /// Shown highlighted in red when true to warn the user of the irreversible action.
-    /// </summary>
-    [ObservableProperty] private bool _isTrimDestructive;
-
-    /// <summary>
-    /// Gets or sets a warning message shown when a destructive trim would clip highlights that fall
-    /// outside the selected trim range. Non-null triggers a confirmation UI. Cleared on confirm or cancel.
-    /// </summary>
-    [ObservableProperty] private string? _trimDestructiveWarning;
-
-    private TimeSpan _trimStart = TimeSpan.Zero;
-    private TimeSpan _trimEnd   = TimeSpan.Zero;
 
     // ---- Highlight loop ----
 
@@ -560,35 +518,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <summary>Gets the command that restores the rename textbox to the original filename on disk.</summary>
     public IRelayCommand RestoreOriginalNameCommand { get; }
 
-    /// <summary>Gets the command that expands the Trim and Export form.</summary>
-    public IRelayCommand BeginTrimCommand { get; }
-
-    /// <summary>Gets the command that collapses the Trim and Export form without queuing.</summary>
-    public IRelayCommand CancelTrimCommand { get; }
-
-    /// <summary>Gets the command that marks the current position as the trim start point.</summary>
-    public IRelayCommand MarkTrimStartCommand { get; }
-
-    /// <summary>Gets the command that marks the current position as the trim end point.</summary>
-    public IRelayCommand MarkTrimEndCommand { get; }
-
-    /// <summary>Gets the command that commits the user-edited trim start text to the underlying time value.</summary>
-    public IRelayCommand CommitTrimStartCommand { get; }
-
-    /// <summary>Gets the command that commits the user-edited trim end text to the underlying time value.</summary>
-    public IRelayCommand CommitTrimEndCommand { get; }
-
-    /// <summary>Gets the command that queues a trim export job for the current range.</summary>
-    public IAsyncRelayCommand QueueTrimExportCommand { get; }
-
     /// <summary>Gets the command that clears the export status bar.</summary>
     public IRelayCommand DismissExportStatusCommand { get; }
-
-    /// <summary>
-    /// Gets the command that confirms a destructive trim after the user acknowledges the warning
-    /// that highlights fall outside the trim range. Bypasses the warning check and queues immediately.
-    /// </summary>
-    public IAsyncRelayCommand ConfirmDestructiveTrimCommand { get; }
 
     /// <summary>Gets the command that releases the active highlight loop lock.</summary>
     public IRelayCommand UnlockHighlightCommand { get; }
@@ -733,9 +664,12 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
         Audio.TracksRefreshed += names => Transcription.SetAvailableTracks(names);
 
+        // Trim first: the transport's precision delegate reads Trim.IsTrimming.
+        Trim = new TrimEditorViewModel(this, exportService, settingsService);
+
         Playback = new PlaybackViewModel(
             this,
-            () => IsAddingOrEditingHighlight || IsTrimming);
+            () => IsAddingOrEditingHighlight || Trim.IsTrimming);
 
         BackCommand               = new RelayCommand(() => BackRequested?.Invoke());
         BeginAddHighlightCommand  = new RelayCommand(BeginAddHighlight);
@@ -752,14 +686,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         ConfirmRenameCommand      = new AsyncRelayCommand(ConfirmRenameAsync);
         CancelRenameCommand       = new RelayCommand(() => IsRenaming = false);
         RestoreOriginalNameCommand   = new RelayCommand(() => RenameValue = OriginalFileName);
-        BeginTrimCommand          = new RelayCommand(BeginTrim);
-        CancelTrimCommand         = new RelayCommand(() => IsTrimming = false);
-        MarkTrimStartCommand      = new RelayCommand(MarkTrimStart);
-        MarkTrimEndCommand        = new RelayCommand(MarkTrimEnd);
-        CommitTrimStartCommand    = new RelayCommand(CommitTrimStart);
-        CommitTrimEndCommand      = new RelayCommand(CommitTrimEnd);
-        QueueTrimExportCommand          = new AsyncRelayCommand(QueueTrimExportAsync);
-        ConfirmDestructiveTrimCommand   = new AsyncRelayCommand(ConfirmDestructiveTrimAsync);
         DismissExportStatusCommand      = new RelayCommand(() => ExportStatusMessage = null);
         UnlockHighlightCommand    = new RelayCommand(() => LockedHighlight = null);
         PreviousCommand                   = new RelayCommand(() => PreviousClipRequested?.Invoke());
@@ -816,6 +742,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         SuggestedGameNameDisplay = _clip.SuggestedGameName;
 
         Playback.Reset();
+        Trim.Reset();
         if (IsWatchMode)
         {
             var watchDuration = WatchEnd - WatchStart;
@@ -925,6 +852,38 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <inheritdoc/>
     public void SetAudioTrack(int trackId) => MediaPlayer.SetAudioTrack(trackId);
 
+    // ---- ITrimEditorHost ----
+
+    /// <inheritdoc/>
+    Clip? ITrimEditorHost.CurrentClip => _clip;
+
+    /// <inheritdoc/>
+    bool ITrimEditorHost.CanBeginTrim => !IsWatchMode;
+
+    /// <inheritdoc/>
+    void ITrimEditorHost.PrepareForTrim()
+    {
+        if (IsAddingHighlight) ResetHighlightForm();
+    }
+
+    /// <inheritdoc/>
+    double ITrimEditorHost.CurrentPositionSeconds => Playback.PositionSeconds;
+
+    /// <inheritdoc/>
+    double ITrimEditorHost.DurationSeconds => Playback.DurationSeconds;
+
+    /// <inheritdoc/>
+    IReadOnlyList<HighlightViewModel> ITrimEditorHost.Highlights => Highlights;
+
+    /// <inheritdoc/>
+    void ITrimEditorHost.OnTrimmingChanged() => Playback.RefreshDurationDisplay();
+
+    /// <inheritdoc/>
+    void ITrimEditorHost.RunExportQueue() => _ = RunExportQueueAsync();
+
+    /// <inheritdoc/>
+    void ITrimEditorHost.ReportExportFailure(string message) => ExportStatusMessage = message;
+
     // ---- IPlaybackHost ----
 
     /// <inheritdoc/>
@@ -1032,13 +991,13 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     {
         if (e.PropertyName == nameof(HighlightViewModel.EditStartDisplay))
         {
-            if (TryParseTime(_editingHighlight!.EditStartDisplay, out var t))
+            if (TimestampInput.TryParse(_editingHighlight!.EditStartDisplay, out var t))
                 _editHighlightStart = t;
             OnPropertyChanged(nameof(HighlightStartFraction));
         }
         else if (e.PropertyName == nameof(HighlightViewModel.EditEndDisplay))
         {
-            if (TryParseTime(_editingHighlight!.EditEndDisplay, out var t))
+            if (TimestampInput.TryParse(_editingHighlight!.EditEndDisplay, out var t))
                 _editHighlightEnd = t;
             OnPropertyChanged(nameof(HighlightEndFraction));
         }
@@ -1058,7 +1017,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     partial void OnHighlightStartDisplayChanged(string value)
     {
         if (!IsAddingHighlight) return;
-        if (TryParseTime(value, out var t))
+        if (TimestampInput.TryParse(value, out var t))
         {
             _highlightStart = t;
             OnPropertyChanged(nameof(HighlightStartFraction));
@@ -1072,7 +1031,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     partial void OnHighlightEndDisplayChanged(string value)
     {
         if (!IsAddingHighlight) return;
-        if (TryParseTime(value, out var t))
+        if (TimestampInput.TryParse(value, out var t))
         {
             _highlightEnd = t;
             OnPropertyChanged(nameof(HighlightEndFraction));
@@ -1255,11 +1214,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     private void BeginAddHighlight()
     {
         // Mutual exclusion: close the trim form so both handle-sets never appear simultaneously.
-        if (IsTrimming)
-        {
-            IsTrimming             = false;
-            TrimDestructiveWarning = null;
-        }
+        Trim.IsTrimming = false;
 
         IsAddingHighlight = true;
     }
@@ -1338,32 +1293,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
             HighlightEndDisplay = PlaybackViewModel.FormatPrecise(t);
         }
         OnPropertyChanged(nameof(HighlightEndFraction));
-    }
-
-    /// <summary>
-    /// Sets the trim start time from a proportional canvas position dragged by the user.
-    /// Called from the view code-behind drag handler for the trim-start handle.
-    /// </summary>
-    /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
-    public void SetTrimStartFromFraction(double fraction)
-    {
-        _trimStart       = TimeSpan.FromSeconds(Math.Clamp(fraction * Playback.DurationSeconds, 0, Playback.DurationSeconds));
-        TrimStartDisplay = PlaybackViewModel.FormatPrecise(_trimStart);
-        TrimStartError   = null;
-        OnPropertyChanged(nameof(TrimStartFraction));
-    }
-
-    /// <summary>
-    /// Sets the trim end time from a proportional canvas position dragged by the user.
-    /// Called from the view code-behind drag handler for the trim-end handle.
-    /// </summary>
-    /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
-    public void SetTrimEndFromFraction(double fraction)
-    {
-        _trimEnd       = TimeSpan.FromSeconds(Math.Clamp(fraction * Playback.DurationSeconds, 0, Playback.DurationSeconds));
-        TrimEndDisplay = PlaybackViewModel.FormatPrecise(_trimEnd);
-        TrimEndError   = null;
-        OnPropertyChanged(nameof(TrimEndFraction));
     }
 
     /// <summary>
@@ -1642,191 +1571,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         ClipTitle  = newName;
         IsRenaming = false;
         ClipRenamed?.Invoke(_clip.Id, newName);
-    }
-
-    // ---- Trim & Export ----
-
-    private void BeginTrim()
-    {
-        if (IsWatchMode) return;
-
-        // Mutual exclusion: close the highlight form so both handle-sets never appear simultaneously.
-        if (IsAddingHighlight) ResetHighlightForm();
-
-        if (_clip is not null && string.IsNullOrEmpty(TrimOutputPath))
-        {
-            var dir      = Path.GetDirectoryName(_clip.FilePath) ?? string.Empty;
-            var baseName = Path.GetFileNameWithoutExtension(_clip.FileName);
-            TrimOutputPath = Path.Combine(dir, $"{baseName}_trimmed.mp4");
-        }
-
-        IsTrimDestructive = _settingsService.Current.DefaultTrimMode == TrimMode.Destructive;
-        _trimStart       = TimeSpan.Zero;
-        _trimEnd         = _clip?.Duration ?? TimeSpan.Zero;
-        TrimStartDisplay = PlaybackViewModel.FormatPlain(_trimStart);
-        TrimEndDisplay   = PlaybackViewModel.FormatPlain(_trimEnd);
-        OnPropertyChanged(nameof(TrimStartFraction));
-        OnPropertyChanged(nameof(TrimEndFraction));
-        IsTrimming       = true;
-    }
-
-    private void MarkTrimStart()
-    {
-        _trimStart       = TimeSpan.FromSeconds(Playback.PositionSeconds);
-        TrimStartDisplay = PlaybackViewModel.FormatPrecise(_trimStart);
-        TrimStartError   = null;
-        OnPropertyChanged(nameof(TrimStartFraction));
-    }
-
-    private void MarkTrimEnd()
-    {
-        _trimEnd       = TimeSpan.FromSeconds(Playback.PositionSeconds);
-        TrimEndDisplay = PlaybackViewModel.FormatPrecise(_trimEnd);
-        TrimEndError   = null;
-        OnPropertyChanged(nameof(TrimEndFraction));
-    }
-
-    /// <summary>
-    /// Parses the current <see cref="TrimStartDisplay"/> text and updates the underlying trim start.
-    /// Resets the display to the last valid value and sets <see cref="TrimStartError"/> on failure.
-    /// </summary>
-    private void CommitTrimStart()
-    {
-        if (TryParseTime(TrimStartDisplay, out var ts))
-        {
-            _trimStart      = ts;
-            TrimStartError  = null;
-            TrimStartDisplay = PlaybackViewModel.FormatPlain(_trimStart);
-            OnPropertyChanged(nameof(TrimStartFraction));
-        }
-        else
-        {
-            TrimStartError   = "Invalid time (use m:ss or h:mm:ss).";
-            TrimStartDisplay = PlaybackViewModel.FormatPlain(_trimStart);
-        }
-    }
-
-    /// <summary>
-    /// Parses the current <see cref="TrimEndDisplay"/> text and updates the underlying trim end.
-    /// Resets the display to the last valid value and sets <see cref="TrimEndError"/> on failure.
-    /// </summary>
-    private void CommitTrimEnd()
-    {
-        if (TryParseTime(TrimEndDisplay, out var ts))
-        {
-            _trimEnd      = ts;
-            TrimEndError  = null;
-            TrimEndDisplay = PlaybackViewModel.FormatPlain(_trimEnd);
-            OnPropertyChanged(nameof(TrimEndFraction));
-        }
-        else
-        {
-            TrimEndError   = "Invalid time (use m:ss or h:mm:ss).";
-            TrimEndDisplay = PlaybackViewModel.FormatPlain(_trimEnd);
-        }
-    }
-
-    /// <summary>
-    /// Attempts to parse a user-entered time string in <c>m:ss</c> or <c>h:mm:ss</c> format.
-    /// </summary>
-    /// <param name="input">The raw input string.</param>
-    /// <param name="result">The parsed <see cref="TimeSpan"/>, or <see cref="TimeSpan.Zero"/> on failure.</param>
-    /// <returns><see langword="true"/> if parsing succeeded; otherwise <see langword="false"/>.</returns>
-    private static bool TryParseTime(string? input, out TimeSpan result)
-    {
-        result = TimeSpan.Zero;
-        if (string.IsNullOrWhiteSpace(input)) return false;
-
-        if (TimeSpan.TryParseExact(input.Trim(),
-            [
-                @"m\:ss", @"mm\:ss", @"h\:mm\:ss",
-                @"m\:ss\.f", @"mm\:ss\.f", @"h\:mm\:ss\.f",
-                @"m\:ss\.ff", @"mm\:ss\.ff", @"h\:mm\:ss\.ff",
-                @"m\:ss\.fff", @"mm\:ss\.fff", @"h\:mm\:ss\.fff",
-            ], null, out result))
-            return true;
-
-        // Fallback: plain seconds as integer.
-        if (int.TryParse(input.Trim(), out var secs))
-        {
-            result = TimeSpan.FromSeconds(secs);
-            return true;
-        }
-
-        return false;
-    }
-
-    private async Task QueueTrimExportAsync()
-    {
-        if (_clip is null || _trimStart >= _trimEnd || string.IsNullOrWhiteSpace(TrimOutputPath))
-            return;
-
-        // CE4: warn when destructive trim would clip highlights that fall outside the trim range.
-        if (IsTrimDestructive)
-        {
-            var outside = Highlights
-                .Where(h => h.StartTime < _trimStart || h.EndTime > _trimEnd)
-                .ToList();
-
-            if (outside.Count > 0)
-            {
-                var names = string.Join(", ", outside.Take(3).Select(h => $"\"{h.Label}\""));
-                if (outside.Count > 3) names += $" and {outside.Count - 3} more";
-                TrimDestructiveWarning =
-                    $"{outside.Count} highlight{(outside.Count == 1 ? "" : "s")} " +
-                    $"fall{(outside.Count == 1 ? "s" : "")} outside the trim range and will be clipped: {names}. Queue anyway?";
-                return;
-            }
-        }
-
-        await ExecuteQueueTrimAsync();
-    }
-
-    /// <summary>
-    /// Confirms a destructive trim export after the user acknowledges the highlight-outside-range warning.
-    /// Bypasses the warning check and proceeds to queue immediately.
-    /// </summary>
-    private async Task ConfirmDestructiveTrimAsync()
-    {
-        TrimDestructiveWarning = null;
-        await ExecuteQueueTrimAsync();
-    }
-
-    /// <summary>
-    /// Queues the trim export unconditionally. Called by <see cref="QueueTrimExportAsync"/>
-    /// when no warning applies, and by <see cref="ConfirmDestructiveTrimAsync"/> after user confirmation.
-    /// </summary>
-    private async Task ExecuteQueueTrimAsync()
-    {
-        if (_clip is null) return;
-
-        var trimMode = IsTrimDestructive ? TrimMode.Destructive : TrimMode.NonDestructive;
-        try
-        {
-            await _exportService.QueueAsync(
-                _clip.Id,
-                null,
-                TrimOutputPath,
-                trimMode,
-                IsTrimDestructive,
-                _trimStart,
-                _trimEnd);
-        }
-        catch (Exception ex)
-        {
-            ExportStatusMessage = $"Export failed: {ex.Message}";
-            return;
-        }
-
-        IsTrimming = false;
-        _ = RunExportQueueAsync();
-    }
-
-    /// <summary>Clears the destructive-trim warning whenever the trim form is closed.</summary>
-    partial void OnIsTrimmingChanged(bool value)
-    {
-        if (!value) TrimDestructiveWarning = null;
-        Playback.RefreshDurationDisplay();
     }
 
     /// <summary>

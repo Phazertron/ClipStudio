@@ -38,7 +38,7 @@ LibVLC ordering rules in DECISION_LOG (SetAudioTrack on initial load, explicit
 MediaPlayer.Volume) - verify by running the app, not just by building.
 
 - [x] `PlaybackViewModel` - position, loop, scrub, seek (volume/mute went to AudioMixerViewModel; subtitles stayed with the parent, which owns the media and SRT slave)
-- [ ] `TrimEditorViewModel` - trim start/end, destructive check against highlights, timestamp inputs
+- [x] `TrimEditorViewModel` - trim start/end, destructive check against highlights, timestamp inputs
 - [ ] `HighlightEditorViewModel` - add/edit form, pending tags, timeline handles
 - [x] `AudioMixerViewModel` - track selection, per-track volume, MixedRemux cache
 - [x] `ScreenshotViewModel` - capture (list lands with the UI that shows it)

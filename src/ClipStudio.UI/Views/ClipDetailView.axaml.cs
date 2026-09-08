@@ -115,14 +115,20 @@ public partial class ClipDetailView : UserControl
     private void SubscribeVm()
     {
         _vm = DataContext as ClipDetailViewModel;
-        if (_vm is not null)
-            _vm.PropertyChanged += OnVmPropertyChanged;
+        if (_vm is null) return;
+
+        _vm.PropertyChanged      += OnVmPropertyChanged;
+        _vm.Trim.PropertyChanged += OnTrimPropertyChanged;
     }
 
     private void UnsubscribeVm()
     {
         if (_vm is not null)
-            _vm.PropertyChanged -= OnVmPropertyChanged;
+        {
+            _vm.PropertyChanged      -= OnVmPropertyChanged;
+            _vm.Trim.PropertyChanged -= OnTrimPropertyChanged;
+        }
+
         _vm = null;
     }
 
@@ -133,8 +139,12 @@ public partial class ClipDetailView : UserControl
         {
             UpdateHandlePositions();
         }
-        else if (e.PropertyName is nameof(ClipDetailViewModel.TrimStartFraction)
-                                or nameof(ClipDetailViewModel.TrimEndFraction))
+    }
+
+    private void OnTrimPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(TrimEditorViewModel.TrimStartFraction)
+                           or nameof(TrimEditorViewModel.TrimEndFraction))
         {
             UpdateTrimHandlePositions();
         }
@@ -156,8 +166,8 @@ public partial class ClipDetailView : UserControl
         var (inset, usable) = GetSliderTrackMetrics();
         if (usable <= 0) return;
 
-        Canvas.SetLeft(TrimHandleStart, inset + _vm.TrimStartFraction * usable - 8);
-        Canvas.SetLeft(TrimHandleEnd,   inset + _vm.TrimEndFraction   * usable - 8);
+        Canvas.SetLeft(TrimHandleStart, inset + _vm.Trim.TrimStartFraction * usable - 8);
+        Canvas.SetLeft(TrimHandleEnd,   inset + _vm.Trim.TrimEndFraction   * usable - 8);
     }
 
     /// <summary>
@@ -736,7 +746,7 @@ public partial class ClipDetailView : UserControl
     private void OnTrimStartLostFocus(object? sender, RoutedEventArgs e)
     {
         if (DataContext is ClipDetailViewModel vm)
-            vm.CommitTrimStartCommand.Execute(null);
+            vm.Trim.CommitTrimStartCommand.Execute(null);
     }
 
     /// <summary>
@@ -745,7 +755,7 @@ public partial class ClipDetailView : UserControl
     private void OnTrimEndLostFocus(object? sender, RoutedEventArgs e)
     {
         if (DataContext is ClipDetailViewModel vm)
-            vm.CommitTrimEndCommand.Execute(null);
+            vm.Trim.CommitTrimEndCommand.Execute(null);
     }
 
     /// <summary>
@@ -755,7 +765,7 @@ public partial class ClipDetailView : UserControl
     {
         if (e.Key == Key.Enter && DataContext is ClipDetailViewModel vm)
         {
-            vm.CommitTrimStartCommand.Execute(null);
+            vm.Trim.CommitTrimStartCommand.Execute(null);
             e.Handled = true;
         }
     }
@@ -767,7 +777,7 @@ public partial class ClipDetailView : UserControl
     {
         if (e.Key == Key.Enter && DataContext is ClipDetailViewModel vm)
         {
-            vm.CommitTrimEndCommand.Execute(null);
+            vm.Trim.CommitTrimEndCommand.Execute(null);
             e.Handled = true;
         }
     }
@@ -781,13 +791,13 @@ public partial class ClipDetailView : UserControl
     {
         if (DataContext is not ClipDetailViewModel vm) return;
 
-        var startDir = string.IsNullOrWhiteSpace(vm.TrimOutputPath)
+        var startDir = string.IsNullOrWhiteSpace(vm.Trim.TrimOutputPath)
             ? null
-            : Path.GetDirectoryName(vm.TrimOutputPath);
+            : Path.GetDirectoryName(vm.Trim.TrimOutputPath);
 
-        var suggestedName = string.IsNullOrWhiteSpace(vm.TrimOutputPath)
+        var suggestedName = string.IsNullOrWhiteSpace(vm.Trim.TrimOutputPath)
             ? "output.mp4"
-            : Path.GetFileName(vm.TrimOutputPath);
+            : Path.GetFileName(vm.Trim.TrimOutputPath);
 
         IStorageFolder? folder = null;
         if (startDir is not null && Directory.Exists(startDir))
@@ -809,7 +819,7 @@ public partial class ClipDetailView : UserControl
             });
 
         if (result is not null)
-            vm.TrimOutputPath = result.Path.LocalPath;
+            vm.Trim.TrimOutputPath = result.Path.LocalPath;
     }
 
     // ---- Highlight handle drag ----
@@ -881,9 +891,9 @@ public partial class ClipDetailView : UserControl
         var pointerX  = e.GetPosition(TrimHandleCanvas).X;
         var fraction  = Math.Clamp((pointerX - inset) / usable, 0.0, 1.0);
         if (_draggingTrimHandle == "start")
-            _vm.SetTrimStartFromFraction(fraction);
+            _vm.Trim.SetTrimStartFromFraction(fraction);
         else
-            _vm.SetTrimEndFromFraction(fraction);
+            _vm.Trim.SetTrimEndFromFraction(fraction);
     }
 
     /// <summary>Ends the trim handle drag and releases pointer capture.</summary>

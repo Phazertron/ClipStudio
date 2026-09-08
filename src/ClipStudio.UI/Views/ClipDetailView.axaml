@@ -219,7 +219,7 @@
 
             <!-- Trim handle canvas: pointing up, sits above the slider -->
             <Canvas x:Name="TrimHandleCanvas"
-                    IsVisible="{Binding IsTrimming}"
+                    IsVisible="{Binding Trim.IsTrimming}"
                     Height="16"
                     VerticalAlignment="Top"
                     Margin="0,-4,0,0"
@@ -986,7 +986,7 @@
                                 <Button Grid.Column="2"
                                         Command="{Binding BeginAddHighlightCommand}"
                                         IsVisible="{Binding !IsAddingHighlight}"
-                                        IsEnabled="{Binding !IsTrimming}"
+                                        IsEnabled="{Binding !Trim.IsTrimming}"
                                         ToolTip.Tip="Add highlight"
                                         Padding="6">
                                     <icons:MaterialIcon Kind="PlusThick" Width="16" Height="16"/>
@@ -1416,16 +1416,16 @@
                                            FontSize="13"
                                            VerticalAlignment="Center"/>
                                 <Button Grid.Column="1"
-                                        Command="{Binding BeginTrimCommand}"
+                                        Command="{Binding Trim.BeginTrimCommand}"
                                         Content="Begin Trim"
                                         FontSize="11"
-                                        IsVisible="{Binding !IsTrimming}"
+                                        IsVisible="{Binding !Trim.IsTrimming}"
                                         IsEnabled="{Binding !IsAddingHighlight}"/>
                             </Grid>
 
                             <!-- Trim form -->
                             <StackPanel Spacing="6"
-                                        IsVisible="{Binding IsTrimming}">
+                                        IsVisible="{Binding Trim.IsTrimming}">
 
                                 <Grid ColumnDefinitions="Auto,*,Auto"
                                       RowDefinitions="Auto,Auto,Auto,Auto"
@@ -1437,24 +1437,24 @@
                                                Margin="0,0,6,0">Start:</TextBlock>
                                     <TextBox x:Name="TrimStartTextBox"
                                              Grid.Row="0" Grid.Column="1"
-                                             Text="{Binding TrimStartDisplay}"
+                                             Text="{Binding Trim.TrimStartDisplay}"
                                              FontFamily="Consolas,Courier New,monospace"
                                              FontSize="12"
                                              Padding="4,2"
                                              LostFocus="OnTrimStartLostFocus"
                                              KeyDown="OnTrimStartKeyDown"/>
                                     <Button Grid.Row="0" Grid.Column="2"
-                                            Command="{Binding MarkTrimStartCommand}"
+                                            Command="{Binding Trim.MarkTrimStartCommand}"
                                             Content="Mark"
                                             FontSize="11"
                                             Padding="6,3"
                                             Margin="4,0,0,0"/>
                                     <!-- Start error -->
                                     <TextBlock Grid.Row="1" Grid.ColumnSpan="3"
-                                               Text="{Binding TrimStartError}"
+                                               Text="{Binding Trim.TrimStartError}"
                                                FontSize="10"
                                                Foreground="#E74C3C"
-                                               IsVisible="{Binding TrimStartError, Converter={x:Static conv:IsNotNullConverter.Instance}}"
+                                               IsVisible="{Binding Trim.TrimStartError, Converter={x:Static conv:IsNotNullConverter.Instance}}"
                                                Margin="0,0,0,2"/>
                                     <!-- End row -->
                                     <TextBlock Grid.Row="2" Grid.Column="0"
@@ -1463,24 +1463,24 @@
                                                Margin="0,0,6,0">End:</TextBlock>
                                     <TextBox x:Name="TrimEndTextBox"
                                              Grid.Row="2" Grid.Column="1"
-                                             Text="{Binding TrimEndDisplay}"
+                                             Text="{Binding Trim.TrimEndDisplay}"
                                              FontFamily="Consolas,Courier New,monospace"
                                              FontSize="12"
                                              Padding="4,2"
                                              LostFocus="OnTrimEndLostFocus"
                                              KeyDown="OnTrimEndKeyDown"/>
                                     <Button Grid.Row="2" Grid.Column="2"
-                                            Command="{Binding MarkTrimEndCommand}"
+                                            Command="{Binding Trim.MarkTrimEndCommand}"
                                             Content="Mark"
                                             FontSize="11"
                                             Padding="6,3"
                                             Margin="4,0,0,0"/>
                                     <!-- End error -->
                                     <TextBlock Grid.Row="3" Grid.ColumnSpan="3"
-                                               Text="{Binding TrimEndError}"
+                                               Text="{Binding Trim.TrimEndError}"
                                                FontSize="10"
                                                Foreground="#E74C3C"
-                                               IsVisible="{Binding TrimEndError, Converter={x:Static conv:IsNotNullConverter.Instance}}"
+                                               IsVisible="{Binding Trim.TrimEndError, Converter={x:Static conv:IsNotNullConverter.Instance}}"
                                                Margin="0,0,0,2"/>
                                 </Grid>
 
@@ -1488,7 +1488,7 @@
                                 <TextBlock Text="Output path:" FontSize="11" Opacity="0.7"/>
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBox Grid.Column="0"
-                                             Text="{Binding TrimOutputPath}"
+                                             Text="{Binding Trim.TrimOutputPath}"
                                              FontSize="11"
                                              TextWrapping="Wrap"/>
                                     <Button Grid.Column="1"
@@ -1501,43 +1501,43 @@
                                 </Grid>
 
                                 <!-- Trim mode toggle — shown in red when Destructive -->
-                                <ToggleButton IsChecked="{Binding IsTrimDestructive}"
+                                <ToggleButton IsChecked="{Binding Trim.IsTrimDestructive}"
                                               FontSize="11"
                                               HorizontalAlignment="Left"
                                               ToolTip.Tip="Destructive: re-encodes the output. Non-destructive: stream copy only (faster, lossless).">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <icons:MaterialIcon Kind="ScissorsCutting" Width="14" Height="14"/>
                                         <TextBlock Text="Non-Destructive" FontSize="11"
-                                                   IsVisible="{Binding !IsTrimDestructive}"/>
+                                                   IsVisible="{Binding !Trim.IsTrimDestructive}"/>
                                         <TextBlock Text="Destructive" FontSize="11" Foreground="#E74C3C"
-                                                   IsVisible="{Binding IsTrimDestructive}"/>
+                                                   IsVisible="{Binding Trim.IsTrimDestructive}"/>
                                     </StackPanel>
                                 </ToggleButton>
                                 <TextBlock Text="WARNING: Destructive export re-encodes the video. This cannot be undone."
                                            FontSize="10"
                                            Foreground="#E74C3C"
                                            TextWrapping="Wrap"
-                                           IsVisible="{Binding IsTrimDestructive}"/>
+                                           IsVisible="{Binding Trim.IsTrimDestructive}"/>
 
                                 <!-- CE4: destructive-trim highlight-outside warning -->
-                                <Border IsVisible="{Binding TrimDestructiveWarning, Converter={x:Static conv:IsNotNullConverter.Instance}}"
+                                <Border IsVisible="{Binding Trim.TrimDestructiveWarning, Converter={x:Static conv:IsNotNullConverter.Instance}}"
                                         Background="#33E74C3C"
                                         BorderBrush="#E74C3C"
                                         BorderThickness="1"
                                         CornerRadius="4"
                                         Padding="8,6">
                                     <StackPanel Spacing="6">
-                                        <TextBlock Text="{Binding TrimDestructiveWarning}"
+                                        <TextBlock Text="{Binding Trim.TrimDestructiveWarning}"
                                                    FontSize="11"
                                                    Foreground="#E74C3C"
                                                    TextWrapping="Wrap"/>
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Button Command="{Binding ConfirmDestructiveTrimCommand}"
+                                            <Button Command="{Binding Trim.ConfirmDestructiveTrimCommand}"
                                                     Content="Queue Anyway"
                                                     FontSize="11"
                                                     Background="#E74C3C"
                                                     Foreground="White"/>
-                                            <Button Command="{Binding CancelTrimCommand}"
+                                            <Button Command="{Binding Trim.CancelTrimCommand}"
                                                     Content="Cancel"
                                                     FontSize="11"/>
                                         </StackPanel>
@@ -1545,11 +1545,11 @@
                                 </Border>
 
                                 <StackPanel Orientation="Horizontal" Spacing="6"
-                                            IsVisible="{Binding TrimDestructiveWarning, Converter={x:Static conv:IsNullConverter.Instance}}">
-                                    <Button Command="{Binding QueueTrimExportCommand}"
+                                            IsVisible="{Binding Trim.TrimDestructiveWarning, Converter={x:Static conv:IsNullConverter.Instance}}">
+                                    <Button Command="{Binding Trim.QueueTrimExportCommand}"
                                             Content="Queue Export"
                                             FontSize="11"/>
-                                    <Button Command="{Binding CancelTrimCommand}"
+                                    <Button Command="{Binding Trim.CancelTrimCommand}"
                                             Content="Cancel"
                                             FontSize="11"/>
                                 </StackPanel>
