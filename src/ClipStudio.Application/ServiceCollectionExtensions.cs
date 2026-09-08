@@ -28,10 +28,11 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddClipStudioApplication(
         this IServiceCollection services,
         string settingsFilePath,
-        string appDataPath)
+        string appDataPath,
+        bool isProfileScoped = false)
     {
         // Resolved paths singleton — consumed by services that write to the data directory.
-        services.AddSingleton(new AppDataPaths(appDataPath));
+        services.AddSingleton(new AppDataPaths(appDataPath, isProfileScoped));
         services.AddSingleton<IFileSystem, PhysicalFileSystem>();
 
         // Settings must be registered first as other services depend on it.

@@ -31,7 +31,8 @@ internal sealed class Program
         // (e.g. a "demo" profile for screenshots) can coexist without touching the real library.
         var profileName = ParseProfileArg(args);
         var folderName  = profileName is not null ? $"ClipStudio_{profileName}" : "ClipStudio";
-        App.AppDataPath = ResolvePlatformAppDataPath(folderName);
+        App.AppDataPath     = ResolvePlatformAppDataPath(folderName);
+        App.IsProfileScoped = profileName is not null;
 
         // Strip --profile and its value from the args passed to Avalonia so the framework
         // does not treat them as unknown arguments.

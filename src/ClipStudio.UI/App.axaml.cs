@@ -44,6 +44,13 @@ public partial class App : AvaloniaApp
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "ClipStudio");
 
+    /// <summary>
+    /// Gets or sets a value indicating whether a <c>--profile</c> launch argument is active.
+    /// Set by <c>Program.Main</c>. Services use it to keep everything a disposable profile writes
+    /// inside <see cref="AppDataPath"/> instead of the user's real folders.
+    /// </summary>
+    public static bool IsProfileScoped { get; set; }
+
     /// <summary>Gets the absolute path to the directory that contains rolling log files.</summary>
     public static string LogsFolder => Path.Combine(AppDataPath, "logs");
 
@@ -301,7 +308,7 @@ public partial class App : AvaloniaApp
         services.AddLogging(logging => logging.AddSerilog(dispose: false));
 
         services.AddClipStudioData(dbPath);
-        services.AddClipStudioApplication(settingsPath, AppDataPath);
+        services.AddClipStudioApplication(settingsPath, AppDataPath, IsProfileScoped);
 
         // LibVLC — single shared instance for the lifetime of the app.
         // On macOS the dylibs and plugins live inside the VLC.app bundle and are not

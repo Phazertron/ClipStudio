@@ -1,4 +1,5 @@
 using ClipStudio.Application.Interfaces;
+using ClipStudio.Application.Models;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -14,6 +15,7 @@ public sealed class ScreenshotService : IScreenshotService
     private readonly IScreenshotRepository _screenshots;
     private readonly IMediaService _media;
     private readonly ISettingsService _settings;
+    private readonly AppDataPaths _paths;
     private readonly ILogger<ScreenshotService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="ScreenshotService"/>.</summary>
@@ -22,12 +24,14 @@ public sealed class ScreenshotService : IScreenshotService
         IScreenshotRepository screenshots,
         IMediaService media,
         ISettingsService settings,
+        AppDataPaths paths,
         ILogger<ScreenshotService> logger)
     {
         _clips = clips;
         _screenshots = screenshots;
         _media = media;
         _settings = settings;
+        _paths = paths;
         _logger = logger;
     }
 
@@ -41,7 +45,7 @@ public sealed class ScreenshotService : IScreenshotService
             ?? throw new InvalidOperationException($"Clip {clipId} not found.");
 
         var outputDirectory = string.IsNullOrEmpty(_settings.Current.ScreenshotOutputFolder)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "ClipStudio")
+            ? _paths.DefaultScreenshotFolder
             : _settings.Current.ScreenshotOutputFolder;
 
         var filePath = await _media.CaptureScreenshotAsync(
