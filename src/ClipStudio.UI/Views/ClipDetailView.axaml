@@ -10,6 +10,7 @@
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="750"
              x:Class="ClipStudio.UI.Views.ClipDetailView"
              x:DataType="vm:ClipDetailViewModel"
+             x:CompileBindings="True"
              Focusable="True">
 
     <Grid RowDefinitions="Auto,*,Auto,Auto" ColumnDefinitions="*,Auto">
