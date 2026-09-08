@@ -6,10 +6,10 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-08, end of session): 0 warnings, 344 tests passing, 14 commits
+Status (2026-09-08, end of session): 0 warnings, 363 tests passing, 15 commits
 ahead of origin/master and unpushed. Phase 0.1 and 0.3 are complete. Phase 0.2
-has all five named child view models extracted; the `TagPickerBehavior` item and
-the line-count target remain.
+has all five named child view models extracted and `TagPickerBehavior` done; only
+the line-count target remains, and it needs a decision (see below).
 
 ---
 
@@ -55,22 +55,33 @@ such items are listed there.
 - [x] `HighlightEditorViewModel` - add/edit form, pending tags, timeline handles (the highlight list stays with the parent)
 - [x] `AudioMixerViewModel` - track selection, per-track volume, MixedRemux cache
 - [x] `ScreenshotViewModel` - capture (list lands with the UI that shows it)
-- [ ] Move the AutoCompleteBox picker state machine into a reusable `TagPickerBehavior`.
-  Currently duplicated between `ClipDetailView.axaml.cs` (which keeps a
-  per-instance `Dictionary<AutoCompleteBox, HighlightPickerState>`) and
-  `LibraryView.axaml.cs`. This is the delicate one: Avalonia clears `SelectedItem`
-  BEFORE `DropDownClosed` fires, so the selection must be captured in
-  `SelectionChanged`, and the three-phase state machine
-  (SelectionChanged / KeyDown tunnel+handledEventsToo / DropDownClosed) has to be
-  moved intact. Pure view-layer work with no compile-time safety net - budget a
-  full app-verification pass over both views.
-- [ ] Target: no file in UI above 1,000 lines. Not met yet. Current offenders:
-  `LibraryViewModel.cs` (1,753 - untouched by this phase, and the larger of the
-  two view models the phase goal named), `ClipDetailViewModel.cs` (1,676),
-  `ClipDetailView.axaml.cs` (940, shrinks with `TagPickerBehavior`).
-  What is left in ClipDetailViewModel is the highlight *list* and the
-  tag/player/game panels; neither is a named child in this plan, so decide
-  whether to keep splitting or to close the item at "materially smaller".
+- [x] Move the AutoCompleteBox picker state machine into a reusable `TagPickerBehavior`.
+  Landed as three files in `src/ClipStudio.UI/Behaviors/`: `TagPickerStateMachine`
+  (the three-phase logic, no Avalonia), `ITagPickerHost` (the seam), and
+  `TagPickerBehavior` (the `AutoCompleteBox` glue, one instance per picker).
+  Note for the record: the plan said this was duplicated with `LibraryView.axaml.cs`,
+  but that file has no `AutoCompleteBox` handling at all - the duplication was three
+  near-identical copies *inside* `ClipDetailView.axaml.cs` (game, general, highlight).
+  All three now share the one machine; they differ only in a resolve delegate, a
+  commit delegate, and a `refocusAfterCommit` flag. `ClipDetailView.axaml.cs`
+  940 -> 566 lines. Covered by 19 tests in `tests/ClipStudio.Tests/Behaviors/`
+  driving the machine through a `FakeTagPickerHost`.
+  **Not yet verified by hand.** The extraction is behaviour-preserving by
+  construction and the app starts and runs clean, but the actual dropdown paths
+  (click / arrow+Enter / type+Enter / type+Tab / Escape, on the game, general,
+  new-highlight and per-highlight-row pickers) still need one pass with a mouse
+  and keyboard. That is the only outstanding risk from this change.
+- [ ] Target: no file in UI above 1,000 lines. Still not met, and now needs a
+  decision rather than more of the same work. Current offenders:
+  `LibraryViewModel.cs` (1,753), `LibraryView.axaml` (1,737),
+  `ClipDetailViewModel.cs` (1,676), `ClipDetailView.axaml` (1,568).
+  `ClipDetailView.axaml.cs` is off the list (566).
+  Every remaining offender is either XAML - which the 1,000-line rule was never
+  really aimed at - or `LibraryViewModel`, which this phase never touched. What is
+  left in `ClipDetailViewModel` is the highlight list and the tag/player/game
+  panels; neither is a named child in this plan. So the choice is: open a 0.4 for
+  `LibraryViewModel` (the honest remaining work), or close the item at
+  "materially smaller" and move on to Phase 1.
 
 ### 0.3 Small fixes
 
@@ -229,6 +240,7 @@ own commit, or not yet fully diagnosed.
 - [x] 0.1 file-system test net: `IFileSystem` + `PhysicalFileSystem` + `FakeFileSystem`; import, sanitizer, highlight and export suites. Tests 118 -> 214.
 - [x] 0.3 small fixes: async FFmpeg detection, clip search filters pushed into SQL, gitignore, CLAUDE.md
 - [x] 0.2 five child view models extracted from ClipDetailViewModel (2,801 -> 1,676 lines), each behind an `I...Host` seam and covered by tests. Tests 214 -> 344.
+- [x] 0.2 `TagPickerBehavior` + `TagPickerStateMachine` extracted; three copies of the picker state machine in `ClipDetailView.axaml.cs` collapsed to one (940 -> 566 lines). Tests 344 -> 363.
 - [x] Fixed along the way: setup wizard progress bar never advanced; `TimestampInput` accepted negative bare seconds
 
 ### Round 15 - completed
