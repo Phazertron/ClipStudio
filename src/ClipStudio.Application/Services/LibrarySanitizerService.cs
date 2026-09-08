@@ -19,6 +19,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
     private readonly ITranscriptionRepository _transcriptions;
     private readonly ISourceFolderRepository _folders;
     private readonly IRecycleBinService _recycleBin;
+    private readonly IFileSystem _fileSystem;
     private readonly AppDataPaths _paths;
     private readonly ILogger<LibrarySanitizerService> _logger;
 
@@ -31,6 +32,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         ITranscriptionRepository transcriptions,
         ISourceFolderRepository folders,
         IRecycleBinService recycleBin,
+        IFileSystem fileSystem,
         AppDataPaths paths,
         ILogger<LibrarySanitizerService> logger)
     {
@@ -41,6 +43,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         _transcriptions = transcriptions;
         _folders        = folders;
         _recycleBin     = recycleBin;
+        _fileSystem     = fileSystem;
         _paths          = paths;
         _logger         = logger;
     }
@@ -83,11 +86,11 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             // time.  When the converted value is within 60 seconds of the file timestamp (i.e. it
             // matches), but the raw stored value differs by ≥30 minutes (indicating a UTC offset
             // was not applied), update CreatedAt to the correct UTC value.
-            if (File.Exists(clip.FilePath))
+            if (_fileSystem.FileExists(clip.FilePath))
             {
                 try
                 {
-                    var fileCreatedUtc = File.GetCreationTimeUtc(clip.FilePath);
+                    var fileCreatedUtc = _fileSystem.GetCreationTimeUtc(clip.FilePath);
                     var assumedLocal   = DateTime.SpecifyKind(clip.CreatedAt, DateTimeKind.Local);
                     var assumedUtc     = assumedLocal.ToUniversalTime();
 
@@ -110,7 +113,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 }
             }
 
-            if (!File.Exists(clip.FilePath))
+            if (!_fileSystem.FileExists(clip.FilePath))
             {
                 // Clip is already flagged broken by the watcher or a previous sanitize pass.
                 // Leave it in place — do not attempt ghost repair or re-mark it; the user
@@ -127,7 +130,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 // the app trash but the DB record was not marked as deleted (e.g. due to a prior
                 // crash or EF tracking bug). Repair by marking the record deleted so it appears
                 // in the Trash page rather than as a ghost in the Library.
-                if (!string.IsNullOrEmpty(clip.TrashPath) && File.Exists(clip.TrashPath))
+                if (!string.IsNullOrEmpty(clip.TrashPath) && _fileSystem.FileExists(clip.TrashPath))
                 {
                     clip.IsDeleted = true;
                     clip.DeletedAt ??= DateTime.UtcNow;
@@ -146,10 +149,10 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 if (!string.IsNullOrEmpty(sourceDir))
                 {
                     var trashSubfolder = System.IO.Path.Combine(sourceDir, ".clipstudio_trash");
-                    if (Directory.Exists(trashSubfolder))
+                    if (_fileSystem.DirectoryExists(trashSubfolder))
                     {
                         var stem = System.IO.Path.GetFileNameWithoutExtension(clip.FilePath);
-                        var foundPath = Directory.EnumerateFiles(trashSubfolder)
+                        var foundPath = _fileSystem.EnumerateFiles(trashSubfolder)
                             .FirstOrDefault(f =>
                             {
                                 var fn = System.IO.Path.GetFileNameWithoutExtension(f);
@@ -203,7 +206,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 referencedPaths.Add(clip.PreviewStripPath);
 
             // ---- Thumbnail ----
-            if (string.IsNullOrEmpty(clip.ThumbnailPath) || !File.Exists(clip.ThumbnailPath))
+            if (string.IsNullOrEmpty(clip.ThumbnailPath) || !_fileSystem.FileExists(clip.ThumbnailPath))
             {
                 try
                 {
@@ -226,7 +229,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             }
 
             // ---- Preview strip ----
-            if (string.IsNullOrEmpty(clip.PreviewStripPath) || !File.Exists(clip.PreviewStripPath))
+            if (string.IsNullOrEmpty(clip.PreviewStripPath) || !_fileSystem.FileExists(clip.PreviewStripPath))
             {
                 try
                 {
@@ -256,7 +259,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 if (!string.IsNullOrEmpty(highlight.ThumbnailPath))
                     referencedPaths.Add(highlight.ThumbnailPath);
 
-                if (!string.IsNullOrEmpty(highlight.ThumbnailPath) && File.Exists(highlight.ThumbnailPath))
+                if (!string.IsNullOrEmpty(highlight.ThumbnailPath) && _fileSystem.FileExists(highlight.ThumbnailPath))
                     continue;
 
                 try
@@ -285,9 +288,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
 
         // ---- Orphan cleanup ----
         var deleted = 0;
-        if (Directory.Exists(dataDir))
+        if (_fileSystem.DirectoryExists(dataDir))
         {
-            foreach (var file in Directory.EnumerateFiles(dataDir))
+            foreach (var file in _fileSystem.EnumerateFiles(dataDir))
             {
                 ct.ThrowIfCancellationRequested();
 
@@ -295,7 +298,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 {
                     try
                     {
-                        File.Delete(file);
+                        _fileSystem.DeleteFile(file);
                         deleted++;
                         _logger.LogDebug("Deleted orphan cache file: {File}", file);
                     }
@@ -314,9 +317,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         var audioCacheDir  = GetAudioCacheDirectory();
         var validClipIds   = new HashSet<int>(allClips.Select(c => c.Id));
         var audioCleaned   = 0;
-        if (Directory.Exists(audioCacheDir))
+        if (_fileSystem.DirectoryExists(audioCacheDir))
         {
-            foreach (var file in Directory.EnumerateFiles(audioCacheDir))
+            foreach (var file in _fileSystem.EnumerateFiles(audioCacheDir))
             {
                 ct.ThrowIfCancellationRequested();
 
@@ -334,7 +337,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 {
                     try
                     {
-                        File.Delete(file);
+                        _fileSystem.DeleteFile(file);
                         audioCleaned++;
                         _logger.LogDebug("Deleted orphan audio cache file: {File}", file);
                     }
@@ -370,11 +373,11 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 {
                     // Clip permanently deleted — clean up SRT file and orphan DB record.
                     if (!string.IsNullOrWhiteSpace(transcription.SrtFilePath)
-                        && File.Exists(transcription.SrtFilePath))
+                        && _fileSystem.FileExists(transcription.SrtFilePath))
                     {
                         try
                         {
-                            File.Delete(transcription.SrtFilePath);
+                            _fileSystem.DeleteFile(transcription.SrtFilePath);
                             srtCleaned++;
                             _logger.LogDebug("Deleted orphan SRT file: {Path}", transcription.SrtFilePath);
                         }
@@ -391,9 +394,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             // Scan the configured SRT output folder for .srt files not in any DB record.
             var srtFolderCleaned = 0;
             var srtFolder = _settings.Current.TranscriptionSrtFolder;
-            if (!string.IsNullOrWhiteSpace(srtFolder) && Directory.Exists(srtFolder))
+            if (!string.IsNullOrWhiteSpace(srtFolder) && _fileSystem.DirectoryExists(srtFolder))
             {
-                foreach (var file in Directory.EnumerateFiles(srtFolder, "*.srt"))
+                foreach (var file in _fileSystem.EnumerateFiles(srtFolder, "*.srt"))
                 {
                     ct.ThrowIfCancellationRequested();
 
@@ -401,7 +404,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                     {
                         try
                         {
-                            File.Delete(file);
+                            _fileSystem.DeleteFile(file);
                             srtFolderCleaned++;
                             _logger.LogDebug("Deleted untracked SRT file: {File}", file);
                         }
@@ -452,9 +455,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             ct.ThrowIfCancellationRequested();
 
             var trashDir = Path.Combine(folder.Path, ".clipstudio_trash");
-            if (!Directory.Exists(trashDir)) continue;
+            if (!_fileSystem.DirectoryExists(trashDir)) continue;
 
-            foreach (var file in Directory.EnumerateFiles(trashDir))
+            foreach (var file in _fileSystem.EnumerateFiles(trashDir))
             {
                 ct.ThrowIfCancellationRequested();
 
@@ -515,15 +518,19 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         _logger.LogInformation("{Summary}", summary);
     }
 
+    /// <summary>Returns the audio cache directory, creating it when it does not yet exist.</summary>
+    /// <returns>The absolute path to the audio cache directory.</returns>
     private string GetAudioCacheDirectory()
     {
-        Directory.CreateDirectory(_paths.AudioCachePath);
+        _fileSystem.CreateDirectory(_paths.AudioCachePath);
         return _paths.AudioCachePath;
     }
 
+    /// <summary>Returns the media cache directory, creating it when it does not yet exist.</summary>
+    /// <returns>The absolute path to the media cache directory.</returns>
     private string GetDataDirectory()
     {
-        Directory.CreateDirectory(_paths.MediaCachePath);
+        _fileSystem.CreateDirectory(_paths.MediaCachePath);
         return _paths.MediaCachePath;
     }
 }

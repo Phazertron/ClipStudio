@@ -17,7 +17,7 @@ and the clip detail view, so this comes first.
 ### 0.1 Tests for the file-system layer
 
 - [x] `ImportServiceTests` - metadata capture, bracket game-name parsing, GameTagAlias auto-apply, Unreviewed status, duplicate path handling
-- [ ] `LibrarySanitizerServiceTests` - missing thumbnail/strip regeneration, IsBroken cleared on rediscovery, orphan cache deletion, trash subfolder ghost cleanup
+- [x] `LibrarySanitizerServiceTests` - missing thumbnail/strip regeneration, IsBroken cleared on rediscovery, orphan cache deletion, trash subfolder ghost cleanup
 - [x] `HighlightServiceTests` - overlap allowed, thumbnail regenerated on time-range edit
 - [x] `ExportServiceTests` - job queue ordering, failure marks job and continues
 - [x] Introduce `IFileSystem` abstraction (or use System.IO.Abstractions) so the above run without touching disk
