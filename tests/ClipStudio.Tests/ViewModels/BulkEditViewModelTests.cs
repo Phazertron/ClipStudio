@@ -280,7 +280,9 @@ public class BulkEditViewModelTests
 
         var vm = Create();
         vm.RefreshChipsFromSelection();
-        Assert.Single(vm.BulkPendingTags).RemoveCommand.Execute(null);
+        var chip = Assert.Single(vm.BulkPendingTags);
+        Assert.NotNull(chip.RemoveCommand);
+        chip.RemoveCommand.Execute(null);
 
         Assert.Empty(vm.BulkPendingTags);
         _clips.Verify(c => c.RemoveTagAsync(1, 1, It.IsAny<CancellationToken>()), Times.Once);
