@@ -25,7 +25,7 @@ namespace ClipStudio.UI.ViewModels;
 /// highlight management, tag management, rename, trim/export, keyboard shortcuts, and queue navigation.
 /// Implements <see cref="IDisposable"/> to release the unmanaged MediaPlayer when the view is closed.
 /// </summary>
-public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackHost, IPlaybackHost, ITrimEditorHost, IDisposable
+public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackHost, IPlaybackHost, ITrimEditorHost, IHighlightEditorHost, IDisposable
 {
     private readonly LibVLC _libVlc;
     private readonly IClipService _clipService;
@@ -54,6 +54,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     /// <summary>Gets the child view model that owns the trim and export form.</summary>
     public TrimEditorViewModel Trim { get; }
+
+    /// <summary>Gets the child view model that owns the highlight add and edit forms.</summary>
+    public HighlightEditorViewModel HighlightEditor { get; }
 
     /// <summary>Gets or sets the SRT file path of the latest transcription, used for subtitle overlay.</summary>
     private string? _latestSrtPath;
@@ -114,9 +117,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// </summary>
     private bool _watchModeEndPending;
 
-
-    /// <summary>Gets the pending tags to apply when the new highlight is saved.</summary>
-    public ObservableCollection<TagChipViewModel> PendingHighlightTags { get; } = new();
 
     // ---- Player ----
 
@@ -221,60 +221,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// </summary>
     [ObservableProperty] private string? _suggestedGameNameDisplay;
 
-    // ---- Add-highlight form ----
-
-    /// <summary>Gets or sets whether the add-highlight form is currently visible.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HighlightStartFraction))]
-    [NotifyPropertyChangedFor(nameof(HighlightEndFraction))]
-    private bool _isAddingHighlight;
-
-    /// <summary>Gets or sets the label typed in the new-highlight form.</summary>
-    [ObservableProperty] private string _newHighlightLabel = string.Empty;
-
-    /// <summary>Gets or sets the formatted start-time string of the highlight being created.</summary>
-    [ObservableProperty] private string _highlightStartDisplay = "0:00";
-
-    /// <summary>Gets or sets the formatted end-time string of the highlight being created.</summary>
-    [ObservableProperty] private string _highlightEndDisplay = "0:00";
-
-    /// <summary>Gets or sets a validation error for the add-highlight form, or null if none.</summary>
-    [ObservableProperty] private string? _highlightAddError;
-
-    private TimeSpan _highlightStart = TimeSpan.Zero;
-    private TimeSpan _highlightEnd   = TimeSpan.Zero;
-
-    /// <summary>
-    /// Gets the proportional position (0.0-1.0) of the highlight start handle within the clip.
-    /// When editing an existing highlight, returns the fraction derived from <see cref="HighlightViewModel.EditStartDisplay"/>;
-    /// when adding a new highlight, returns the fraction from the add-form's start time.
-    /// </summary>
-    public double HighlightStartFraction
-    {
-        get
-        {
-            if (_editingHighlight is not null)
-                return Playback.DurationSeconds > 0 ? _editHighlightStart.TotalSeconds / Playback.DurationSeconds : 0;
-            return Playback.DurationSeconds > 0 ? _highlightStart.TotalSeconds / Playback.DurationSeconds : 0;
-        }
-    }
-
-    /// <summary>
-    /// Gets the proportional position (0.0-1.0) of the highlight end handle within the clip.
-    /// When editing an existing highlight, returns the fraction derived from <see cref="HighlightViewModel.EditEndDisplay"/>;
-    /// when adding a new highlight, returns the fraction from the add-form's end time.
-    /// </summary>
-    public double HighlightEndFraction
-    {
-        get
-        {
-            if (_editingHighlight is not null)
-                return Playback.DurationSeconds > 0 ? _editHighlightEnd.TotalSeconds / Playback.DurationSeconds : 0;
-            return Playback.DurationSeconds > 0 ? _highlightEnd.TotalSeconds / Playback.DurationSeconds : 0;
-        }
-    }
-
-
     // ---- Export queue (shared with highlight export) ----
 
     /// <summary>Gets or sets whether an export job is currently being processed in the background.</summary>
@@ -339,29 +285,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <summary>Gets the highlights associated with the current clip.</summary>
     public ObservableCollection<HighlightViewModel> Highlights { get; } = new();
 
-    /// <summary>
-    /// The highlight currently open in inline-edit mode, or <c>null</c> when none is being edited.
-    /// Drives dual-mode behaviour of the timeline handles and mark-start/end commands.
-    /// </summary>
-    private HighlightViewModel? _editingHighlight;
-
-    /// <summary>
-    /// Precise start time for the highlight currently being edited.
-    /// Avoids string-parse round-trips when computing <see cref="HighlightStartFraction"/>.
-    /// </summary>
-    private TimeSpan _editHighlightStart;
-
-    /// <summary>
-    /// Precise end time for the highlight currently being edited.
-    /// Avoids string-parse round-trips when computing <see cref="HighlightEndFraction"/>.
-    /// </summary>
-    private TimeSpan _editHighlightEnd;
-
-    /// <summary>
-    /// Gets a value indicating whether the timeline handle canvas should be visible.
-    /// True when adding a new highlight or editing an existing one.
-    /// </summary>
-    public bool IsAddingOrEditingHighlight => IsAddingHighlight || _editingHighlight is not null;
 
     /// <summary>
     /// Callback invoked whenever a highlight is created, updated, or deleted on the current clip.
@@ -475,21 +398,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     /// <summary>Gets the command that closes this view and returns to the library/queue.</summary>
     public IRelayCommand BackCommand { get; }
-
-    /// <summary>Gets the command that shows the add-highlight inline form.</summary>
-    public IRelayCommand BeginAddHighlightCommand { get; }
-
-    /// <summary>Gets the command that dismisses the add-highlight form without saving.</summary>
-    public IRelayCommand CancelAddHighlightCommand { get; }
-
-    /// <summary>Gets the command that sets the highlight start time to the current playback position.</summary>
-    public IRelayCommand MarkHighlightStartCommand { get; }
-
-    /// <summary>Gets the command that sets the highlight end time to the current playback position.</summary>
-    public IRelayCommand MarkHighlightEndCommand { get; }
-
-    /// <summary>Gets the command that saves the new highlight to the database.</summary>
-    public IAsyncRelayCommand SaveHighlightCommand { get; }
 
     /// <summary>Gets the command that persists the current notes text to the database.</summary>
     public IAsyncRelayCommand SaveNotesCommand { get; }
@@ -664,19 +572,15 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
         Audio.TracksRefreshed += names => Transcription.SetAvailableTracks(names);
 
-        // Trim first: the transport's precision delegate reads Trim.IsTrimming.
-        Trim = new TrimEditorViewModel(this, exportService, settingsService);
+        // Both editors first: the transport's precision delegate reads their open state.
+        Trim            = new TrimEditorViewModel(this, exportService, settingsService);
+        HighlightEditor = new HighlightEditorViewModel(this, highlightService);
 
         Playback = new PlaybackViewModel(
             this,
-            () => IsAddingOrEditingHighlight || Trim.IsTrimming);
+            () => HighlightEditor.IsAddingOrEditingHighlight || Trim.IsTrimming);
 
         BackCommand               = new RelayCommand(() => BackRequested?.Invoke());
-        BeginAddHighlightCommand  = new RelayCommand(BeginAddHighlight);
-        CancelAddHighlightCommand = new RelayCommand(ResetHighlightForm);
-        MarkHighlightStartCommand = new RelayCommand(MarkHighlightStart);
-        MarkHighlightEndCommand   = new RelayCommand(MarkHighlightEnd);
-        SaveHighlightCommand      = new AsyncRelayCommand(SaveHighlightAsync);
         SaveNotesCommand          = new AsyncRelayCommand(SaveNotesAsync);
         MarkAsReviewedCommand     = new AsyncRelayCommand(MarkAsReviewedAsync);
         ToggleFavouriteCommand    = new AsyncRelayCommand(ToggleFavouriteAsync);
@@ -743,6 +647,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
         Playback.Reset();
         Trim.Reset();
+        HighlightEditor.ResetForm();
         if (IsWatchMode)
         {
             var watchDuration = WatchEnd - WatchStart;
@@ -852,6 +757,31 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <inheritdoc/>
     public void SetAudioTrack(int trackId) => MediaPlayer.SetAudioTrack(trackId);
 
+    // ---- IHighlightEditorHost ----
+
+    /// <inheritdoc/>
+    Clip? IHighlightEditorHost.CurrentClip => _clip;
+
+    /// <inheritdoc/>
+    double IHighlightEditorHost.CurrentPositionSeconds => Playback.PositionSeconds;
+
+    /// <inheritdoc/>
+    double IHighlightEditorHost.DurationSeconds => Playback.DurationSeconds;
+
+    /// <inheritdoc/>
+    void IHighlightEditorHost.PrepareForHighlightEdit() => Trim.IsTrimming = false;
+
+    /// <inheritdoc/>
+    void IHighlightEditorHost.OnEditingStateChanged() => Playback.RefreshDurationDisplay();
+
+    /// <inheritdoc/>
+    async Task IHighlightEditorHost.OnHighlightCreatedAsync()
+    {
+        await RefreshHighlightsAsync();
+        _soundService.Play(SoundEffect.HighlightCreated);
+        HighlightsChanged?.Invoke();
+    }
+
     // ---- ITrimEditorHost ----
 
     /// <inheritdoc/>
@@ -863,7 +793,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <inheritdoc/>
     void ITrimEditorHost.PrepareForTrim()
     {
-        if (IsAddingHighlight) ResetHighlightForm();
+        if (HighlightEditor.IsAddingHighlight) HighlightEditor.ResetForm();
     }
 
     /// <inheritdoc/>
@@ -921,15 +851,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     {
         if (_clip is null) return;
 
-        // Clear editing state before destroying the old VMs.
-        if (_editingHighlight is not null)
-        {
-            _editingHighlight.PropertyChanged -= OnEditingHighlightPropertyChanged;
-            _editingHighlight = null;
-            OnPropertyChanged(nameof(IsAddingOrEditingHighlight));
-            OnPropertyChanged(nameof(HighlightStartFraction));
-            OnPropertyChanged(nameof(HighlightEndFraction));
-        }
+        // Stop tracking the edited row before its view model is destroyed.
+        if (HighlightEditor.StopEditing())
+            Playback.RefreshDurationDisplay();
 
         var lockedId = LockedHighlight?.HighlightId;
 
@@ -949,93 +873,13 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
                 UpdateHighlightLabelAsync,
                 onSetRating:        async (hvm, r) => await _highlightService.SetRatingAsync(hvm.HighlightId, r),
                 onToggleFavorite:   async (hvm)    => await _highlightService.ToggleFavoriteAsync(hvm.HighlightId),
-                onEditingChanged:   OnHighlightEditingChanged,
+                onEditingChanged:   HighlightEditor.OnHighlightEditingChanged,
                 getPlayerPosition:  () => TimeSpan.FromSeconds(Playback.PositionSeconds)));
         }
 
         // Re-apply locked state to the refreshed view models.
         if (lockedId.HasValue)
             LockedHighlight = Highlights.FirstOrDefault(h => h.HighlightId == lockedId.Value);
-    }
-
-    /// <summary>
-    /// Called when a <see cref="HighlightViewModel"/> enters or exits inline edit mode.
-    /// Tracks the editing highlight so that the timeline handles and mark commands route correctly.
-    /// </summary>
-    private void OnHighlightEditingChanged(HighlightViewModel hvm, bool isEditing)
-    {
-        if (isEditing)
-        {
-            _editingHighlight   = hvm;
-            _editHighlightStart = hvm.StartTime;
-            _editHighlightEnd   = hvm.EndTime;
-            hvm.PropertyChanged += OnEditingHighlightPropertyChanged;
-        }
-        else if (_editingHighlight == hvm)
-        {
-            hvm.PropertyChanged -= OnEditingHighlightPropertyChanged;
-            _editingHighlight = null;
-        }
-
-        OnPropertyChanged(nameof(IsAddingOrEditingHighlight));
-        OnPropertyChanged(nameof(HighlightStartFraction));
-        OnPropertyChanged(nameof(HighlightEndFraction));
-        Playback.RefreshDurationDisplay();
-    }
-
-    /// <summary>
-    /// Forwards handle-position updates to the view when the editing highlight's
-    /// start or end display string changes (e.g. after a mark-start/end button press).
-    /// </summary>
-    private void OnEditingHighlightPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(HighlightViewModel.EditStartDisplay))
-        {
-            if (TimestampInput.TryParse(_editingHighlight!.EditStartDisplay, out var t))
-                _editHighlightStart = t;
-            OnPropertyChanged(nameof(HighlightStartFraction));
-        }
-        else if (e.PropertyName == nameof(HighlightViewModel.EditEndDisplay))
-        {
-            if (TimestampInput.TryParse(_editingHighlight!.EditEndDisplay, out var t))
-                _editHighlightEnd = t;
-            OnPropertyChanged(nameof(HighlightEndFraction));
-        }
-    }
-
-    /// <summary>Called by the source generator when <see cref="IsAddingHighlight"/> changes.</summary>
-    partial void OnIsAddingHighlightChanged(bool value)
-    {
-        OnPropertyChanged(nameof(IsAddingOrEditingHighlight));
-        Playback.RefreshDurationDisplay();
-    }
-
-    /// <summary>
-    /// Called by the source generator when <see cref="HighlightStartDisplay"/> changes.
-    /// Parses the typed value back into <see cref="_highlightStart"/> when in add mode.
-    /// </summary>
-    partial void OnHighlightStartDisplayChanged(string value)
-    {
-        if (!IsAddingHighlight) return;
-        if (TimestampInput.TryParse(value, out var t))
-        {
-            _highlightStart = t;
-            OnPropertyChanged(nameof(HighlightStartFraction));
-        }
-    }
-
-    /// <summary>
-    /// Called by the source generator when <see cref="HighlightEndDisplay"/> changes.
-    /// Parses the typed value back into <see cref="_highlightEnd"/> when in add mode.
-    /// </summary>
-    partial void OnHighlightEndDisplayChanged(string value)
-    {
-        if (!IsAddingHighlight) return;
-        if (TimestampInput.TryParse(value, out var t))
-        {
-            _highlightEnd = t;
-            OnPropertyChanged(nameof(HighlightEndFraction));
-        }
     }
 
     private async Task UpdateHighlightLabelAsync(HighlightViewModel hvm, string newLabel, TimeSpan newStart, TimeSpan newEnd)
@@ -1209,142 +1053,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         if (_clip is null) return;
         await _playerService.UntagClipAsync(_clip.Id, chip.TagId);
         ClipPlayerChips.Remove(chip);
-    }
-
-    private void BeginAddHighlight()
-    {
-        // Mutual exclusion: close the trim form so both handle-sets never appear simultaneously.
-        Trim.IsTrimming = false;
-
-        IsAddingHighlight = true;
-    }
-
-    private void MarkHighlightStart()
-    {
-        // Use Playback.PositionSeconds (what the slider shows) rather than MediaPlayer.Time (VLC internal
-        // clock which can lag after a seek), so the triangle lands exactly on the slider thumb.
-        var t = TimeSpan.FromSeconds(Playback.PositionSeconds);
-        if (_editingHighlight is not null)
-        {
-            _editingHighlight.EditStartDisplay = PlaybackViewModel.FormatPrecise(t);
-            _editHighlightStart                = t;
-        }
-        else
-        {
-            _highlightStart       = t;
-            HighlightStartDisplay = PlaybackViewModel.FormatPrecise(t);
-        }
-        OnPropertyChanged(nameof(HighlightStartFraction));
-    }
-
-    private void MarkHighlightEnd()
-    {
-        var t = TimeSpan.FromSeconds(Playback.PositionSeconds);
-        if (_editingHighlight is not null)
-        {
-            _editingHighlight.EditEndDisplay = PlaybackViewModel.FormatPrecise(t);
-            _editHighlightEnd                = t;
-        }
-        else
-        {
-            _highlightEnd       = t;
-            HighlightEndDisplay = PlaybackViewModel.FormatPrecise(t);
-        }
-        OnPropertyChanged(nameof(HighlightEndFraction));
-    }
-
-    /// <summary>
-    /// Sets the highlight start time from a proportional canvas position dragged by the user.
-    /// Called from the view code-behind drag handler for the start handle.
-    /// </summary>
-    /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
-    public void SetHighlightStartFromFraction(double fraction)
-    {
-        var t = TimeSpan.FromSeconds(Math.Clamp(fraction * Playback.DurationSeconds, 0, Playback.DurationSeconds));
-        if (_editingHighlight is not null)
-        {
-            _editingHighlight.EditStartDisplay = PlaybackViewModel.FormatPrecise(t);
-            _editHighlightStart                = t;
-        }
-        else
-        {
-            _highlightStart       = t;
-            HighlightStartDisplay = PlaybackViewModel.FormatPrecise(t);
-        }
-        OnPropertyChanged(nameof(HighlightStartFraction));
-    }
-
-    /// <summary>
-    /// Sets the highlight end time from a proportional canvas position dragged by the user.
-    /// Called from the view code-behind drag handler for the end handle.
-    /// </summary>
-    /// <param name="fraction">Horizontal fraction in [0, 1] relative to the canvas width.</param>
-    public void SetHighlightEndFromFraction(double fraction)
-    {
-        var t = TimeSpan.FromSeconds(Math.Clamp(fraction * Playback.DurationSeconds, 0, Playback.DurationSeconds));
-        if (_editingHighlight is not null)
-        {
-            _editingHighlight.EditEndDisplay = PlaybackViewModel.FormatPrecise(t);
-            _editHighlightEnd                = t;
-        }
-        else
-        {
-            _highlightEnd       = t;
-            HighlightEndDisplay = PlaybackViewModel.FormatPrecise(t);
-        }
-        OnPropertyChanged(nameof(HighlightEndFraction));
-    }
-
-    /// <summary>
-    /// Adds a tag to the pending collection shown in the add-highlight form.
-    /// The tag is applied to the newly created highlight inside <see cref="SaveHighlightAsync"/>.
-    /// </summary>
-    public void AddPendingHighlightTag(Tag tag)
-    {
-        if (PendingHighlightTags.Any(c => c.TagId == tag.Id)) return;
-        PendingHighlightTags.Add(new TagChipViewModel(
-            tag.Id, tag.Name,
-            chip => { PendingHighlightTags.Remove(chip); return Task.CompletedTask; }));
-    }
-
-    private void ResetHighlightForm()
-    {
-        IsAddingHighlight   = false;
-        NewHighlightLabel   = string.Empty;
-        _highlightStart     = TimeSpan.Zero;
-        _highlightEnd       = TimeSpan.Zero;
-        HighlightStartDisplay = "0:00";
-        HighlightEndDisplay   = "0:00";
-        HighlightAddError   = null;
-        PendingHighlightTags.Clear();
-        OnPropertyChanged(nameof(HighlightStartFraction));
-        OnPropertyChanged(nameof(HighlightEndFraction));
-    }
-
-    private async Task SaveHighlightAsync()
-    {
-        if (_clip is null) return;
-
-        if (_highlightStart >= _highlightEnd)
-        {
-            HighlightAddError = "End time must be after start time.";
-            return;
-        }
-
-        HighlightAddError = null;
-        var created = await _highlightService.CreateAsync(
-            _clip.Id,
-            _highlightStart,
-            _highlightEnd,
-            string.IsNullOrWhiteSpace(NewHighlightLabel) ? null : NewHighlightLabel.Trim());
-
-        foreach (var chip in PendingHighlightTags.ToList())
-            await _highlightService.AddTagAsync(created.Id, chip.TagId);
-
-        ResetHighlightForm();
-        await RefreshHighlightsAsync();
-        _soundService.Play(SoundEffect.HighlightCreated);
-        HighlightsChanged?.Invoke();
     }
 
     private void JumpToHighlight(HighlightViewModel highlight)

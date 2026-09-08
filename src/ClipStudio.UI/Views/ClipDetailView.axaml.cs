@@ -112,35 +112,46 @@ public partial class ClipDetailView : UserControl
 
     // ---- DataContext wiring ----
 
+    /// <summary>
+    /// Subscribes to the two editors that drive the timeline handles. The parent view model no
+    /// longer raises anything this view watches - both handle sets are owned by children.
+    /// </summary>
     private void SubscribeVm()
     {
         _vm = DataContext as ClipDetailViewModel;
         if (_vm is null) return;
 
-        _vm.PropertyChanged      += OnVmPropertyChanged;
-        _vm.Trim.PropertyChanged += OnTrimPropertyChanged;
+        _vm.Trim.PropertyChanged            += OnTrimPropertyChanged;
+        _vm.HighlightEditor.PropertyChanged += OnHighlightEditorPropertyChanged;
     }
 
+    /// <summary>Detaches the handle-position subscriptions.</summary>
     private void UnsubscribeVm()
     {
         if (_vm is not null)
         {
-            _vm.PropertyChanged      -= OnVmPropertyChanged;
-            _vm.Trim.PropertyChanged -= OnTrimPropertyChanged;
+            _vm.Trim.PropertyChanged            -= OnTrimPropertyChanged;
+            _vm.HighlightEditor.PropertyChanged -= OnHighlightEditorPropertyChanged;
         }
 
         _vm = null;
     }
 
-    private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    /// <summary>Keeps the highlight handles following the editor's range.</summary>
+    /// <param name="sender">The highlight editor.</param>
+    /// <param name="e">The property that changed.</param>
+    private void OnHighlightEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ClipDetailViewModel.HighlightStartFraction)
-                           or nameof(ClipDetailViewModel.HighlightEndFraction))
+        if (e.PropertyName is nameof(HighlightEditorViewModel.HighlightStartFraction)
+                           or nameof(HighlightEditorViewModel.HighlightEndFraction))
         {
             UpdateHandlePositions();
         }
     }
 
+    /// <summary>Keeps the trim handles following the editor's range.</summary>
+    /// <param name="sender">The trim editor.</param>
+    /// <param name="e">The property that changed.</param>
     private void OnTrimPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(TrimEditorViewModel.TrimStartFraction)
@@ -156,8 +167,8 @@ public partial class ClipDetailView : UserControl
         var (inset, usable) = GetSliderTrackMetrics();
         if (usable <= 0) return;
 
-        Canvas.SetLeft(HandleStart, inset + _vm.HighlightStartFraction * usable - 8);
-        Canvas.SetLeft(HandleEnd,   inset + _vm.HighlightEndFraction   * usable - 8);
+        Canvas.SetLeft(HandleStart, inset + _vm.HighlightEditor.HighlightStartFraction * usable - 8);
+        Canvas.SetLeft(HandleEnd,   inset + _vm.HighlightEditor.HighlightEndFraction   * usable - 8);
     }
 
     private void UpdateTrimHandlePositions()
@@ -733,7 +744,7 @@ public partial class ClipDetailView : UserControl
     private void CommitHighlightTag(AutoCompleteBox picker, Tag tag)
     {
         if (ReferenceEquals(picker, NewHighlightTagPicker) && DataContext is ClipDetailViewModel vm)
-            vm.AddPendingHighlightTag(tag);
+            vm.HighlightEditor.AddPendingHighlightTag(tag);
         else if (picker.DataContext is HighlightViewModel hvm)
             _ = hvm.AddTagDirectlyAsync(tag);
     }
@@ -852,9 +863,9 @@ public partial class ClipDetailView : UserControl
         var pointerX  = e.GetPosition(HighlightHandleCanvas).X;
         var fraction  = Math.Clamp((pointerX - inset) / usable, 0.0, 1.0);
         if (_draggingHighlightHandle == "start")
-            _vm.SetHighlightStartFromFraction(fraction);
+            _vm.HighlightEditor.SetHighlightStartFromFraction(fraction);
         else
-            _vm.SetHighlightEndFromFraction(fraction);
+            _vm.HighlightEditor.SetHighlightEndFromFraction(fraction);
     }
 
     /// <summary>Ends the highlight handle drag and releases pointer capture.</summary>

@@ -245,7 +245,7 @@
 
             <!-- Highlight handle canvas: pointing down, sits below the slider -->
             <Canvas x:Name="HighlightHandleCanvas"
-                    IsVisible="{Binding IsAddingOrEditingHighlight}"
+                    IsVisible="{Binding HighlightEditor.IsAddingOrEditingHighlight}"
                     Height="16"
                     VerticalAlignment="Bottom"
                     Margin="0,0,0,-4"
@@ -984,8 +984,8 @@
                                     <icons:MaterialIcon Kind="LockOpenOutline" Width="14" Height="14"/>
                                 </Button>
                                 <Button Grid.Column="2"
-                                        Command="{Binding BeginAddHighlightCommand}"
-                                        IsVisible="{Binding !IsAddingHighlight}"
+                                        Command="{Binding HighlightEditor.BeginAddHighlightCommand}"
+                                        IsVisible="{Binding !HighlightEditor.IsAddingHighlight}"
                                         IsEnabled="{Binding !Trim.IsTrimming}"
                                         ToolTip.Tip="Add highlight"
                                         Padding="6">
@@ -998,23 +998,23 @@
                                     Padding="8,6"
                                     CornerRadius="6"
                                     Background="{DynamicResource SystemChromeLowColor}"
-                                    IsVisible="{Binding IsAddingHighlight}">
+                                    IsVisible="{Binding HighlightEditor.IsAddingHighlight}">
                                 <StackPanel Spacing="4">
                                     <!-- Label row -->
                                     <Grid ColumnDefinitions="*,Auto,Auto">
                                         <TextBox Grid.Column="0"
-                                                 Text="{Binding NewHighlightLabel}"
+                                                 Text="{Binding HighlightEditor.NewHighlightLabel}"
                                                  Watermark="Label (optional)"
                                                  FontSize="12"/>
                                         <Button Grid.Column="1"
-                                                Command="{Binding SaveHighlightCommand}"
+                                                Command="{Binding HighlightEditor.SaveHighlightCommand}"
                                                 ToolTip.Tip="Save highlight"
                                                 Padding="4"
                                                 Margin="4,0,2,0">
                                             <icons:MaterialIcon Kind="CheckCircle" Width="16" Height="16"/>
                                         </Button>
                                         <Button Grid.Column="2"
-                                                Command="{Binding CancelAddHighlightCommand}"
+                                                Command="{Binding HighlightEditor.CancelAddHighlightCommand}"
                                                 ToolTip.Tip="Cancel"
                                                 Padding="4">
                                             <icons:MaterialIcon Kind="CloseCircle" Width="16" Height="16"/>
@@ -1028,12 +1028,12 @@
                                                    Opacity="0.6"
                                                    VerticalAlignment="Center"/>
                                         <TextBox Grid.Column="1"
-                                                 Text="{Binding HighlightStartDisplay}"
+                                                 Text="{Binding HighlightEditor.HighlightStartDisplay}"
                                                  Watermark="m:ss"
                                                  FontSize="11"
                                                  FontFamily="Consolas,Courier New,monospace"/>
                                         <Button Grid.Column="2"
-                                                Command="{Binding MarkHighlightStartCommand}"
+                                                Command="{Binding HighlightEditor.MarkHighlightStartCommand}"
                                                 ToolTip.Tip="Set start to current position"
                                                 FontSize="10"
                                                 Padding="4,2"
@@ -1046,12 +1046,12 @@
                                                    Opacity="0.6"
                                                    VerticalAlignment="Center"/>
                                         <TextBox Grid.Column="4"
-                                                 Text="{Binding HighlightEndDisplay}"
+                                                 Text="{Binding HighlightEditor.HighlightEndDisplay}"
                                                  Watermark="m:ss"
                                                  FontSize="11"
                                                  FontFamily="Consolas,Courier New,monospace"/>
                                         <Button Grid.Column="5"
-                                                Command="{Binding MarkHighlightEndCommand}"
+                                                Command="{Binding HighlightEditor.MarkHighlightEndCommand}"
                                                 ToolTip.Tip="Set end to current position"
                                                 FontSize="10"
                                                 Padding="4,2"
@@ -1060,13 +1060,13 @@
                                         </Button>
                                     </Grid>
                                     <!-- Validation error -->
-                                    <TextBlock Text="{Binding HighlightAddError}"
+                                    <TextBlock Text="{Binding HighlightEditor.HighlightAddError}"
                                                FontSize="11"
                                                Foreground="#E74C3C"
-                                               IsVisible="{Binding HighlightAddError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                               IsVisible="{Binding HighlightEditor.HighlightAddError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                                     <!-- Pending tag chips -->
-                                    <ItemsControl ItemsSource="{Binding PendingHighlightTags}"
-                                                  IsVisible="{Binding PendingHighlightTags.Count}">
+                                    <ItemsControl ItemsSource="{Binding HighlightEditor.PendingHighlightTags}"
+                                                  IsVisible="{Binding HighlightEditor.PendingHighlightTags.Count}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel Orientation="Horizontal"/>
@@ -1420,7 +1420,7 @@
                                         Content="Begin Trim"
                                         FontSize="11"
                                         IsVisible="{Binding !Trim.IsTrimming}"
-                                        IsEnabled="{Binding !IsAddingHighlight}"/>
+                                        IsEnabled="{Binding !HighlightEditor.IsAddingHighlight}"/>
                             </Grid>
 
                             <!-- Trim form -->

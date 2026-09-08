@@ -39,7 +39,7 @@ MediaPlayer.Volume) - verify by running the app, not just by building.
 
 - [x] `PlaybackViewModel` - position, loop, scrub, seek (volume/mute went to AudioMixerViewModel; subtitles stayed with the parent, which owns the media and SRT slave)
 - [x] `TrimEditorViewModel` - trim start/end, destructive check against highlights, timestamp inputs
-- [ ] `HighlightEditorViewModel` - add/edit form, pending tags, timeline handles
+- [x] `HighlightEditorViewModel` - add/edit form, pending tags, timeline handles (the highlight list stays with the parent)
 - [x] `AudioMixerViewModel` - track selection, per-track volume, MixedRemux cache
 - [x] `ScreenshotViewModel` - capture (list lands with the UI that shows it)
 - [ ] Move the AutoCompleteBox picker state machine into a reusable `TagPickerBehavior`
