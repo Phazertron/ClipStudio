@@ -29,7 +29,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     private readonly LibVLC _libVlc;
     private readonly IClipService _clipService;
     private readonly IHighlightService _highlightService;
-    private readonly IScreenshotService _screenshotService;
     private readonly ITagService _tagService;
     private readonly IExportService _exportService;
     private readonly ISettingsService _settingsService;
@@ -44,6 +43,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
     /// <summary>Gets the transcription panel view model for the current clip.</summary>
     public TranscriptionViewModel Transcription { get; }
+
+    /// <summary>Gets the child view model that owns frame capture for the open clip.</summary>
+    public ScreenshotViewModel Screenshots { get; }
 
     /// <summary>Gets or sets the SRT file path of the latest transcription, used for subtitle overlay.</summary>
     private string? _latestSrtPath;
@@ -655,9 +657,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Gets the command that saves the new highlight to the database.</summary>
     public IAsyncRelayCommand SaveHighlightCommand { get; }
 
-    /// <summary>Gets the command that captures a screenshot at the current playback position.</summary>
-    public IAsyncRelayCommand TakeScreenshotCommand { get; }
-
     /// <summary>Gets the command that persists the current notes text to the database.</summary>
     public IAsyncRelayCommand SaveNotesCommand { get; }
 
@@ -832,7 +831,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _libVlc                   = libVlc;
         _clipService              = clipService;
         _highlightService         = highlightService;
-        _screenshotService        = screenshotService;
         _tagService               = tagService;
         _exportService            = exportService;
         _settingsService          = settingsService;
@@ -864,6 +862,11 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         MediaPlayer.Stopped     += OnPlayerStopped;
         MediaPlayer.EndReached  += OnPlayerEndReached;
 
+        // Constructed after MediaPlayer so the position delegate closes over a non-null player.
+        Screenshots = new ScreenshotViewModel(
+            screenshotService,
+            () => TimeSpan.FromMilliseconds(MediaPlayer.Time));
+
         BackCommand               = new RelayCommand(() => BackRequested?.Invoke());
         PlayPauseCommand          = new RelayCommand(TogglePlayPause);
         SkipBackCommand           = new RelayCommand(() => SeekRelative(TimeSpan.FromSeconds(-10)));
@@ -875,7 +878,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         MarkHighlightStartCommand = new RelayCommand(MarkHighlightStart);
         MarkHighlightEndCommand   = new RelayCommand(MarkHighlightEnd);
         SaveHighlightCommand      = new AsyncRelayCommand(SaveHighlightAsync);
-        TakeScreenshotCommand     = new AsyncRelayCommand(TakeScreenshotAsync);
         SaveNotesCommand          = new AsyncRelayCommand(SaveNotesAsync);
         MarkAsReviewedCommand     = new AsyncRelayCommand(MarkAsReviewedAsync);
         ToggleFavouriteCommand    = new AsyncRelayCommand(ToggleFavouriteAsync);
@@ -939,6 +941,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _media = null;
 
         _clip = await _clipService.GetByIdAsync(clipId);
+        Screenshots.SetClip(_clip?.Id);
         if (_clip is null)
             return;
 
@@ -1019,6 +1022,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     {
         // Cancel any in-flight FFmpeg generation before stopping the player or deleting files.
         _mixApplyCts?.Cancel();
+
+        Screenshots.SetClip(null);
 
         if (MediaPlayer.IsPlaying)
             MediaPlayer.Stop();
@@ -1926,13 +1931,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         // After deleting a highlight, tags it held may no longer be locked on the clip.
         await RefreshClipAndTagsAsync();
         HighlightsChanged?.Invoke();
-    }
-
-    private async Task TakeScreenshotAsync()
-    {
-        if (_clip is null) return;
-        var position = TimeSpan.FromMilliseconds(MediaPlayer.Time);
-        await _screenshotService.CaptureAsync(_clip.Id, position);
     }
 
     private async Task SaveNotesAsync()
