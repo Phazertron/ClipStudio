@@ -54,6 +54,11 @@ public interface IFileSystem
     /// <returns>The UTC creation time.</returns>
     DateTime GetCreationTimeUtc(string path);
 
+    /// <summary>Returns the last-write time of the given file in UTC.</summary>
+    /// <param name="path">The file to inspect.</param>
+    /// <returns>The UTC last-write time.</returns>
+    DateTime GetLastWriteTimeUtc(string path);
+
     /// <summary>Returns the size of the given file in bytes.</summary>
     /// <param name="path">The file to inspect.</param>
     /// <returns>The file length in bytes.</returns>

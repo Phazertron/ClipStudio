@@ -40,7 +40,7 @@ MediaPlayer.Volume) - verify by running the app, not just by building.
 - [ ] `PlaybackViewModel` - LibVLC player, position, volume, mute, loop, subtitles toggle
 - [ ] `TrimEditorViewModel` - trim start/end, destructive check against highlights, timestamp inputs
 - [ ] `HighlightEditorViewModel` - add/edit form, pending tags, timeline handles
-- [ ] `AudioMixerViewModel` - track selection, per-track volume, MixedRemux cache
+- [x] `AudioMixerViewModel` - track selection, per-track volume, MixedRemux cache
 - [x] `ScreenshotViewModel` - capture (list lands with the UI that shows it)
 - [ ] Move the AutoCompleteBox picker state machine into a reusable `TagPickerBehavior`
 - [ ] Target: no file in UI above 1,000 lines

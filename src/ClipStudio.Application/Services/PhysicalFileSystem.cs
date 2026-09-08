@@ -46,6 +46,9 @@ public sealed class PhysicalFileSystem : IFileSystem
     public DateTime GetCreationTimeUtc(string path) => File.GetCreationTimeUtc(path);
 
     /// <inheritdoc/>
+    public DateTime GetLastWriteTimeUtc(string path) => File.GetLastWriteTimeUtc(path);
+
+    /// <inheritdoc/>
     public long GetFileSizeBytes(string path) => new FileInfo(path).Length;
 
     /// <inheritdoc/>

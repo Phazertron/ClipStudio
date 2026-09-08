@@ -23,7 +23,7 @@ public sealed class FakeFileSystem : IFileSystem
     /// <param name="Contents">The file's text contents.</param>
     /// <param name="CreationTimeUtc">The file's UTC creation time.</param>
     /// <param name="SizeBytes">The file's reported length in bytes.</param>
-    private sealed record FakeFile(string Contents, DateTime CreationTimeUtc, long SizeBytes);
+    private sealed record FakeFile(string Contents, DateTime CreationTimeUtc, long SizeBytes, DateTime LastWriteTimeUtc);
 
     /// <summary>Gets the paths of every file currently present, in no particular order.</summary>
     public IReadOnlyCollection<string> AllFiles => _files.Keys.ToList();
@@ -36,18 +36,22 @@ public sealed class FakeFileSystem : IFileSystem
     /// <param name="contents">The file's text contents.</param>
     /// <param name="creationTimeUtc">The UTC creation time to report. Defaults to 2025-01-01.</param>
     /// <param name="sizeBytes">The length to report. Defaults to the contents' length.</param>
+    /// <param name="lastWriteTimeUtc">The UTC last-write time. Defaults to the creation time.</param>
     /// <returns>This instance, so calls can be chained.</returns>
     public FakeFileSystem AddFile(
         string path,
         string contents = "",
         DateTime? creationTimeUtc = null,
-        long? sizeBytes = null)
+        long? sizeBytes = null,
+        DateTime? lastWriteTimeUtc = null)
     {
         var normalised = Normalise(path);
+        var stamp = creationTimeUtc ?? new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         _files[normalised] = new FakeFile(
             contents,
-            creationTimeUtc ?? new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            sizeBytes ?? contents.Length);
+            stamp,
+            sizeBytes ?? contents.Length,
+            lastWriteTimeUtc ?? stamp);
 
         var parent = ParentOf(normalised);
         while (parent is not null)
@@ -130,6 +134,9 @@ public sealed class FakeFileSystem : IFileSystem
 
     /// <inheritdoc/>
     public DateTime GetCreationTimeUtc(string path) => Require(path).CreationTimeUtc;
+
+    /// <inheritdoc/>
+    public DateTime GetLastWriteTimeUtc(string path) => Require(path).LastWriteTimeUtc;
 
     /// <inheritdoc/>
     public long GetFileSizeBytes(string path) => Require(path).SizeBytes;

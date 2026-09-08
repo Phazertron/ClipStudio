@@ -360,26 +360,26 @@
                         Spacing="4"
                         Margin="8,0,0,0"
                         ToolTip.Tip="Master volume (affects VLC playback)">
-                <Button Command="{Binding ToggleMuteCommand}"
+                <Button Command="{Binding Audio.ToggleMuteCommand}"
                         Background="Transparent"
                         BorderThickness="0"
                         Padding="2"
                         VerticalAlignment="Center"
                         ToolTip.Tip="Mute / Unmute">
-                    <icons:MaterialIcon Kind="{Binding VolumeIconKind}" Width="16" Height="16" Opacity="0.65"/>
+                    <icons:MaterialIcon Kind="{Binding Audio.VolumeIconKind}" Width="16" Height="16" Opacity="0.65"/>
                 </Button>
-                <Slider Value="{Binding MasterVolume}"
+                <Slider Value="{Binding Audio.MasterVolume}"
                         Minimum="0"
                         Maximum="200"
                         Width="80"
-                        IsEnabled="{Binding !IsMuted}"
+                        IsEnabled="{Binding !Audio.IsMuted}"
                         VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding MasterVolume, StringFormat='{}{0}%'}"
+                <TextBlock Text="{Binding Audio.MasterVolume, StringFormat='{}{0}%'}"
                            FontSize="11"
                            Opacity="0.65"
                            VerticalAlignment="Center"
                            Width="36"/>
-                <Button Command="{Binding SetMasterVolumeToFullCommand}"
+                <Button Command="{Binding Audio.SetMasterVolumeToFullCommand}"
                         Content="100%"
                         FontSize="10"
                         Padding="4,2"
@@ -857,7 +857,7 @@
                     <Border Padding="14,12"
                             BorderBrush="{DynamicResource SystemChromeHighColor}"
                             BorderThickness="0,0,0,1"
-                            IsVisible="{Binding AudioTracks.Count}">
+                            IsVisible="{Binding Audio.AudioTracks.Count}">
                         <StackPanel Spacing="8">
 
                             <!-- Header row: title + "Playing preview" badge -->
@@ -870,7 +870,7 @@
                                         Background="#33AAFF"
                                         CornerRadius="4"
                                         Padding="6,2"
-                                        IsVisible="{Binding IsPlayingMixPreview}"
+                                        IsVisible="{Binding Audio.IsPlayingMixPreview}"
                                         ToolTip.Tip="VLC is playing the FFmpeg remux preview. Original file is unchanged.">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <icons:MaterialIcon Kind="Headphones" Width="12" Height="12"/>
@@ -893,7 +893,7 @@
                             </Grid>
 
                             <!-- Track rows -->
-                            <ItemsControl ItemsSource="{Binding AudioTracks}">
+                            <ItemsControl ItemsSource="{Binding Audio.AudioTracks}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="vm:AudioTrackViewModel">
                                         <Grid ColumnDefinitions="*,Auto,90,Auto" Margin="0,2">
@@ -931,23 +931,23 @@
                             <StackPanel Orientation="Horizontal" Spacing="8">
 
                                 <!-- Apply Mix button: visible only when a mix is needed -->
-                                <Button Command="{Binding ApplyAudioMixCommand}"
-                                        IsEnabled="{Binding HasPendingAudioChanges}"
-                                        IsVisible="{Binding HasPendingAudioChanges}"
+                                <Button Command="{Binding Audio.ApplyAudioMixCommand}"
+                                        IsEnabled="{Binding Audio.HasPendingAudioChanges}"
+                                        IsVisible="{Binding Audio.HasPendingAudioChanges}"
                                         FontSize="11"
                                         ToolTip.Tip="Generate FFmpeg mix and reload VLC with the preview">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <icons:MaterialIcon Kind="Play" Width="14" Height="14"
-                                                            IsVisible="{Binding !IsMixApplying}"/>
+                                                            IsVisible="{Binding !Audio.IsMixApplying}"/>
                                         <icons:MaterialIcon Kind="Loading" Width="14" Height="14"
-                                                            IsVisible="{Binding IsMixApplying}"/>
-                                        <TextBlock Text="Apply Mix"      IsVisible="{Binding !IsMixApplying}"/>
-                                        <TextBlock Text="Applying mix..." IsVisible="{Binding IsMixApplying}"/>
+                                                            IsVisible="{Binding Audio.IsMixApplying}"/>
+                                        <TextBlock Text="Apply Mix"      IsVisible="{Binding !Audio.IsMixApplying}"/>
+                                        <TextBlock Text="Applying mix..." IsVisible="{Binding Audio.IsMixApplying}"/>
                                     </StackPanel>
                                 </Button>
 
                                 <!-- Save settings -->
-                                <Button Command="{Binding SaveAudioSettingsCommand}"
+                                <Button Command="{Binding Audio.SaveAudioSettingsCommand}"
                                         FontSize="11"
                                         HorizontalAlignment="Left">
                                     <StackPanel Orientation="Horizontal" Spacing="6">

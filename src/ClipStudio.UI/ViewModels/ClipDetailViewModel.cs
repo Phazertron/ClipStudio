@@ -24,7 +24,7 @@ namespace ClipStudio.UI.ViewModels;
 /// highlight management, tag management, rename, trim/export, keyboard shortcuts, and queue navigation.
 /// Implements <see cref="IDisposable"/> to release the unmanaged MediaPlayer when the view is closed.
 /// </summary>
-public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
+public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackHost, IDisposable
 {
     private readonly LibVLC _libVlc;
     private readonly IClipService _clipService;
@@ -33,8 +33,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     private readonly IExportService _exportService;
     private readonly ISettingsService _settingsService;
     private readonly IPlayerService _playerService;
-    private readonly IAudioTrackService _audioTrackService;
-    private readonly ClipStudio.Application.Interfaces.IMixedAudioService _mixedAudioService;
     private readonly ClipStudio.Application.Interfaces.IGameTagAliasService _gameTagAliasService;
     private readonly ClipStudio.UI.Services.ISoundService _soundService;
     private readonly ClipStudio.Application.Interfaces.ITagSuggestionService _tagSuggestionService;
@@ -46,6 +44,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
 
     /// <summary>Gets the child view model that owns frame capture for the open clip.</summary>
     public ScreenshotViewModel Screenshots { get; }
+
+    /// <summary>Gets the child view model that owns per-clip audio routing and mixing.</summary>
+    public AudioMixerViewModel Audio { get; }
 
     /// <summary>Gets or sets the SRT file path of the latest transcription, used for subtitle overlay.</summary>
     private string? _latestSrtPath;
@@ -67,26 +68,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     private bool _isUpdatingFromPlayer;
     private bool _isDragging;
 
-    /// <summary>
-    /// Cancellation token source for the debounced audio-routing update task.
-    /// Cancelled and replaced whenever audio track settings change.
-    /// </summary>
-    private System.Threading.CancellationTokenSource? _mixDebounce;
 
-    /// <summary>
-    /// Cancellation token source for an in-progress FFmpeg remux generation.
-    /// Cancelled when a new mix is requested before the previous one finishes, or when
-    /// the clip is closed. Prevents concurrent writes to the same output file.
-    /// </summary>
-    private System.Threading.CancellationTokenSource? _mixApplyCts;
 
-    /// <summary>
-    /// Index (0 or 1) of the cache slot that VLC is currently playing.
-    /// The next generation always targets the <em>other</em> slot so that FFmpeg never tries
-    /// to overwrite a file that VLC holds open on Windows.
-    /// Slot 0 → <c>clip_{id}_audio_preview.mkv</c>; slot 1 → <c>clip_{id}_audio_preview_alt.mkv</c>.
-    /// </summary>
-    private int _activeMixSlot;
 
     /// <summary>
     /// When >= 0, the next <see cref="OnPlayerPlaying"/> callback should seek back to this
@@ -94,17 +77,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// </summary>
     private long _mixReloadSeekMs = -1;
 
-    /// <summary>
-    /// Tracks the current audio rendering mode so that mode transitions can be detected and
-    /// the appropriate action (native track switch vs. media reload) can be taken.
-    /// </summary>
-    private AudioMode _audioMode = AudioMode.NativeSingleTrack;
 
-    /// <summary>
-    /// File path of the last successfully generated FFmpeg remux preview (MKV).
-    /// Null when no preview has been generated for the current clip/settings.
-    /// </summary>
-    private string? _mixedPreviewPath;
 
     /// <summary>
     /// VLC track ID to apply via <c>SetAudioTrack</c> immediately after the next media reload
@@ -113,23 +86,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// </summary>
     private int _pendingNativeTrackId = -2;
 
-    /// <summary>
-    /// Gets or sets a value indicating whether an FFmpeg remux operation is in progress.
-    /// Used to show a spinner on the Apply Mix button while the mix is being generated.
-    /// </summary>
-    [ObservableProperty] private bool _isMixApplying;
 
-    /// <summary>
-    /// Gets or sets a value indicating whether audio settings have changed and the user needs
-    /// to click Apply Mix to hear the updated mix. Only relevant in <see cref="AudioMode.MixedRemux"/> mode.
-    /// </summary>
-    [ObservableProperty] private bool _hasPendingAudioChanges;
 
-    /// <summary>
-    /// Gets or sets a value indicating whether VLC is currently playing the FFmpeg remux preview
-    /// file rather than the original clip. Shown in the UI as a "Playing preview" badge.
-    /// </summary>
-    [ObservableProperty] private bool _isPlayingMixPreview;
 
     /// <summary>
     /// After a programmatic seek, time-changed events reporting a position below this threshold
@@ -452,38 +410,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Gets or sets the player selected in the picker (not yet applied).</summary>
     [ObservableProperty] private Player? _selectedPlayer;
 
-    // ---- Audio tracks ----
-
-    /// <summary>Gets the audio tracks detected in the current clip.</summary>
-    public ObservableCollection<AudioTrackViewModel> AudioTracks { get; } = new();
-
-    /// <summary>
-    /// Gets or sets the master volume level (0–200, 100 = 100 %).
-    /// Changes are applied to the VLC media player immediately unless <see cref="IsMuted"/> is true.
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VolumeIconKind))]
-    private int _masterVolume = 100;
-
-    /// <summary>
-    /// Gets or sets whether the master audio output is muted.
-    /// When <see langword="true"/>, VLC volume is set to zero regardless of <see cref="MasterVolume"/>.
-    /// The slider value is preserved and restored when unmuting.
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VolumeIconKind))]
-    private bool _isMuted;
-
-    /// <summary>
-    /// Gets the Material icon kind that reflects the current master volume state.
-    /// Returns <see cref="MaterialIconKind.VolumeMute"/> when muted or volume is zero,
-    /// and scales between Low/Medium/High otherwise.
-    /// </summary>
-    public MaterialIconKind VolumeIconKind =>
-        IsMuted || MasterVolume == 0 ? MaterialIconKind.VolumeMute  :
-        MasterVolume <= 50           ? MaterialIconKind.VolumeLow   :
-        MasterVolume <= 100          ? MaterialIconKind.VolumeMedium :
-                                         MaterialIconKind.VolumeHigh;
 
     // ---- Collections ----
 
@@ -739,12 +665,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// </summary>
     public IRelayCommand OpenInExplorerCommand { get; }
 
-    /// <summary>Gets the command that toggles the master audio mute state.</summary>
-    public IRelayCommand ToggleMuteCommand { get; }
-
-    /// <summary>Gets the command that resets the master volume to 100 %.</summary>
-    public IRelayCommand SetMasterVolumeToFullCommand { get; }
-
     /// <summary>Gets the command that tags the selected player on the current clip.</summary>
     public IAsyncRelayCommand AddPlayerCommand { get; }
 
@@ -784,16 +704,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <summary>Gets or sets whether the clear-all-data confirmation strip is visible.</summary>
     [ObservableProperty] private bool _isClearAllDataConfirmVisible;
 
-    /// <summary>Gets the command that persists the current audio track settings to the database.</summary>
-    public IAsyncRelayCommand SaveAudioSettingsCommand { get; }
-
-    /// <summary>
-    /// Gets the command that generates the FFmpeg remux preview and reloads VLC with it.
-    /// Only relevant in <see cref="AudioMode.MixedRemux"/> mode.
-    /// Enabled only when <see cref="HasPendingAudioChanges"/> is true.
-    /// </summary>
-    public IAsyncRelayCommand ApplyAudioMixCommand { get; }
-
     /// <summary>
     /// Gets the command that sets the star rating of the current clip.
     /// Accepts a string parameter ("1"–"5") corresponding to the star clicked by the user.
@@ -822,6 +732,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         IPlayerService playerService,
         IAudioTrackService audioTrackService,
         ClipStudio.Application.Interfaces.IMixedAudioService mixedAudioService,
+        ClipStudio.Application.Interfaces.IFileSystem fileSystem,
+        ClipStudio.Application.Models.AppDataPaths appDataPaths,
         ClipStudio.Application.Interfaces.IGameTagAliasService gameTagAliasService,
         ClipStudio.UI.Services.ISoundService soundService,
         ClipStudio.Application.Interfaces.ITagSuggestionService tagSuggestionService,
@@ -835,8 +747,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _exportService            = exportService;
         _settingsService          = settingsService;
         _playerService            = playerService;
-        _audioTrackService        = audioTrackService;
-        _mixedAudioService        = mixedAudioService;
         _gameTagAliasService      = gameTagAliasService;
         _soundService             = soundService;
         _tagSuggestionService     = tagSuggestionService;
@@ -852,20 +762,29 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         Transcription.SegmentTextEdited      += OnSegmentTextEdited;
 
         MediaPlayer = new MediaPlayer(_libVlc);
-        // _masterVolume field initialiser bypasses the generated setter, so OnMasterVolumeChanged
-        // is never called during construction and MediaPlayer.Volume is left at whatever LibVLC
-        // reads from the system VLC config (vlcrc) — which can be 0. Apply it explicitly here.
-        MediaPlayer.Volume      = _masterVolume;
+        // The explicit initial volume is applied by AudioMixerViewModel's constructor below,
+        // which owns the master level. Without it LibVLC keeps whatever the system VLC config
+        // (vlcrc) supplies, which can be 0.
         MediaPlayer.TimeChanged += OnPlayerTimeChanged;
         MediaPlayer.Playing     += OnPlayerPlaying;
         MediaPlayer.Paused      += OnPlayerPaused;
         MediaPlayer.Stopped     += OnPlayerStopped;
         MediaPlayer.EndReached  += OnPlayerEndReached;
 
-        // Constructed after MediaPlayer so the position delegate closes over a non-null player.
+        // Constructed after MediaPlayer so the host seam and position delegate see a real player.
         Screenshots = new ScreenshotViewModel(
             screenshotService,
             () => TimeSpan.FromMilliseconds(MediaPlayer.Time));
+
+        Audio = new AudioMixerViewModel(
+            this,
+            audioTrackService,
+            mixedAudioService,
+            settingsService,
+            fileSystem,
+            appDataPaths);
+
+        Audio.TracksRefreshed += names => Transcription.SetAvailableTracks(names);
 
         BackCommand               = new RelayCommand(() => BackRequested?.Invoke());
         PlayPauseCommand          = new RelayCommand(TogglePlayPause);
@@ -909,8 +828,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         ShowClearAllPlayersConfirmCommand   = new RelayCommand(() => IsClearAllPlayersConfirmVisible = true);
         ConfirmClearAllPlayersCommand       = new AsyncRelayCommand(ClearAllPlayersAsync);
         CancelClearAllPlayersConfirmCommand = new RelayCommand(() => IsClearAllPlayersConfirmVisible = false);
-        SaveAudioSettingsCommand           = new AsyncRelayCommand(SaveAudioSettingsAsync);
-        ApplyAudioMixCommand               = new AsyncRelayCommand(ApplyAudioMixAsync);
         SetRatingCommand          = new AsyncRelayCommand<string>(s => SetRatingAsync(int.TryParse(s, out var r) ? r : 0));
         AcceptSuggestionCommand   = new AsyncRelayCommand<int>(AcceptSuggestionAsync);
         SetWatchRatingCommand     = new RelayCommand<string>(s => _ = SetWatchRatingAsync(int.TryParse(s, out var r) ? r : 0));
@@ -919,8 +836,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         ConfirmDeleteCommand      = new AsyncRelayCommand(ConfirmDeleteAsync);
         CancelDeleteCommand       = new RelayCommand(() => IsDeleteConfirmVisible = false);
         OpenInExplorerCommand     = new RelayCommand(OpenInExplorer);
-        ToggleMuteCommand              = new RelayCommand(ToggleMute);
-        SetMasterVolumeToFullCommand   = new RelayCommand(() => MasterVolume = 100);
         ShowClearAllDataConfirmCommand   = new RelayCommand(() => IsClearAllDataConfirmVisible   = true);
         ConfirmClearAllDataCommand       = new AsyncRelayCommand(ClearAllDataAsync);
         CancelClearAllDataConfirmCommand = new RelayCommand(() => IsClearAllDataConfirmVisible   = false);
@@ -968,20 +883,10 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         }
         UpdateDurationDisplay();
 
-        // Reset audio state so the new clip's tracks are discovered on first play.
-        // Without this, AudioTracks retains the previous clip's entries and RefreshAudioTracksAsync
-        // is skipped because AudioTracks.Count > 0.
-        _mixDebounce?.Cancel();
-        _mixApplyCts?.Cancel();
-        AudioTracks.Clear();
-        _audioMode             = AudioMode.NativeSingleTrack;
-        _mixReloadSeekMs       = -1;
-        _mixedPreviewPath      = null;
-        _pendingNativeTrackId  = -2;
-        _activeMixSlot         = 0;
-        HasPendingAudioChanges = false;
-        IsPlayingMixPreview    = false;
-        IsMixApplying          = false;
+        // Reset audio so the new clip's tracks are rediscovered on its first play.
+        Audio.SetClip(_clip);
+        _mixReloadSeekMs      = -1;
+        _pendingNativeTrackId = -2;
 
         _media = new Media(_libVlc, _clip.FilePath, FromType.FromPath);
         MediaPlayer.Media = _media;
@@ -997,7 +902,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             _ = LoadTagSuggestionsAsync(clipId);
 
             // Load any existing transcription for this clip.
-            var trackNames = AudioTracks.Select(t => t.DisplayName).ToList();
+            var trackNames = Audio.AudioTracks.Select(t => t.DisplayName).ToList();
             await Transcription.LoadAsync(clipId, trackNames);
             HasTranscription  = Transcription.HasExistingTranscription;
             _latestSrtPath    = Transcription.HasExistingTranscription
@@ -1021,7 +926,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     public void PrepareForClose()
     {
         // Cancel any in-flight FFmpeg generation before stopping the player or deleting files.
-        _mixApplyCts?.Cancel();
+        Audio.CancelPendingWork();
 
         Screenshots.SetClip(null);
 
@@ -1033,15 +938,54 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         _media = null;
 
         // When caching is disabled the mix files are treated as session-only temp files.
-        if (_clip is not null && !_settingsService.Current.CacheAudioPreviews)
-        {
-            for (var slot = 0; slot <= 1; slot++)
-            {
-                var mkvPath = GetAudioMixCachePath(slot);
-                try { System.IO.File.Delete(mkvPath); } catch { /* non-fatal */ }
-            }
-        }
+        Audio.DeleteSessionPreviews();
     }
+
+    // ---- IAudioPlaybackHost ----
+
+    /// <summary>
+    /// Saves the current playback position, rebuilds the VLC <see cref="Media"/> from
+    /// <paramref name="path"/>, and resumes playback. The saved position is reapplied on the next
+    /// <c>Playing</c> event by <see cref="OnPlayerPlaying"/>, which is also where
+    /// <paramref name="pendingNativeTrackId"/> is applied: the track cannot be selected until VLC
+    /// reports the new media as playing.
+    /// </summary>
+    /// <param name="path">
+    /// The absolute path of the media to open - either the original clip or a remux preview MKV.
+    /// </param>
+    /// <param name="pendingNativeTrackId">
+    /// The audio track to select once the reload completes, or -2 for none.
+    /// </param>
+    public void ReloadMedia(string path, int pendingNativeTrackId = -2)
+    {
+        // Clamp to 0: MediaPlayer.Time returns -1 when no media is playing.
+        _mixReloadSeekMs      = Math.Max(0, MediaPlayer.Time);
+        _pendingNativeTrackId = pendingNativeTrackId;
+
+        _media?.Dispose();
+        _media = new Media(_libVlc, path, FromType.FromPath);
+
+        MediaPlayer.Media = _media;
+        MediaPlayer.Play();
+    }
+
+    /// <inheritdoc/>
+    int IAudioPlaybackHost.Volume
+    {
+        get => MediaPlayer.Volume;
+        set => MediaPlayer.Volume = value;
+    }
+
+    /// <inheritdoc/>
+    public void SetAudioTrack(int trackId) => MediaPlayer.SetAudioTrack(trackId);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<AudioTrackDescriptor> GetAudioTracks()
+        => MediaPlayer.AudioTrackDescription
+            // Id -1 is the player's "Disabled" sentinel; it is not a real track.
+            .Where(d => d.Id >= 0)
+            .Select(d => new AudioTrackDescriptor(d.Id, d.Name ?? $"Track {d.Id}"))
+            .ToList();
 
     // ---- Scrub support (called from code-behind) ----
 
@@ -1361,339 +1305,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
         if (_clip is null) return;
         await _playerService.UntagClipAsync(_clip.Id, chip.TagId);
         ClipPlayerChips.Remove(chip);
-    }
-
-    // ---- Audio track methods ----
-
-    /// <summary>
-    /// Called by the source generator when <see cref="MasterVolume"/> changes.
-    /// Applies the new level to the VLC media player unless the output is muted.
-    /// </summary>
-    partial void OnMasterVolumeChanged(int value)
-    {
-        if (!IsMuted)
-            MediaPlayer.Volume = value;
-    }
-
-    /// <summary>
-    /// Called by the source generator when <see cref="IsMuted"/> changes.
-    /// Applies or restores the master volume on the VLC media player.
-    /// </summary>
-    partial void OnIsMutedChanged(bool value) =>
-        MediaPlayer.Volume = value ? 0 : MasterVolume;
-
-    /// <summary>Toggles the master audio mute state.</summary>
-    private void ToggleMute() => IsMuted = !IsMuted;
-
-    private async Task RefreshAudioTracksAsync()
-    {
-        if (_clip is null) return;
-
-        // AudioTrackDescription is only populated after playback starts.
-        // Id -1 is VLC's "Disabled" sentinel; skip it.
-        // The enumeration order determines the 0-based FFmpeg stream index for each track.
-        var vlcTracks = MediaPlayer.AudioTrackDescription
-            .Where(d => d.Id >= 0)
-            .Select((d, i) => (Index: d.Id, FfmpegIndex: i, Name: d.Name ?? $"Track {d.Id}"))
-            .ToList();
-
-        if (vlcTracks.Count == 0) return;
-
-        var trackPairs = vlcTracks.Select(t => (t.Index, t.Name));
-        var settings   = await _audioTrackService.GetOrInitAsync(_clip.Id, trackPairs);
-
-        AudioTracks.Clear();
-        for (var i = 0; i < settings.Count; i++)
-        {
-            var s    = settings[i];
-            var ffIdx = vlcTracks.FirstOrDefault(t => t.Index == s.TrackIndex).FfmpegIndex;
-            var vm   = new AudioTrackViewModel(
-                s.TrackIndex,
-                ffmpegStreamIndex: ffIdx,
-                s.DisplayName,
-                isIncluded: !s.IsMuted,
-                s.Volume,
-                onChanged: ScheduleMixRegeneration);
-            AudioTracks.Add(vm);
-        }
-
-        // Apply saved audio routing. Pass isInitialLoad=true so SetAudioTrack is not called
-        // from inside the Playing-event handler — VLC's audio pipeline is not fully ready yet.
-        await ApplyAudioRoutingAsync(System.Threading.CancellationToken.None, isInitialLoad: true);
-        LogAudioDiagnostics("AfterRefreshAudioTracks");
-
-        // Push track names into the transcription panel so the track picker is populated.
-        Transcription.SetAvailableTracks(AudioTracks.Select(t => t.DisplayName).ToList());
-    }
-
-    private async Task SaveAudioSettingsAsync()
-    {
-        if (_clip is null) return;
-
-        var settings = AudioTracks.Select(t => new ClipStudio.Core.Entities.AudioTrackSetting
-        {
-            ClipId      = _clip.Id,
-            TrackIndex  = t.TrackIndex,
-            DisplayName = t.DisplayName,
-            IsMuted     = !t.IsIncluded,
-            Volume      = t.Volume,
-        });
-
-        await _audioTrackService.SaveAsync(_clip.Id, settings);
-    }
-
-    /// <summary>
-    /// Debounces audio-routing updates so rapid slider moves or toggle changes do not each
-    /// trigger an immediate apply. Fires 300 ms after the last change via
-    /// <see cref="ApplyAudioRoutingAsync"/>.
-    /// </summary>
-    private void ScheduleMixRegeneration()
-    {
-        _mixDebounce?.Cancel();
-        _mixDebounce = new System.Threading.CancellationTokenSource();
-        var token = _mixDebounce.Token;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(300, token);
-                await Dispatcher.UIThread.InvokeAsync(() => _ = ApplyAudioRoutingAsync(token));
-            }
-            catch (OperationCanceledException) { }
-        }, token);
-    }
-
-    /// <summary>
-    /// Determines the appropriate <see cref="AudioMode"/> for the current track configuration
-    /// and applies it.
-    /// <list type="bullet">
-    ///   <item><see cref="AudioMode.NativeSingleTrack"/> — calls
-    ///   <see cref="LibVLCSharp.Shared.MediaPlayer.SetAudioTrack"/> directly when the user
-    ///   changes a track selection during playback. Skipped on initial load so VLC's own
-    ///   audio pipeline is not disturbed before it is fully initialised.</item>
-    ///   <item><see cref="AudioMode.MixedRemux"/> — sets <see cref="HasPendingAudioChanges"/>
-    ///   so the user can trigger the mix via <see cref="ApplyAudioMixCommand"/>.</item>
-    /// </list>
-    /// </summary>
-    /// <param name="token">Cancellation token from the debounce scheduler.</param>
-    /// <param name="isInitialLoad">
-    /// <see langword="true"/> when called from <see cref="RefreshAudioTracksAsync"/> on first
-    /// play. Skips <c>SetAudioTrack</c> calls so that VLC's audio pipeline (which may not yet
-    /// be fully initialised at the <c>Playing</c> event boundary) is not disturbed.
-    /// </param>
-    private async Task ApplyAudioRoutingAsync(
-        System.Threading.CancellationToken token,
-        bool isInitialLoad = false)
-    {
-        if (_clip is null || AudioTracks.Count == 0) return;
-
-        var tracks = AudioTracks
-            .Select(t => new ClipStudio.Application.Models.TrackMixInfo(
-                t.TrackIndex, t.IsIncluded, t.Volume, t.FfmpegStreamIndex))
-            .ToList();
-
-        var includedCount = tracks.Count(t => t.IsIncluded);
-
-        // 0 tracks included — mute VLC (intentional, always applied even on initial load).
-        if (includedCount == 0)
-        {
-            MediaPlayer.SetAudioTrack(-1);
-            HasPendingAudioChanges = false;
-            IsPlayingMixPreview    = false;
-            _audioMode             = AudioMode.NativeSingleTrack;
-            return;
-        }
-
-        var needsMix = _mixedAudioService.ShouldUseMix(tracks);
-        var prevMode = _audioMode;
-        _audioMode   = needsMix ? AudioMode.MixedRemux : AudioMode.NativeSingleTrack;
-
-        if (!needsMix)
-        {
-            HasPendingAudioChanges = false;
-
-            var included = AudioTracks.Where(t => t.IsIncluded).ToList();
-            var trackId  = included.Count == 1
-                ? included[0].TrackIndex
-                : AudioTracks[0].TrackIndex; // all-unity — VLC default (first track)
-
-            if (prevMode == AudioMode.MixedRemux)
-            {
-                // Reload the original file to drop the remux preview, then apply track selection.
-                _pendingNativeTrackId = trackId;
-                ReloadMedia(_clip.FilePath);
-                IsPlayingMixPreview = false;
-            }
-            else if (!isInitialLoad)
-            {
-                // Apply the track selection immediately. Skipped on initial load because
-                // calling SetAudioTrack from the Playing-event dispatcher callback can
-                // silently break VLC's audio output on Windows before the pipeline is ready.
-                MediaPlayer.SetAudioTrack(trackId);
-                IsPlayingMixPreview = false;
-            }
-
-            return;
-        }
-
-        // MixedRemux path.
-        if (isInitialLoad)
-        {
-            // On first play: if a cached mix exists, load it automatically so the user hears
-            // the mix they configured last time without pressing Apply Mix.
-            // If no cache exists (or cache is disabled), generate it silently in the background.
-            HasPendingAudioChanges = false;
-
-            if (_settingsService.Current.CacheAudioPreviews)
-            {
-                // Check both slots and use the most recently written file (session slot tracking
-                // is lost between close/open, so we must inspect the filesystem).
-                var path0 = GetAudioMixCachePath(0);
-                var path1 = GetAudioMixCachePath(1);
-                var exists0 = System.IO.File.Exists(path0);
-                var exists1 = System.IO.File.Exists(path1);
-
-                string? cachedPath = null;
-                if (exists0 && exists1)
-                {
-                    // Both slots present — prefer the most recently written.
-                    cachedPath     = System.IO.File.GetLastWriteTimeUtc(path0) >= System.IO.File.GetLastWriteTimeUtc(path1)
-                        ? path0 : path1;
-                    _activeMixSlot = cachedPath == path0 ? 0 : 1;
-                }
-                else if (exists0)
-                {
-                    cachedPath     = path0;
-                    _activeMixSlot = 0;
-                }
-                else if (exists1)
-                {
-                    cachedPath     = path1;
-                    _activeMixSlot = 1;
-                }
-
-                if (cachedPath is not null)
-                {
-                    _mixedPreviewPath = cachedPath;
-                    ReloadMedia(cachedPath);
-                    IsPlayingMixPreview = true;
-                    return;
-                }
-            }
-
-            // No usable cache — generate silently in the background.
-            _ = ApplyAudioMixAsync();
-        }
-        else
-        {
-            // User-initiated change: show the Apply Mix button so they can preview before committing.
-            HasPendingAudioChanges = true;
-        }
-
-        await Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Generates the FFmpeg remux preview for the current audio track configuration and
-    /// reloads VLC with the preview file. Called by <see cref="ApplyAudioMixCommand"/> and
-    /// fire-and-forget from <see cref="ApplyAudioRoutingAsync"/> on initial load.
-    /// Uses alternating cache slots so FFmpeg never writes to the file VLC currently has open.
-    /// Cancels any in-progress generation before starting a new one.
-    /// </summary>
-    private async Task ApplyAudioMixAsync()
-    {
-        if (_clip is null || AudioTracks.Count == 0) return;
-
-        // Cancel any in-progress generation before starting a new one.
-        _mixApplyCts?.Cancel();
-        _mixApplyCts?.Dispose();
-        _mixApplyCts = new System.Threading.CancellationTokenSource();
-        var token = _mixApplyCts.Token;
-
-        IsMixApplying          = true;
-        HasPendingAudioChanges = false;
-
-        var tracks = AudioTracks
-            .Select(t => new ClipStudio.Application.Models.TrackMixInfo(
-                t.TrackIndex, t.IsIncluded, t.Volume, t.FfmpegStreamIndex))
-            .ToList();
-
-        // Write to the slot that VLC is NOT currently playing to avoid a Windows file-lock conflict.
-        var nextSlot = 1 - _activeMixSlot;
-        var mkvPath  = GetAudioMixCachePath(nextSlot);
-
-        try
-        {
-            await _mixedAudioService.GenerateRemuxAsync(_clip.FilePath, tracks, mkvPath, token);
-
-            // Bail out if this request was superseded while FFmpeg was running.
-            token.ThrowIfCancellationRequested();
-
-            // Commit the new slot and reload VLC with the freshly written file.
-            _activeMixSlot    = nextSlot;
-            _mixedPreviewPath = mkvPath;
-            ReloadMedia(mkvPath);
-            IsPlayingMixPreview = true;
-
-        }
-        catch (OperationCanceledException)
-        {
-            // A newer request superseded this one — leave player state as-is.
-        }
-        catch (Exception ex)
-        {
-            // Restore pending flag so the user can retry.
-            HasPendingAudioChanges = true;
-            // Ensure VLC is on a known-good track (original file is still loaded).
-            if (AudioTracks.Count > 0)
-                MediaPlayer.SetAudioTrack(AudioTracks[0].TrackIndex);
-            System.Diagnostics.Debug.WriteLine($"[ClipStudio] ApplyAudioMixAsync failed: {ex.Message}");
-        }
-        finally
-        {
-            if (!token.IsCancellationRequested)
-                IsMixApplying = false;
-        }
-    }
-
-    /// <summary>
-    /// Returns the per-clip audio mix cache path for the given slot.
-    /// Slot 0 (default) → <c>clip_{id}_audio_preview.mkv</c>;
-    /// slot 1 → <c>clip_{id}_audio_preview_alt.mkv</c>.
-    /// Using two alternating slots ensures FFmpeg never tries to overwrite the file that
-    /// VLC currently has open (locked on Windows).
-    /// </summary>
-    /// <param name="slot">
-    /// The cache slot index. Pass -1 (default) to use <see cref="_activeMixSlot"/>.
-    /// </param>
-    private string GetAudioMixCachePath(int slot = -1)
-    {
-        var folder = System.IO.Path.Combine(App.AppDataPath, "audio_cache");
-        System.IO.Directory.CreateDirectory(folder);
-        var slotToUse = slot < 0 ? _activeMixSlot : slot;
-        var suffix    = slotToUse == 0 ? string.Empty : "_alt";
-        return System.IO.Path.Combine(folder, $"clip_{_clip!.Id}_audio_preview{suffix}.mkv");
-    }
-
-    /// <summary>
-    /// Saves the current playback position, rebuilds the VLC <see cref="Media"/> from
-    /// <paramref name="path"/>, and resumes playback. The saved position is applied on the next
-    /// <c>Playing</c> event via <see cref="OnPlayerPlaying"/>. Unlike the old input-slave approach,
-    /// no slave options are needed: <paramref name="path"/> is the complete media file to open.
-    /// </summary>
-    /// <param name="path">
-    /// The absolute path to the media file to open — either the original clip or the remux preview MKV.
-    /// </param>
-    private void ReloadMedia(string path)
-    {
-        // Clamp to 0: MediaPlayer.Time returns -1 when no media is playing.
-        _mixReloadSeekMs = Math.Max(0, MediaPlayer.Time);
-
-        _media?.Dispose();
-        _media = new Media(_libVlc, path, FromType.FromPath);
-
-        MediaPlayer.Media = _media;
-        MediaPlayer.Play();
     }
 
     private void TogglePlayPause()
@@ -2500,7 +2111,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// Writes a diagnostic snapshot of the current VLC audio state to
     /// <c>%TEMP%\clipstudio_audio.log</c>. Remove once the audio issue is resolved.
     /// </summary>
-    private void LogAudioDiagnostics(string context)
+    /// <inheritdoc/>
+    public void LogAudioDiagnostics(string context)
     {
         try
         {
@@ -2526,8 +2138,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             LogAudioDiagnostics("OnPlayerPlaying");
 
             // After a media reload (remux preview or clean-reload for mode transition), seek back
-            // to the position saved before the reload. AudioTracks is already populated so
-            // RefreshAudioTracksAsync is skipped by the Count == 0 guard below.
+            // to the position saved before the reload. The track list is already populated so
+            // the refresh below is skipped by the HasTracks guard.
             if (_mixReloadSeekMs >= 0)
             {
                 var seekTarget             = _mixReloadSeekMs;
@@ -2548,8 +2160,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
             }
 
             // Only populate audio tracks on first play of this clip.
-            if (AudioTracks.Count == 0)
-                _ = RefreshAudioTracksAsync();
+            if (!Audio.HasTracks)
+                _ = Audio.RefreshAudioTracksAsync();
 
             // After end-of-clip with loop off: immediately pause at position 0 so the user
             // can replay by pressing play or scrubbing without needing to reload the clip.
@@ -2775,13 +2387,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
-        _mixDebounce?.Cancel();
-        _mixDebounce?.Dispose();
-        _mixDebounce = null;
-
-        _mixApplyCts?.Cancel();
-        _mixApplyCts?.Dispose();
-        _mixApplyCts = null;
+        Audio.Dispose();
 
         Transcription.SegmentTextEdited -= OnSegmentTextEdited;
 
