@@ -237,8 +237,7 @@ public sealed partial class PlaybackViewModel : ViewModelBase
         IsScrubbing = false;
 
         // The slider is window-relative; translate back to an absolute media position.
-        var absoluteSeconds = IsWindowed ? WindowStart!.Value.TotalSeconds + seconds : seconds;
-        var targetMs        = (long)(absoluteSeconds * 1000);
+        var targetMs = ToAbsoluteMs(seconds);
 
         ArmSeekGuard(targetMs);
         _host.TimeMs = targetMs;
@@ -306,30 +305,45 @@ public sealed partial class PlaybackViewModel : ViewModelBase
     /// Reformats the duration readout, after the parent switches precision on or off.
     /// </summary>
     /// <remarks>
-    /// The play-head readout is deliberately left alone, matching the behaviour from before this
-    /// transport was extracted: it takes on the new precision at the next player update. That
-    /// leaves it stale while the player is paused; see the entry in PLAN.md.
+    /// The play-head readout is refreshed too. Formatting only the duration left the two at
+    /// different precisions while the player was paused - the duration would read <c>m:ss.f</c>
+    /// while the play head still read <c>m:ss</c> - until the next player update happened to
+    /// arrive.
     /// </remarks>
-    public void RefreshDurationDisplay() => DurationDisplay = Format(_displayedDuration);
+    public void RefreshDurationDisplay()
+    {
+        DurationDisplay = Format(_displayedDuration);
+        PositionDisplay = Format(TimeSpan.FromSeconds(PositionSeconds));
+    }
 
     /// <summary>
     /// Called by the source generator when <see cref="PositionSeconds"/> changes. A change the user
     /// made seeks the player; one written from a player update or mid-drag does not.
     /// </summary>
     /// <remarks>
-    /// The value is treated as an absolute media position even when a window is set. That is wrong
-    /// for a windowed clip and is carried over unchanged from before this transport was extracted,
-    /// so the extraction stays behaviour-only; see the entry in PLAN.md. Dragging the slider is
-    /// unaffected, because a drag is suppressed here and settled by <see cref="EndScrub"/>, which
-    /// does convert.
+    /// The play head is window-relative, so it is translated back to an absolute media position
+    /// the same way <see cref="EndScrub"/> does. Without that, a click on the slider track in watch
+    /// mode landed <c>WindowStart</c> seconds early; dragging was already correct because a drag is
+    /// suppressed here and settled by <see cref="EndScrub"/>.
     /// </remarks>
-    /// <param name="value">The new play-head position in seconds.</param>
+    /// <param name="value">The new play-head position in seconds, relative to the window start.</param>
     partial void OnPositionSecondsChanged(double value)
     {
         if (_isUpdatingFromPlayer || IsScrubbing)
             return;
 
-        SeekToMs((long)(value * 1000));
+        SeekToMs(ToAbsoluteMs(value));
+    }
+
+    /// <summary>
+    /// Translates a window-relative position in seconds to an absolute position in the media.
+    /// </summary>
+    /// <param name="seconds">The position in seconds, relative to the window start.</param>
+    /// <returns>The absolute position in milliseconds from the start of the media.</returns>
+    private long ToAbsoluteMs(double seconds)
+    {
+        var absoluteSeconds = IsWindowed ? WindowStart!.Value.TotalSeconds + seconds : seconds;
+        return (long)(absoluteSeconds * 1000);
     }
 
     /// <summary>Formats a timestamp at the precision the parent currently wants.</summary>

@@ -235,7 +235,7 @@ public sealed class PlaybackViewModelTests
     }
 
     [Fact]
-    public void RefreshDurationDisplay_ReformatsOnlyTheDuration()
+    public void RefreshDurationDisplay_ReformatsBothReadouts()
     {
         var vm = CreateForClip(seconds: 95);
         vm.UpdatePositionDisplay(TimeSpan.FromSeconds(63.4));
@@ -244,9 +244,9 @@ public sealed class PlaybackViewModelTests
         vm.RefreshDurationDisplay();
 
         Assert.Equal("1:35.0", vm.DurationDisplay);
-        // Carried over from before the extraction: the play head takes on the new precision at the
-        // next player update rather than immediately.
-        Assert.Equal("1:03", vm.PositionDisplay);
+        // Was "1:03" before the stale-precision fix: the play head used to keep the old precision
+        // until the next player update, which left it mismatched with the duration while paused.
+        Assert.Equal("1:03.4", vm.PositionDisplay);
     }
 
     [Theory]
@@ -326,6 +326,67 @@ public sealed class PlaybackViewModelTests
         Assert.Equal(35_000, _host.TimeMs);
         Assert.Equal(5, vm.PositionSeconds, 3);
     }
+
+    // ---- Regressions fixed after the extraction ----
+
+    [Fact]
+    public void Windowed_PlayHeadWriteSeeksRelativeToTheWindowStart()
+    {
+        var vm = CreateForClip();
+        vm.SetWindow(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(45));
+
+        // A click on the slider track writes the play head directly, without a scrub. The slider is
+        // window-relative, so 5 means five seconds into the highlight - an absolute 35s, not 5s.
+        vm.PositionSeconds = 5;
+
+        Assert.Equal(35_000, _host.TimeMs);
+    }
+
+    [Fact]
+    public void Windowed_ClickAndDragLandOnTheSamePosition()
+    {
+        var clickVm = CreateForClip();
+        clickVm.SetWindow(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(45));
+        clickVm.PositionSeconds = 7;
+        var clicked = _host.TimeMs;
+
+        var dragHost = new FakePlaybackHost();
+        var dragVm   = new PlaybackViewModel(dragHost, () => _precise);
+        dragVm.SetDuration(TimeSpan.FromSeconds(120));
+        dragVm.SetWindow(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(45));
+        dragVm.BeginScrub();
+        dragVm.EndScrub(7);
+
+        Assert.Equal(dragHost.TimeMs, clicked);
+    }
+
+    [Fact]
+    public void PlayHeadWriteWithoutAWindowSeeksToTheValueItself()
+    {
+        var vm = CreateForClip();
+
+        vm.PositionSeconds = 5;
+
+        Assert.Equal(5_000, _host.TimeMs);
+    }
+
+    [Fact]
+    public void RefreshDurationDisplayBringsThePlayHeadReadoutToTheSamePrecision()
+    {
+        var vm = CreateForClip(12);
+        vm.UpdatePositionDisplay(TimeSpan.FromSeconds(5));
+        var coarse = vm.PositionDisplay;
+
+        _precise = true;
+        vm.RefreshDurationDisplay();
+
+        // Both readouts must switch together; previously only the duration did, leaving the play
+        // head at the old precision until the next player update.
+        Assert.NotEqual(coarse, vm.PositionDisplay);
+        Assert.Contains(".", vm.PositionDisplay);
+        Assert.Contains(".", vm.DurationDisplay);
+    }
+
 }
 
 /// <summary>Small helpers that keep the window tests readable.</summary>
