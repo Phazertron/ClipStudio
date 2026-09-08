@@ -6,6 +6,11 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
+Status (2026-09-08, end of session): 0 warnings, 344 tests passing, 14 commits
+ahead of origin/master and unpushed. Phase 0.1 and 0.3 are complete. Phase 0.2
+has all five named child view models extracted; the `TagPickerBehavior` item and
+the line-count target remain.
+
 ---
 
 ## Phase 0 - Hardening before new features
@@ -23,27 +28,49 @@ and the clip detail view, so this comes first.
 - [x] Introduce `IFileSystem` abstraction (or use System.IO.Abstractions) so the above run without touching disk
 - [x] Target: tests above 150
 
-### 0.2 Split ClipDetailViewModel (2,800 lines, 60 commands)
+### 0.2 Split ClipDetailViewModel (was 2,801 lines; now 1,676)
 
 Extract child view models, each owning its own commands and observable state.
 The parent keeps navigation, load/save orchestration, and exposes the children.
 
-Groundwork done: ClipDetailView now sets `x:CompileBindings="True"`, so every
-binding is checked against the view model at build time. Moving a property onto
-a child view model is now a compile error rather than a silent runtime break.
+**The pattern, for whoever continues this.** Each child owns its own state and
+commands and reaches the surrounding view through a small `I...Host` interface
+that `ClipDetailViewModel` implements explicitly. That keeps the child free of
+LibVLC and of the parent's other concerns, and makes it testable with a fake
+host (see `tests/ClipStudio.Tests/Fakes/`). Existing seams: `IAudioPlaybackHost`,
+`IPlaybackHost`, `ITrimEditorHost`, `IHighlightEditorHost`.
 
-Order by blast radius (XAML + code-behind references): audio 14/0,
-highlights 42/53, trim 49/40. Audio is the smallest but touches the fragile
-LibVLC ordering rules in DECISION_LOG (SetAudioTrack on initial load, explicit
-MediaPlayer.Volume) - verify by running the app, not just by building.
+**The safety net.** ClipDetailView sets `x:CompileBindings="True"`, so every
+binding is checked against the view model at build time; moving a property onto
+a child is a compile error, not a silent runtime break. This does NOT cover the
+code-behind's `PropertyChanged` subscriptions - those compile fine and fail
+silently, so they need the app run (see "Verifying a change" below).
+
+**Extractions were kept behaviour-only.** Where a quirk was found it was
+preserved and recorded in the backlog rather than quietly fixed mid-move; three
+such items are listed there.
 
 - [x] `PlaybackViewModel` - position, loop, scrub, seek (volume/mute went to AudioMixerViewModel; subtitles stayed with the parent, which owns the media and SRT slave)
 - [x] `TrimEditorViewModel` - trim start/end, destructive check against highlights, timestamp inputs
 - [x] `HighlightEditorViewModel` - add/edit form, pending tags, timeline handles (the highlight list stays with the parent)
 - [x] `AudioMixerViewModel` - track selection, per-track volume, MixedRemux cache
 - [x] `ScreenshotViewModel` - capture (list lands with the UI that shows it)
-- [ ] Move the AutoCompleteBox picker state machine into a reusable `TagPickerBehavior`
-- [ ] Target: no file in UI above 1,000 lines
+- [ ] Move the AutoCompleteBox picker state machine into a reusable `TagPickerBehavior`.
+  Currently duplicated between `ClipDetailView.axaml.cs` (which keeps a
+  per-instance `Dictionary<AutoCompleteBox, HighlightPickerState>`) and
+  `LibraryView.axaml.cs`. This is the delicate one: Avalonia clears `SelectedItem`
+  BEFORE `DropDownClosed` fires, so the selection must be captured in
+  `SelectionChanged`, and the three-phase state machine
+  (SelectionChanged / KeyDown tunnel+handledEventsToo / DropDownClosed) has to be
+  moved intact. Pure view-layer work with no compile-time safety net - budget a
+  full app-verification pass over both views.
+- [ ] Target: no file in UI above 1,000 lines. Not met yet. Current offenders:
+  `LibraryViewModel.cs` (1,753 - untouched by this phase, and the larger of the
+  two view models the phase goal named), `ClipDetailViewModel.cs` (1,676),
+  `ClipDetailView.axaml.cs` (940, shrinks with `TagPickerBehavior`).
+  What is left in ClipDetailViewModel is the highlight *list* and the
+  tag/player/game panels; neither is a named child in this plan, so decide
+  whether to keep splitting or to close the item at "materially smaller".
 
 ### 0.3 Small fixes
 
@@ -51,6 +78,26 @@ MediaPlayer.Volume) - verify by running the app, not just by building.
 - [x] `ClipService.SearchAsync` - push tag/player/excluded-id filters into the EF query instead of in-memory
 - [x] Add `obs-scripts/__pycache__/` to `.gitignore`
 - [x] Commit `CLAUDE.md`
+
+### Verifying a change in the running app
+
+Several bugs this phase surfaced only by running the app - a stuck progress bar,
+a dead `PropertyChanged` subscription, an ineffective volume fix. Building and
+the test suite do not catch those. The recipe used:
+
+1. Launch with an isolated profile so the real library is never touched:
+   `ClipStudio.UI.exe --profile smoke`. Everything under
+   `%AppData%\ClipStudio_smoke` is throwaway; delete it afterwards.
+   Note the one leak: the screenshot output folder ignores `--profile` (backlog).
+2. Generate a test clip with an OBS-style name, which also exercises the
+   filename timestamp and `[Game Name]` parsing:
+   `ffmpeg -f lavfi -i testsrc=size=1280x720:rate=30:duration=12 -f lavfi -i sine=frequency=440:duration=12 -c:v libx264 -pix_fmt yuv420p -c:a aac "Replay 2025-03-03 22-49-45 [Deep Rock Galactic].mp4"`
+3. Walk the wizard, add the folder in Settings, Scan All, open the clip.
+4. For audio questions, read `%TEMP%\clipstudio_audio.log` - it records VLC's
+   Volume, Mute and AudioTrack at each play event. Note that a Windows audio
+   session peak meter does NOT observe LibVLC's output; it reads zero even when
+   audio is fine, so it cannot be used to prove silence. When in doubt, build the
+   previous commit and compare against it rather than assuming a regression.
 
 ---
 
@@ -123,6 +170,46 @@ independent, and grouped search is UI-only and can slot in anywhere.
 Not tied to a phase. Pull from here when a session has spare time or when a
 phase touches the same area.
 
+### Found during Phase 0 - needs a decision or investigation
+
+These came out of the split and the app-verification passes. They are recorded
+rather than fixed because each is either a behaviour change that deserves its
+own commit, or not yet fully diagnosed.
+
+- [ ] **Master volume is lost after a clip restarts.** Every end-of-clip path in
+  `OnPlayerEndReached` does `MediaPlayer.Stop()` then `Play()`, which tears down VLC's audio
+  output; the rebuilt output starts at LibVLC's own default instead of the user's master level,
+  and `MediaPlayer.Volume` reads -1 afterwards.
+  *Attempted and reverted 2026-09-08:* re-applying the level from a
+  `AudioMixerViewModel.ReapplyVolume()` called inside the `Playing` callback does NOT work - the
+  Volume setter is a no-op while no audio output exists, and the log still read -1. A working fix
+  has to apply the level once the output actually exists (first `TimeChanged` after a restart, or
+  a short retry), and needs its own runtime verification.
+  *Still unknown:* whether audio is genuinely at the wrong level or only the query misreports.
+  Establish that first - it decides whether this is a user-facing bug at all.
+- [ ] **Slider track-click seeks wrong in watch mode.** The play-head setter treats its value as
+  an absolute media position, but in watch mode the slider is relative to the highlight start, so
+  a track-click lands `WatchStart` seconds early. Dragging is fine - a drag is settled by
+  `EndScrub`, which does convert. Marked in `PlaybackViewModel.OnPositionSecondsChanged`; the fix
+  is to convert there the same way `EndScrub` does.
+- [ ] **Play-head readout keeps stale precision.** Entering a trim or highlight edit while paused
+  leaves the play head at `m:ss` while the duration already reads `m:ss.f`; it only catches up on
+  the next player update. `PlaybackViewModel.RefreshDurationDisplay` deliberately preserves this;
+  refreshing the position there too is a one-line change.
+- [ ] **`LogAudioDiagnostics` is debug scaffolding that still ships.** It appends a snapshot to
+  `%TEMP%\clipstudio_audio.log` on every play event. Its own remark says to remove it once the
+  audio issues are resolved - do that together with the master-volume item, since that is what it
+  is currently being used to diagnose. (It is genuinely useful until then.)
+- [ ] **`AudioMixerViewModel._mixedPreviewPath` is dead.** Assigned in three places, never read.
+  Dead since before the extraction and moved across verbatim to keep that change behaviour-only.
+  Drop it, or start using it - the natural use is skipping a regeneration when the requested mix
+  already matches the loaded preview.
+- [ ] **Screenshot output folder is not profile-scoped.** With `--profile` set, captures still
+  land in `Pictures\ClipStudio`. Minor, but it breaks the isolation the profile flag otherwise
+  gives, which matters for the smoke-test recipe above.
+
+### Pre-existing
+
 - [ ] Trash: sanitizer should detect clips moved to the system trash outside the app and drop their DB record (only on explicit sanitize run, never proactively)
 - [ ] Source watcher: new file in a source folder does not badge the Settings nav item; add auto-import setting
 - [ ] Player suggestions missing from some tag/player autocompletes
@@ -132,36 +219,17 @@ phase touches the same area.
 - [ ] Transcription: drop base/small models from the picker (assessed as not useful)
 - [ ] Transcription: translation runs after recognition, should be a separate opt-in step
 - [ ] Installer: remove the "hide" option on the Velopack setup window
-- [ ] Master volume is lost after a clip restarts. Every end-of-clip path in
-  `OnPlayerEndReached` does `MediaPlayer.Stop()` then `Play()`, which tears down VLC's audio
-  output; the rebuilt output starts at LibVLC's own default instead of the user's master level,
-  and `MediaPlayer.Volume` reads -1 afterwards. Investigated 2026-09-08: re-applying the level
-  from `AudioMixerViewModel.ReapplyVolume()` inside the `Playing` callback does NOT work - the
-  Volume setter is a no-op while no audio output exists, and the log still reads -1. The fix has
-  to apply the level once the output actually exists (first `TimeChanged` after a restart, or a
-  short retry), so it needs its own runtime verification pass. Not yet confirmed whether audio is
-  genuinely at the wrong level or only the query misreports.
-- [ ] Clicking the position slider track in watch mode seeks to the wrong place. The play-head
-  setter treats its value as an absolute media position, but in watch mode the slider is relative
-  to the highlight start, so a track-click lands `WatchStart` seconds early. Dragging is fine -
-  a drag is settled by `EndScrub`, which does convert. Carried over unchanged when the transport
-  was extracted, and marked in `PlaybackViewModel.OnPositionSecondsChanged`.
-- [ ] The play-head readout keeps the old precision until the next player update, so entering a
-  trim or highlight edit while paused leaves it at `m:ss` while the duration already reads
-  `m:ss.f`. Pre-existing; `PlaybackViewModel.RefreshDurationDisplay` deliberately preserves it.
-- [ ] `LogAudioDiagnostics` is debug scaffolding that still ships: it appends a snapshot to
-  `%TEMP%\clipstudio_audio.log` on every play event. Its own comment says to remove it once the
-  audio issues are resolved - do that together with the master-volume item above, since that is
-  what it is currently being used to diagnose.
-- [ ] `AudioMixerViewModel._mixedPreviewPath` is assigned in three places and never read. Dead
-  since before the extraction, moved across verbatim to keep that change behaviour-only. Drop it,
-  or start using it (the natural use is skipping a regeneration when the requested mix already
-  matches the loaded preview).
-- [ ] Screenshot output folder is not profile-scoped: with `--profile` set, captures still land in `Pictures\ClipStudio` (found while smoke-testing the wizard)
+- [ ] Replace the `OWNER/ClipStudio` GitHub URL placeholders in `CrashReportDialog.axaml.cs` and `SettingsViewModel.cs` before shipping
 
 ---
 
 ## Done
+
+### Phase 0 - Hardening (2026-09-08)
+- [x] 0.1 file-system test net: `IFileSystem` + `PhysicalFileSystem` + `FakeFileSystem`; import, sanitizer, highlight and export suites. Tests 118 -> 214.
+- [x] 0.3 small fixes: async FFmpeg detection, clip search filters pushed into SQL, gitignore, CLAUDE.md
+- [x] 0.2 five child view models extracted from ClipDetailViewModel (2,801 -> 1,676 lines), each behind an `I...Host` seam and covered by tests. Tests 214 -> 344.
+- [x] Fixed along the way: setup wizard progress bar never advanced; `TimestampInput` accepted negative bare seconds
 
 ### Round 15 - completed
 - [x] F-O Relocate lost clips + source folder migration
