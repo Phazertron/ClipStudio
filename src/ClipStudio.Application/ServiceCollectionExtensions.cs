@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
     {
         // Resolved paths singleton — consumed by services that write to the data directory.
         services.AddSingleton(new AppDataPaths(appDataPath));
+        services.AddSingleton<IFileSystem, PhysicalFileSystem>();
 
         // Settings must be registered first as other services depend on it.
         services.AddSingleton<ISettingsService>(sp =>

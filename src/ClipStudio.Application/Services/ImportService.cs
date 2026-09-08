@@ -26,6 +26,8 @@ public sealed class ImportService : IImportService
     private readonly IPlayerRepository _players;
     private readonly IGameTagAliasService _gameAliases;
     private readonly ITranscriptionService _transcription;
+    private readonly IFileSystem _fileSystem;
+    private readonly AppDataPaths _paths;
     private readonly ILogger<ImportService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="ImportService"/>.</summary>
@@ -37,6 +39,8 @@ public sealed class ImportService : IImportService
         IPlayerRepository players,
         IGameTagAliasService gameAliases,
         ITranscriptionService transcription,
+        IFileSystem fileSystem,
+        AppDataPaths paths,
         ILogger<ImportService> logger)
     {
         _clips = clips;
@@ -46,6 +50,8 @@ public sealed class ImportService : IImportService
         _players = players;
         _gameAliases = gameAliases;
         _transcription = transcription;
+        _fileSystem = fileSystem;
+        _paths = paths;
         _logger = logger;
     }
 
@@ -58,7 +64,7 @@ public sealed class ImportService : IImportService
         if (!ClipFileNameParser.IsSupportedVideoFile(filePath))
             return ImportResult.Failed($"Unsupported file type: {Path.GetExtension(filePath)}");
 
-        if (!File.Exists(filePath))
+        if (!_fileSystem.FileExists(filePath))
             return ImportResult.Failed($"File not found: {filePath}");
 
         if (await _clips.ExistsByFilePathAsync(filePath, cancellationToken))
@@ -87,7 +93,7 @@ public sealed class ImportService : IImportService
             // (3) OS file creation time (least reliable — may be "now" after a file copy).
             var recordedAt = ClipFileNameParser.ExtractTimestamp(filePath)
                              ?? metadata.EmbeddedCreationTime
-                             ?? File.GetCreationTimeUtc(filePath);
+                             ?? _fileSystem.GetCreationTimeUtc(filePath);
 
             var clip = new Clip
             {
@@ -153,13 +159,13 @@ public sealed class ImportService : IImportService
         if (folder is null)
             throw new InvalidOperationException($"Source folder with id {sourceFolderId} was not found.");
 
-        if (!Directory.Exists(folder.Path))
+        if (!_fileSystem.DirectoryExists(folder.Path))
         {
             _logger.LogWarning("Source folder path does not exist: {Path}", folder.Path);
             return [];
         }
 
-        var files = Directory.EnumerateFiles(folder.Path)
+        var files = _fileSystem.EnumerateFiles(folder.Path)
             .Where(ClipFileNameParser.IsSupportedVideoFile)
             .ToList();
 
@@ -249,14 +255,14 @@ public sealed class ImportService : IImportService
         });
     }
 
-    private static string GetDataDirectory()
+    /// <summary>
+    /// Returns the media cache directory used for generated thumbnails and preview strips,
+    /// creating it when it does not yet exist.
+    /// </summary>
+    /// <returns>The absolute path to the media cache directory.</returns>
+    private string GetDataDirectory()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ClipStudio",
-            "media-cache");
-
-        Directory.CreateDirectory(dir);
-        return dir;
+        _fileSystem.CreateDirectory(_paths.MediaCachePath);
+        return _paths.MediaCachePath;
     }
 }
