@@ -68,12 +68,6 @@ public sealed partial class AudioMixerViewModel : ViewModelBase, IDisposable
     /// </summary>
     private AudioMode _audioMode = AudioMode.NativeSingleTrack;
 
-    /// <summary>
-    /// File path of the last successfully generated FFmpeg remux preview (MKV).
-    /// Null when no preview has been generated for the current clip and settings.
-    /// </summary>
-    private string? _mixedPreviewPath;
-
     /// <summary>Gets the per-track include and volume settings for the open clip.</summary>
     public ObservableCollection<AudioTrackViewModel> AudioTracks { get; } = new();
 
@@ -191,7 +185,6 @@ public sealed partial class AudioMixerViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(HasTracks));
 
         _audioMode             = AudioMode.NativeSingleTrack;
-        _mixedPreviewPath      = null;
         _activeMixSlot         = 0;
         HasPendingAudioChanges = false;
         IsPlayingMixPreview    = false;
@@ -417,7 +410,6 @@ public sealed partial class AudioMixerViewModel : ViewModelBase, IDisposable
         if (cachedPath is null)
             return false;
 
-        _mixedPreviewPath = cachedPath;
         _host.ReloadMedia(cachedPath);
         IsPlayingMixPreview = true;
         return true;
@@ -456,7 +448,6 @@ public sealed partial class AudioMixerViewModel : ViewModelBase, IDisposable
             token.ThrowIfCancellationRequested();
 
             _activeMixSlot    = nextSlot;
-            _mixedPreviewPath = mkvPath;
             _host.ReloadMedia(mkvPath);
             IsPlayingMixPreview = true;
         }
