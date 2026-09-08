@@ -15,6 +15,7 @@ public sealed class HighlightService : IHighlightService
     private readonly IHighlightRepository _highlights;
     private readonly IClipRepository _clips;
     private readonly IMediaService _media;
+    private readonly IFileSystem _fileSystem;
     private readonly ILogger<HighlightService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="HighlightService"/>.</summary>
@@ -22,11 +23,13 @@ public sealed class HighlightService : IHighlightService
         IHighlightRepository highlights,
         IClipRepository clips,
         IMediaService media,
+        IFileSystem fileSystem,
         ILogger<HighlightService> logger)
     {
         _highlights = highlights;
         _clips      = clips;
         _media      = media;
+        _fileSystem = fileSystem;
         _logger     = logger;
     }
 
@@ -76,7 +79,7 @@ public sealed class HighlightService : IHighlightService
         try
         {
             var clip = await _clips.GetByIdAsync(clipId, cancellationToken);
-            if (clip is not null && File.Exists(clip.FilePath))
+            if (clip is not null && _fileSystem.FileExists(clip.FilePath))
             {
                 var midpoint      = startTime + TimeSpan.FromSeconds((endTime - startTime).TotalSeconds / 2.0);
                 var outputDir     = Path.GetDirectoryName(clip.ThumbnailPath) ?? Path.GetTempPath();
@@ -123,7 +126,7 @@ public sealed class HighlightService : IHighlightService
         try
         {
             var clip = await _clips.GetByIdAsync(highlight.ClipId, cancellationToken);
-            if (clip is not null && File.Exists(clip.FilePath))
+            if (clip is not null && _fileSystem.FileExists(clip.FilePath))
             {
                 var midpoint      = startTime + TimeSpan.FromSeconds((endTime - startTime).TotalSeconds / 2.0);
                 var outputDir     = Path.GetDirectoryName(clip.ThumbnailPath) ?? Path.GetTempPath();
