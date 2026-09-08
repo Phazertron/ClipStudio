@@ -1,5 +1,6 @@
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
+using ClipStudio.Core.Models;
 
 namespace ClipStudio.Core.Interfaces;
 
@@ -19,6 +20,26 @@ public interface IClipRepository
 
     /// <summary>Returns all clips that have at least one tag or highlight matching any of the given tag identifiers.</summary>
     Task<IReadOnlyList<Clip>> GetByTagsAsync(IEnumerable<int> tagIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the clips matching every criterion of <paramref name="query"/> that the data store
+    /// can evaluate, ordered by creation date descending.
+    /// </summary>
+    /// <remarks>
+    /// Free-text search (<see cref="ClipSearchQuery.SearchText"/> and
+    /// <see cref="ClipSearchQuery.SearchCaptions"/>) is deliberately not applied here: it spans
+    /// transcription segments and needs culture-aware comparison, so the caller applies it to the
+    /// returned candidates. Every set-based criterion - tags, players, exclusions, status, rating,
+    /// favourite, duration, creation date and highlight presence - is evaluated by the store.
+    /// <see cref="ClipSearchQuery.TagIds"/> is used verbatim: the caller expands tag descendants
+    /// beforehand when <see cref="ClipSearchQuery.IncludeTagDescendants"/> is set.
+    /// </remarks>
+    /// <param name="query">The filter to apply.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The matching clips, with tags, players and highlights loaded.</returns>
+    Task<IReadOnlyList<Clip>> SearchAsync(
+        ClipSearchQuery query,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Adds a new clip to the repository.</summary>
     Task AddAsync(Clip clip, CancellationToken cancellationToken = default);

@@ -1,6 +1,7 @@
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
 using ClipStudio.Core.Interfaces;
+using ClipStudio.Core.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClipStudio.Data.Repositories;
@@ -59,6 +60,77 @@ internal sealed class ClipRepository : IClipRepository
             .Where(c => !c.IsDeleted &&
                 (c.ClipTags.Any(ct => tagIdList.Contains(ct.TagId)) ||
                  c.Highlights.Any(h => h.HighlightTags.Any(ht => tagIdList.Contains(ht.TagId)))))
+            .AsNoTrackingWithIdentityResolution()
+            .Include(c => c.ClipTags).ThenInclude(ct => ct.Tag)
+            .Include(c => c.ClipPlayers).ThenInclude(cp => cp.Player)
+            .Include(c => c.Highlights)
+            .OrderByDescending(c => c.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<Clip>> SearchAsync(
+        ClipSearchQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var tagIds            = query.TagIds.ToList();
+        var playerIds         = query.PlayerIds.ToList();
+        var excludedTagIds    = query.ExcludedTagIds.ToList();
+        var excludedPlayerIds = query.ExcludedPlayerIds.ToList();
+
+        IQueryable<Clip> clips = _context.Clips.Where(c => !c.IsDeleted);
+
+        // Tag membership: a clip matches through its own tags or through any of its highlights.
+        if (tagIds.Count > 0)
+        {
+            clips = clips.Where(c =>
+                c.ClipTags.Any(ct => tagIds.Contains(ct.TagId)) ||
+                c.Highlights.Any(h => h.HighlightTags.Any(ht => tagIds.Contains(ht.TagId))));
+        }
+
+        if (query.Status != null)
+            clips = clips.Where(c => c.Status == query.Status);
+        else if (query.ExcludeArchived)
+            clips = clips.Where(c => c.Status != ClipStatus.Archived);
+
+        if (query.CreatedFrom != null)
+            clips = clips.Where(c => c.CreatedAt >= query.CreatedFrom);
+
+        if (query.CreatedTo != null)
+            clips = clips.Where(c => c.CreatedAt <= query.CreatedTo);
+
+        if (query.MinRating > 0)
+            clips = clips.Where(c => c.Rating >= query.MinRating);
+
+        if (query.IsFavourite != null)
+            clips = clips.Where(c => c.IsFavourite == query.IsFavourite);
+
+        if (query.HasHighlights == true)
+            clips = clips.Where(c => c.Highlights.Any());
+        else if (query.HasHighlights == false)
+            clips = clips.Where(c => !c.Highlights.Any());
+
+        if (query.MinDuration != null)
+            clips = clips.Where(c => c.Duration >= query.MinDuration);
+
+        if (query.MaxDuration != null)
+            clips = clips.Where(c => c.Duration <= query.MaxDuration);
+
+        if (playerIds.Count > 0)
+            clips = clips.Where(c => c.ClipPlayers.Any(cp => playerIds.Contains(cp.PlayerId)));
+
+        // Exclusions mirror the inclusion rules: a single match anywhere hides the clip.
+        if (excludedTagIds.Count > 0)
+        {
+            clips = clips.Where(c =>
+                !c.ClipTags.Any(ct => excludedTagIds.Contains(ct.TagId)) &&
+                !c.Highlights.Any(h => h.HighlightTags.Any(ht => excludedTagIds.Contains(ht.TagId))));
+        }
+
+        if (excludedPlayerIds.Count > 0)
+            clips = clips.Where(c => !c.ClipPlayers.Any(cp => excludedPlayerIds.Contains(cp.PlayerId)));
+
+        return await clips
             .AsNoTrackingWithIdentityResolution()
             .Include(c => c.ClipTags).ThenInclude(ct => ct.Tag)
             .Include(c => c.ClipPlayers).ThenInclude(cp => cp.Player)

@@ -138,6 +138,10 @@ public partial class App : AvaloniaApp
                 var wizard      = new SetupWizardWindow { DataContext = wizardVm };
                 desktop.MainWindow = wizard;
 
+                // Detect FFmpeg off the constructor so the wizard window appears immediately;
+                // the step list settles while the user is still reading the Welcome step.
+                _ = wizardVm.InitializeAsync();
+
                 // Run migrations and LibVLC init in parallel while the wizard is open.
                 _ = Task.Run(async () =>
                 {

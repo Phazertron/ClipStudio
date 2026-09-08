@@ -1,6 +1,6 @@
 using ClipStudio.Core.Enums;
 
-namespace ClipStudio.Application.Models;
+namespace ClipStudio.Core.Models;
 
 /// <summary>
 /// Encapsulates all filter and search parameters used to query the clip library.

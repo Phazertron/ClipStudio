@@ -11,6 +11,7 @@ using ClipStudio.Application.Models;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
 using ClipStudio.Core.Interfaces;
+using ClipStudio.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;

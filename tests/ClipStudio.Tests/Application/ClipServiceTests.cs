@@ -4,6 +4,7 @@ using ClipStudio.Application.Services;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
 using ClipStudio.Core.Interfaces;
+using ClipStudio.Core.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -112,41 +113,50 @@ public sealed class ClipServiceTests
     }
 
     [Fact]
-    public async Task SearchAsync_StatusFilter_AppliedCorrectly()
+    public async Task SearchAsync_DelegatesFilteringToRepository()
     {
-        var clips = new List<Clip>
-        {
-            MakeClip(1, ClipStatus.Unreviewed),
-            MakeClip(2, ClipStatus.Reviewed),
-            MakeClip(3, ClipStatus.Unreviewed)
-        };
+        var clips = new List<Clip> { MakeClip(1), MakeClip(2) };
+        ClipSearchQuery? forwarded = null;
 
-        _clipRepoMock.Setup(r => r.GetAllAsync(default)).ReturnsAsync(clips);
-        _tagRepoMock.Setup(r => r.GetDescendantIdsAsync(It.IsAny<int>(), default))
-                    .ReturnsAsync(new List<int>());
+        _clipRepoMock
+            .Setup(r => r.SearchAsync(It.IsAny<ClipSearchQuery>(), default))
+            .Callback<ClipSearchQuery, CancellationToken>((q, _) => forwarded = q)
+            .ReturnsAsync(clips);
 
-        var query = new ClipSearchQuery { Status = ClipStatus.Unreviewed };
+        var query = new ClipSearchQuery { Status = ClipStatus.Unreviewed, MinRating = 3 };
         var results = await _service.SearchAsync(query);
 
         Assert.Equal(2, results.Count);
-        Assert.All(results, c => Assert.Equal(ClipStatus.Unreviewed, c.Status));
+        Assert.NotNull(forwarded);
+        Assert.Equal(ClipStatus.Unreviewed, forwarded!.Status);
+        Assert.Equal(3, forwarded.MinRating);
+        _clipRepoMock.Verify(r => r.GetAllAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task SearchAsync_MinRatingFilter_ExcludesLowRatedClips()
+    public async Task SearchAsync_ExpandsTagDescendants_BeforeQueryingRepository()
     {
-        var low = MakeClip(1); low.Rating = 1;
-        var high = MakeClip(2); high.Rating = 4;
+        ClipSearchQuery? forwarded = null;
 
-        _clipRepoMock.Setup(r => r.GetAllAsync(default)).ReturnsAsync([low, high]);
-        _tagRepoMock.Setup(r => r.GetDescendantIdsAsync(It.IsAny<int>(), default))
-                    .ReturnsAsync(new List<int>());
+        _clipRepoMock
+            .Setup(r => r.SearchAsync(It.IsAny<ClipSearchQuery>(), default))
+            .Callback<ClipSearchQuery, CancellationToken>((q, _) => forwarded = q)
+            .ReturnsAsync([]);
 
-        var query = new ClipSearchQuery { MinRating = 3 };
-        var results = await _service.SearchAsync(query);
+        _tagRepoMock
+            .Setup(r => r.GetDescendantIdsAsync(7, default))
+            .ReturnsAsync(new List<int> { 8, 9 });
 
-        Assert.Single(results);
-        Assert.Equal(4, results[0].Rating);
+        var query = new ClipSearchQuery { TagIds = [7], IncludeTagDescendants = true };
+        await _service.SearchAsync(query);
+
+        Assert.NotNull(forwarded);
+        Assert.Equal([7, 8, 9], forwarded!.TagIds.OrderBy(id => id));
+        Assert.False(forwarded.IncludeTagDescendants);
+
+        // The caller's query must not be mutated by the expansion.
+        Assert.Equal([7], query.TagIds);
+        Assert.True(query.IncludeTagDescendants);
     }
 
     [Fact]
@@ -155,15 +165,59 @@ public sealed class ClipServiceTests
         var match = MakeClip(1); match.FileName = "KillerCombo_clip.mp4";
         var noMatch = MakeClip(2); noMatch.FileName = "random.mp4";
 
-        _clipRepoMock.Setup(r => r.GetAllAsync(default)).ReturnsAsync([match, noMatch]);
-        _tagRepoMock.Setup(r => r.GetDescendantIdsAsync(It.IsAny<int>(), default))
-                    .ReturnsAsync(new List<int>());
+        _clipRepoMock
+            .Setup(r => r.SearchAsync(It.IsAny<ClipSearchQuery>(), default))
+            .ReturnsAsync([match, noMatch]);
 
         var query = new ClipSearchQuery { SearchText = "KillerCombo" };
         var results = await _service.SearchAsync(query);
 
         Assert.Single(results);
         Assert.Equal("KillerCombo_clip.mp4", results[0].FileName);
+    }
+
+    [Fact]
+    public async Task SearchAsync_TextFilter_MatchesNotesAndHighlightLabels()
+    {
+        var byNotes = MakeClip(1); byNotes.Notes = "clutch ACE round";
+        var byLabel = MakeClip(2);
+        byLabel.Highlights = [new Highlight { Id = 1, ClipId = 2, Label = "Triple ace" }];
+        var noMatch = MakeClip(3);
+
+        _clipRepoMock
+            .Setup(r => r.SearchAsync(It.IsAny<ClipSearchQuery>(), default))
+            .ReturnsAsync([byNotes, byLabel, noMatch]);
+
+        var results = await _service.SearchAsync(new ClipSearchQuery { SearchText = "ace" });
+
+        Assert.Equal([1, 2], results.Select(c => c.Id).OrderBy(id => id));
+    }
+
+    [Fact]
+    public async Task SearchAsync_SearchCaptions_IncludesCaptionMatchesOnly_WhenEnabled()
+    {
+        var captionMatch = MakeClip(1);
+        var noMatch = MakeClip(2);
+
+        _clipRepoMock
+            .Setup(r => r.SearchAsync(It.IsAny<ClipSearchQuery>(), default))
+            .ReturnsAsync([captionMatch, noMatch]);
+        _transcriptionRepoMock
+            .Setup(r => r.SearchClipIdsBySegmentTextAsync("headshot", default))
+            .ReturnsAsync([1]);
+
+        var withCaptions = await _service.SearchAsync(
+            new ClipSearchQuery { SearchText = "headshot", SearchCaptions = true });
+
+        Assert.Single(withCaptions);
+        Assert.Equal(1, withCaptions[0].Id);
+
+        var withoutCaptions = await _service.SearchAsync(
+            new ClipSearchQuery { SearchText = "headshot", SearchCaptions = false });
+
+        Assert.Empty(withoutCaptions);
+        _transcriptionRepoMock.Verify(
+            r => r.SearchClipIdsBySegmentTextAsync("headshot", default), Times.Once);
     }
 
     [Fact]

@@ -11,3 +11,5 @@ settings.json
 notes.md
 DECISION_LOG.md
 .claude/
+obs-scripts/__pycache__/
+

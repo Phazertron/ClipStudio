@@ -4,6 +4,7 @@ using ClipStudio.Application.Models;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
 using ClipStudio.Core.Interfaces;
+using ClipStudio.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace ClipStudio.Application.Services;
@@ -39,57 +40,71 @@ public sealed class ClipService : IClipService
         ClipSearchQuery query,
         CancellationToken cancellationToken = default)
     {
-        // Resolve tag IDs including descendants when requested.
-        var effectiveTagIds = new List<int>(query.TagIds);
+        // Resolve tag IDs including descendants when requested, then hand the whole query to the
+        // repository so every set-based criterion is evaluated by the database rather than in memory.
+        var effectiveQuery = query;
         if (query.IncludeTagDescendants && query.TagIds.Count > 0)
         {
+            var effectiveTagIds = new List<int>(query.TagIds);
             foreach (var tagId in query.TagIds)
             {
                 var descendants = await _tags.GetDescendantIdsAsync(tagId, cancellationToken);
                 effectiveTagIds.AddRange(descendants);
             }
+
+            effectiveQuery = CloneWithTagIds(query, effectiveTagIds);
         }
 
-        IReadOnlyList<Clip> candidates = effectiveTagIds.Count > 0
-            ? await _clips.GetByTagsAsync(effectiveTagIds, cancellationToken)
-            : await _clips.GetAllAsync(cancellationToken);
+        var candidates = await _clips.SearchAsync(effectiveQuery, cancellationToken);
 
-        // Fetch caption-matched clip IDs upfront so they can be used in the synchronous Where chain.
-        // This is only executed when the user has explicitly opted in to caption search.
+        if (string.IsNullOrEmpty(query.SearchText))
+            return candidates;
+
+        // Free-text search is the only criterion left to apply. It spans transcription segments and
+        // needs culture-aware comparison, so it runs over the already-narrowed candidate set.
         HashSet<int>? captionIds = null;
-        if (query.SearchCaptions && !string.IsNullOrEmpty(query.SearchText))
+        if (query.SearchCaptions)
         {
             var ids = await _transcriptions.SearchClipIdsBySegmentTextAsync(query.SearchText, cancellationToken);
             captionIds = new HashSet<int>(ids);
         }
 
-        // Apply remaining in-memory filters.
         return candidates
-            .Where(c => query.Status == null || c.Status == query.Status)
-            .Where(c => !query.ExcludeArchived || query.Status != null || c.Status != ClipStatus.Archived)
-            .Where(c => query.CreatedFrom == null || c.CreatedAt >= query.CreatedFrom)
-            .Where(c => query.CreatedTo == null || c.CreatedAt <= query.CreatedTo)
-            .Where(c => c.Rating >= query.MinRating)
-            .Where(c => query.IsFavourite == null || c.IsFavourite == query.IsFavourite)
-            .Where(c => query.HasHighlights == null ||
-                        (query.HasHighlights == true ? c.Highlights.Count > 0 : c.Highlights.Count == 0))
-            .Where(c => query.MinDuration == null || c.Duration >= query.MinDuration)
-            .Where(c => query.MaxDuration == null || c.Duration <= query.MaxDuration)
-            .Where(c => string.IsNullOrEmpty(query.SearchText) ||
-                        c.FileName.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase) ||
+            .Where(c => c.FileName.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase) ||
                         (c.Notes != null && c.Notes.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase)) ||
                         c.Highlights.Any(h =>
                             h.Label != null && h.Label.Contains(query.SearchText, StringComparison.OrdinalIgnoreCase)) ||
                         (captionIds != null && captionIds.Contains(c.Id)))
-            .Where(c => query.PlayerIds.Count == 0 ||
-                        c.ClipPlayers.Any(cp => query.PlayerIds.Contains(cp.PlayerId)))
-            .Where(c => query.ExcludedTagIds.Count == 0 ||
-                        (!c.ClipTags.Any(ct => query.ExcludedTagIds.Contains(ct.TagId)) &&
-                         !c.Highlights.Any(h => h.HighlightTags.Any(ht => query.ExcludedTagIds.Contains(ht.TagId)))))
-            .Where(c => query.ExcludedPlayerIds.Count == 0 ||
-                        !c.ClipPlayers.Any(cp => query.ExcludedPlayerIds.Contains(cp.PlayerId)))
             .ToList();
     }
+
+    /// <summary>
+    /// Returns a copy of <paramref name="query"/> with <see cref="ClipSearchQuery.TagIds"/> replaced
+    /// by <paramref name="tagIds"/> and descendant expansion switched off, so the repository receives
+    /// an already-resolved tag set without the caller's query being mutated.
+    /// </summary>
+    /// <param name="query">The query to copy.</param>
+    /// <param name="tagIds">The fully expanded tag identifiers to filter by.</param>
+    /// <returns>A new query instance carrying the expanded tag set.</returns>
+    private static ClipSearchQuery CloneWithTagIds(ClipSearchQuery query, IList<int> tagIds) => new()
+    {
+        TagIds                = tagIds,
+        IncludeTagDescendants = false,
+        Status                = query.Status,
+        ExcludeArchived       = query.ExcludeArchived,
+        CreatedFrom           = query.CreatedFrom,
+        CreatedTo             = query.CreatedTo,
+        MinRating             = query.MinRating,
+        IsFavourite           = query.IsFavourite,
+        HasHighlights         = query.HasHighlights,
+        MinDuration           = query.MinDuration,
+        MaxDuration           = query.MaxDuration,
+        SearchText            = query.SearchText,
+        SearchCaptions        = query.SearchCaptions,
+        PlayerIds             = query.PlayerIds,
+        ExcludedTagIds        = query.ExcludedTagIds,
+        ExcludedPlayerIds     = query.ExcludedPlayerIds,
+    };
 
     /// <inheritdoc/>
     public Task<IReadOnlyList<Clip>> GetUnreviewedAsync(CancellationToken cancellationToken = default)

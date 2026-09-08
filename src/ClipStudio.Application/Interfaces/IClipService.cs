@@ -1,6 +1,7 @@
 using ClipStudio.Application.Models;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
+using ClipStudio.Core.Models;
 
 namespace ClipStudio.Application.Interfaces;
 

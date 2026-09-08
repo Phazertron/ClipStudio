@@ -14,6 +14,7 @@ public sealed class SetupWizardViewModelTests
 {
     private readonly Mock<ISettingsService> _settingsMock;
     private readonly AppSettings _settings;
+    private readonly FfmpegStepViewModel _ffmpeg;
     private readonly SetupWizardViewModel _wizard;
 
     public SetupWizardViewModelTests()
@@ -27,11 +28,11 @@ public sealed class SetupWizardViewModelTests
         var sourceFolders  = new SourceFoldersStepViewModel(
             new Mock<ClipStudio.Core.Interfaces.ISourceFolderRepository>().Object,
             new Mock<ILibraryWatcherService>().Object);
-        var ffmpeg         = new FfmpegStepViewModel();
+        _ffmpeg            = new FfmpegStepViewModel();
         var transcription  = new TranscriptionSetupStepViewModel(_settingsMock.Object);
         var finish         = new FinishStepViewModel(_settingsMock.Object);
 
-        _wizard = new SetupWizardViewModel(welcome, sourceFolders, ffmpeg, transcription, finish);
+        _wizard = new SetupWizardViewModel(welcome, sourceFolders, _ffmpeg, transcription, finish);
     }
 
     // ---- Initial state ----
@@ -196,5 +197,50 @@ public sealed class SetupWizardViewModelTests
         await _wizard.NextCommand.ExecuteAsync(null);
 
         Assert.True(fired);
+    }
+
+    // ---- Asynchronous initialisation ----
+
+    [Fact]
+    public void Constructor_DoesNotRunFfmpegDetection()
+    {
+        // Detection is deferred to InitializeAsync so the constructor performs no I/O.
+        Assert.Equal(FfmpegDetectionStatus.Checking, _ffmpeg.DetectionStatus);
+        Assert.Equal(5, _wizard.TotalSteps);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_StepCount_MatchesDetectionOutcome()
+    {
+        await _wizard.InitializeAsync();
+
+        // When FFmpeg was resolved automatically its configuration step is dropped.
+        var expected = _ffmpeg.IsReady ? 4 : 5;
+        Assert.Equal(expected, _wizard.TotalSteps);
+        Assert.Equal(expected, _wizard.StepIndicators.Count);
+        Assert.Equal($"Step 1 of {expected}", _wizard.StepLabel);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_LeavesWizardOnFirstStep()
+    {
+        await _wizard.InitializeAsync();
+
+        Assert.Equal(0, _wizard.CurrentStepIndex);
+        Assert.IsType<WelcomeStepViewModel>(_wizard.CurrentStep);
+        Assert.True(_wizard.StepIndicators[0].IsCurrent);
+        Assert.False(_wizard.CanGoBack);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_IsIdempotent()
+    {
+        await _wizard.InitializeAsync();
+        var stepsAfterFirstCall = _wizard.TotalSteps;
+
+        await _wizard.InitializeAsync();
+
+        Assert.Equal(stepsAfterFirstCall, _wizard.TotalSteps);
+        Assert.Equal(stepsAfterFirstCall, _wizard.StepIndicators.Count);
     }
 }
