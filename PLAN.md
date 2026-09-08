@@ -28,6 +28,15 @@ and the clip detail view, so this comes first.
 Extract child view models, each owning its own commands and observable state.
 The parent keeps navigation, load/save orchestration, and exposes the children.
 
+Groundwork done: ClipDetailView now sets `x:CompileBindings="True"`, so every
+binding is checked against the view model at build time. Moving a property onto
+a child view model is now a compile error rather than a silent runtime break.
+
+Order by blast radius (XAML + code-behind references): audio 14/0,
+highlights 42/53, trim 49/40. Audio is the smallest but touches the fragile
+LibVLC ordering rules in DECISION_LOG (SetAudioTrack on initial load, explicit
+MediaPlayer.Volume) - verify by running the app, not just by building.
+
 - [ ] `PlaybackViewModel` - LibVLC player, position, volume, mute, loop, subtitles toggle
 - [ ] `TrimEditorViewModel` - trim start/end, destructive check against highlights, timestamp inputs
 - [ ] `HighlightEditorViewModel` - add/edit form, pending tags, timeline handles
