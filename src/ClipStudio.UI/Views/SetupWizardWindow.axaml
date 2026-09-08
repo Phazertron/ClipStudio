@@ -9,6 +9,7 @@
         mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="520"
         x:Class="ClipStudio.UI.Views.SetupWizardWindow"
         x:DataType="vm:SetupWizardViewModel"
+        x:CompileBindings="True"
         Title="ClipStudio Setup"
         Width="640" Height="520"
         CanResize="False"

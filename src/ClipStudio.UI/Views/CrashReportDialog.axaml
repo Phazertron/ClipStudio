@@ -4,6 +4,7 @@
         xmlns:local="using:ClipStudio.UI.Views"
         x:Class="ClipStudio.UI.Views.CrashReportDialog"
         x:DataType="local:CrashReportDialogViewModel"
+        x:CompileBindings="True"
         Title="ClipStudio crashed last session"
         Width="560" Height="400"
         WindowStartupLocation="CenterOwner"

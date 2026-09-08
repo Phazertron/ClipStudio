@@ -5,7 +5,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1060" d:DesignHeight="750"
              x:Class="ClipStudio.UI.Views.UnreviewedQueueView"
-             x:DataType="vm:UnreviewedQueueViewModel">
+             x:DataType="vm:UnreviewedQueueViewModel"
+             x:CompileBindings="True">
 
     <Grid RowDefinitions="Auto,*">
 

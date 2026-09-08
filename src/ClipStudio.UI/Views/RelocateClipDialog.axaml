@@ -4,6 +4,7 @@
         xmlns:icons="using:Material.Icons.Avalonia"
         x:Class="ClipStudio.UI.Views.RelocateClipDialog"
         x:DataType="vm:RelocateClipDialogViewModel"
+        x:CompileBindings="True"
         Title="Relocate Clip"
         Width="540"
         MinWidth="440"

@@ -4,6 +4,7 @@
         xmlns:local="using:ClipStudio.UI.Views"
         x:Class="ClipStudio.UI.Views.TranscriptionSetupDialog"
         x:DataType="local:TranscriptionSetupDialogViewModel"
+        x:CompileBindings="True"
         Title="Transcription Setup"
         Width="540" Height="520"
         WindowStartupLocation="CenterOwner"

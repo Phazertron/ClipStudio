@@ -7,6 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="300"
         x:Class="ClipStudio.UI.Views.SourceFolderRemovalDialog"
         x:DataType="vm:SourceFolderRemovalDialogViewModel"
+        x:CompileBindings="True"
         Title="Remove Source Folder"
         Width="480"
         SizeToContent="Height"

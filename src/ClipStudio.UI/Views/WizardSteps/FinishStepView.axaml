@@ -6,7 +6,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="580" d:DesignHeight="360"
              x:Class="ClipStudio.UI.Views.WizardSteps.FinishStepView"
-             x:DataType="vm:FinishStepViewModel">
+             x:DataType="vm:FinishStepViewModel"
+             x:CompileBindings="True">
 
     <StackPanel Spacing="20" Margin="8">
 

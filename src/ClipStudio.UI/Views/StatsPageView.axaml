@@ -6,7 +6,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
              x:Class="ClipStudio.UI.Views.StatsPageView"
-             x:DataType="vm:StatsPageViewModel">
+             x:DataType="vm:StatsPageViewModel"
+             x:CompileBindings="True">
 
     <Grid RowDefinitions="Auto,*">
 

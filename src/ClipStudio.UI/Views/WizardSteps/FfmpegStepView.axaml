@@ -6,7 +6,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="580" d:DesignHeight="360"
              x:Class="ClipStudio.UI.Views.WizardSteps.FfmpegStepView"
-             x:DataType="vm:FfmpegStepViewModel">
+             x:DataType="vm:FfmpegStepViewModel"
+             x:CompileBindings="True">
 
     <StackPanel Spacing="16" Margin="8">
 

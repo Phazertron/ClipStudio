@@ -6,7 +6,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
              x:Class="ClipStudio.UI.Views.TagManagerView"
-             x:DataType="vm:TagManagerViewModel">
+             x:DataType="vm:TagManagerViewModel"
+             x:CompileBindings="True">
 
     <Grid RowDefinitions="Auto,*">
 

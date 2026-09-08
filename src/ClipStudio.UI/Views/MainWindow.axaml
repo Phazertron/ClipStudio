@@ -8,6 +8,7 @@
         mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
         x:Class="ClipStudio.UI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
+        x:CompileBindings="True"
         Title="ClipStudio"
         MinWidth="900"
         MinHeight="600"
