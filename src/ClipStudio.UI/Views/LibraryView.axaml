@@ -74,7 +74,7 @@
 
                 <!-- Bulk edit panel toggle -->
                 <Button Grid.Column="4"
-                        Command="{Binding ToggleBulkEditPanelCommand}"
+                        Command="{Binding BulkEdit.TogglePanelCommand}"
                         ToolTip.Tip="Toggle bulk edit panel"
                         Margin="4,0,0,0">
                     <icons:MaterialIcon Kind="CheckboxMultipleMarked" Width="16" Height="16"/>
@@ -82,7 +82,7 @@
 
                 <!-- Remove broken clips (visible only when broken clips exist) -->
                 <Button Grid.Column="5"
-                        Command="{Binding ShowRemoveAllBrokenConfirmCommand}"
+                        Command="{Binding BulkEdit.ShowRemoveAllBrokenConfirmCommand}"
                         IsVisible="{Binding HasBrokenClips}"
                         ToolTip.Tip="Remove all clips with missing source files"
                         Margin="4,0,0,0"
@@ -101,7 +101,7 @@
             </Grid>
 
             <!-- Confirmation strip for "remove all broken" -->
-            <Border IsVisible="{Binding IsRemoveAllBrokenConfirmVisible}"
+            <Border IsVisible="{Binding BulkEdit.IsRemoveAllBrokenConfirmVisible}"
                     Background="#CC3A1010"
                     CornerRadius="4"
                     Padding="10,8"
@@ -114,14 +114,14 @@
                                Foreground="White"
                                VerticalAlignment="Center"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="12,0,0,0">
-                        <Button Command="{Binding ConfirmRemoveAllBrokenClipsCommand}"
+                        <Button Command="{Binding BulkEdit.ConfirmRemoveAllBrokenClipsCommand}"
                                 FontSize="11"
                                 Padding="10,4"
                                 Background="#E74C3C"
                                 Foreground="White">
                             Remove all
                         </Button>
-                        <Button Command="{Binding ShowRemoveAllBrokenConfirmCommand}"
+                        <Button Command="{Binding BulkEdit.ShowRemoveAllBrokenConfirmCommand}"
                                 FontSize="11"
                                 Padding="10,4">
                             Cancel
@@ -1001,7 +1001,7 @@
                     Width="280"
                     BorderBrush="{DynamicResource SystemChromeHighColor}"
                     BorderThickness="1,0,0,0"
-                    IsVisible="{Binding IsBulkEditPanelOpen}">
+                    IsVisible="{Binding BulkEdit.IsPanelOpen}">
                 <ScrollViewer>
                     <StackPanel Margin="14" Spacing="10">
 
@@ -1032,28 +1032,28 @@
                         <!-- ===================== -->
                         <!-- COPY-FORMAT SECTION   -->
                         <!-- ===================== -->
-                        <StackPanel IsVisible="{Binding IsCopyFormatMode}" Spacing="8">
+                        <StackPanel IsVisible="{Binding BulkEdit.IsCopyFormatMode}" Spacing="8">
 
                             <!-- Info row -->
                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                 <icons:MaterialIcon Kind="ContentCopy" Width="14" Height="14" Opacity="0.7"/>
                                 <TextBlock Text="Copying from:" FontSize="11" Opacity="0.7" VerticalAlignment="Center"/>
                             </StackPanel>
-                            <TextBlock Text="{Binding CopyFormatSourceDisplay}"
+                            <TextBlock Text="{Binding BulkEdit.CopyFormatSourceDisplay}"
                                        FontSize="12"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
                                        TextTrimming="CharacterEllipsis"
-                                       ToolTip.Tip="{Binding CopyFormatSourceDisplay}"/>
+                                       ToolTip.Tip="{Binding BulkEdit.CopyFormatSourceDisplay}"/>
 
                             <!-- Aspect toggles -->
                             <TextBlock Text="Paste aspects:" FontSize="11" Opacity="0.7"/>
-                            <CheckBox IsChecked="{Binding BulkCopyPasteTags}"    Content="Tags"    FontSize="12"/>
-                            <CheckBox IsChecked="{Binding BulkCopyPastePlayers}" Content="Players" FontSize="12"/>
-                            <CheckBox IsChecked="{Binding BulkCopyPasteGame}"    Content="Game"    FontSize="12"/>
+                            <CheckBox IsChecked="{Binding BulkEdit.BulkCopyPasteTags}"    Content="Tags"    FontSize="12"/>
+                            <CheckBox IsChecked="{Binding BulkEdit.BulkCopyPastePlayers}" Content="Players" FontSize="12"/>
+                            <CheckBox IsChecked="{Binding BulkEdit.BulkCopyPasteGame}"    Content="Game"    FontSize="12"/>
 
                             <!-- Paste button -->
-                            <Button Command="{Binding PasteFormatToSelectionCommand}"
+                            <Button Command="{Binding BulkEdit.PasteFormatToSelectionCommand}"
                                     IsEnabled="{Binding HasSelectedClips}"
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Center"
@@ -1066,7 +1066,7 @@
                             </Button>
 
                             <!-- Cancel copy mode -->
-                            <Button Command="{Binding ExitCopyFormatCommand}"
+                            <Button Command="{Binding BulkEdit.ExitCopyFormatCommand}"
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Center"
                                     FontSize="12">
@@ -1079,26 +1079,26 @@
                         <!-- ===================== -->
                         <!-- STAGED EDITS SECTION  -->
                         <!-- ===================== -->
-                        <StackPanel IsVisible="{Binding !IsCopyFormatMode}" Spacing="10">
+                        <StackPanel IsVisible="{Binding !BulkEdit.IsCopyFormatMode}" Spacing="10">
 
                             <!-- TAGS -->
                             <StackPanel Spacing="4">
                                 <!-- Tags header with Apply checkbox, Clear-all, and Remove-all -->
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                     <CheckBox Grid.Column="0"
-                                              IsChecked="{Binding BulkApplyTags}"
+                                              IsChecked="{Binding BulkEdit.BulkApplyTags}"
                                               VerticalAlignment="Center"
                                               Margin="0,0,4,0"/>
                                     <TextBlock Grid.Column="1" Text="Tags" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                     <Button Grid.Column="2"
-                                            Command="{Binding ClearBulkTagsCommand}"
+                                            Command="{Binding BulkEdit.ClearBulkTagsCommand}"
                                             ToolTip.Tip="Clear all staged tags"
                                             Padding="3"
-                                            IsVisible="{Binding BulkPendingTags.Count}">
+                                            IsVisible="{Binding BulkEdit.BulkPendingTags.Count}">
                                         <icons:MaterialIcon Kind="DeleteSweep" Width="12" Height="12"/>
                                     </Button>
                                     <Button Grid.Column="3"
-                                            Command="{Binding ShowRemoveAllTagsConfirmCommand}"
+                                            Command="{Binding BulkEdit.ShowRemoveAllTagsConfirmCommand}"
                                             ToolTip.Tip="Remove ALL tags from selected clips"
                                             Padding="3">
                                         <icons:MaterialIcon Kind="TagRemove" Width="12" Height="12" Foreground="#E74C3C"/>
@@ -1106,14 +1106,14 @@
                                 </Grid>
 
                                 <!-- Remove-all-tags confirmation strip -->
-                                <Border IsVisible="{Binding IsRemoveAllTagsConfirmVisible}"
+                                <Border IsVisible="{Binding BulkEdit.IsRemoveAllTagsConfirmVisible}"
                                         Background="#40E74C3C"
                                         CornerRadius="4"
                                         Padding="6,4">
                                     <Grid ColumnDefinitions="*,Auto,Auto">
                                         <TextBlock Grid.Column="0" Text="Remove ALL tags from selected clips?" FontSize="11" VerticalAlignment="Center"/>
                                         <Button Grid.Column="1"
-                                                Command="{Binding ConfirmRemoveAllTagsCommand}"
+                                                Command="{Binding BulkEdit.ConfirmRemoveAllTagsCommand}"
                                                 Content="Remove"
                                                 Padding="6,2"
                                                 Margin="4,0,0,0"
@@ -1121,7 +1121,7 @@
                                                 Background="#E74C3C"
                                                 Foreground="White"/>
                                         <Button Grid.Column="2"
-                                                Command="{Binding ShowRemoveAllTagsConfirmCommand}"
+                                                Command="{Binding BulkEdit.ShowRemoveAllTagsConfirmCommand}"
                                                 Content="Cancel"
                                                 Padding="6,2"
                                                 Margin="4,0,0,0"
@@ -1130,7 +1130,7 @@
                                 </Border>
 
                                 <!-- Tag chips (Shared=purple+X, Partial=red+promote+X, New=yellow+X) -->
-                                <ItemsControl ItemsSource="{Binding BulkPendingTags}">
+                                <ItemsControl ItemsSource="{Binding BulkEdit.BulkPendingTags}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel/>
@@ -1210,7 +1210,7 @@
                                 <Grid ColumnDefinitions="*,Auto">
                                     <ComboBox Grid.Column="0"
                                               ItemsSource="{Binding AvailableTags}"
-                                              SelectedItem="{Binding BulkSelectedTag}"
+                                              SelectedItem="{Binding BulkEdit.BulkSelectedTag}"
                                               PlaceholderText="Add tag..."
                                               FontSize="12">
                                         <ComboBox.ItemTemplate>
@@ -1220,13 +1220,13 @@
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                     <Button Grid.Column="1"
-                                            Command="{Binding AddBulkTagCommand}"
+                                            Command="{Binding BulkEdit.AddBulkTagCommand}"
                                             Content="+"
                                             FontSize="13"
                                             FontWeight="Bold"
                                             Margin="4,0,0,0"
                                             Padding="8,3"
-                                            IsEnabled="{Binding BulkSelectedTag, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                            IsEnabled="{Binding BulkEdit.BulkSelectedTag, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                                 </Grid>
                             </StackPanel>
 
@@ -1237,19 +1237,19 @@
                                 <!-- Players header with Apply checkbox, Clear-all, and Remove-all -->
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                     <CheckBox Grid.Column="0"
-                                              IsChecked="{Binding BulkApplyPlayers}"
+                                              IsChecked="{Binding BulkEdit.BulkApplyPlayers}"
                                               VerticalAlignment="Center"
                                               Margin="0,0,4,0"/>
                                     <TextBlock Grid.Column="1" Text="Players" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                     <Button Grid.Column="2"
-                                            Command="{Binding ClearBulkPlayersCommand}"
+                                            Command="{Binding BulkEdit.ClearBulkPlayersCommand}"
                                             ToolTip.Tip="Clear all staged players"
                                             Padding="3"
-                                            IsVisible="{Binding BulkPendingPlayers.Count}">
+                                            IsVisible="{Binding BulkEdit.BulkPendingPlayers.Count}">
                                         <icons:MaterialIcon Kind="DeleteSweep" Width="12" Height="12"/>
                                     </Button>
                                     <Button Grid.Column="3"
-                                            Command="{Binding ShowRemoveAllPlayersConfirmCommand}"
+                                            Command="{Binding BulkEdit.ShowRemoveAllPlayersConfirmCommand}"
                                             ToolTip.Tip="Remove ALL players from selected clips"
                                             Padding="3">
                                         <icons:MaterialIcon Kind="AccountRemove" Width="12" Height="12" Foreground="#E74C3C"/>
@@ -1257,14 +1257,14 @@
                                 </Grid>
 
                                 <!-- Remove-all-players confirmation strip -->
-                                <Border IsVisible="{Binding IsRemoveAllPlayersConfirmVisible}"
+                                <Border IsVisible="{Binding BulkEdit.IsRemoveAllPlayersConfirmVisible}"
                                         Background="#40E74C3C"
                                         CornerRadius="4"
                                         Padding="6,4">
                                     <Grid ColumnDefinitions="*,Auto,Auto">
                                         <TextBlock Grid.Column="0" Text="Remove ALL players from selected clips?" FontSize="11" VerticalAlignment="Center"/>
                                         <Button Grid.Column="1"
-                                                Command="{Binding ConfirmRemoveAllPlayersCommand}"
+                                                Command="{Binding BulkEdit.ConfirmRemoveAllPlayersCommand}"
                                                 Content="Remove"
                                                 Padding="6,2"
                                                 Margin="4,0,0,0"
@@ -1272,7 +1272,7 @@
                                                 Background="#E74C3C"
                                                 Foreground="White"/>
                                         <Button Grid.Column="2"
-                                                Command="{Binding ShowRemoveAllPlayersConfirmCommand}"
+                                                Command="{Binding BulkEdit.ShowRemoveAllPlayersConfirmCommand}"
                                                 Content="Cancel"
                                                 Padding="6,2"
                                                 Margin="4,0,0,0"
@@ -1281,7 +1281,7 @@
                                 </Border>
 
                                 <!-- Player chips (Shared=purple+X, Partial=red+promote+X, New=yellow+X) -->
-                                <ItemsControl ItemsSource="{Binding BulkPendingPlayers}">
+                                <ItemsControl ItemsSource="{Binding BulkEdit.BulkPendingPlayers}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel/>
@@ -1361,7 +1361,7 @@
                                 <Grid ColumnDefinitions="*,Auto">
                                     <ComboBox Grid.Column="0"
                                               ItemsSource="{Binding AvailablePlayers}"
-                                              SelectedItem="{Binding BulkSelectedPlayerPicker}"
+                                              SelectedItem="{Binding BulkEdit.BulkSelectedPlayerPicker}"
                                               PlaceholderText="Add player..."
                                               FontSize="12">
                                         <ComboBox.ItemTemplate>
@@ -1371,13 +1371,13 @@
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                     <Button Grid.Column="1"
-                                            Command="{Binding AddBulkPlayerCommand}"
+                                            Command="{Binding BulkEdit.AddBulkPlayerCommand}"
                                             Content="+"
                                             FontSize="13"
                                             FontWeight="Bold"
                                             Margin="4,0,0,0"
                                             Padding="8,3"
-                                            IsEnabled="{Binding BulkSelectedPlayerPicker, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                            IsEnabled="{Binding BulkEdit.BulkSelectedPlayerPicker, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                                 </Grid>
                             </StackPanel>
 
@@ -1388,19 +1388,19 @@
                                 <!-- Game header with Apply checkbox, Clear-all, and Remove-all -->
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                     <CheckBox Grid.Column="0"
-                                              IsChecked="{Binding BulkApplyGame}"
+                                              IsChecked="{Binding BulkEdit.BulkApplyGame}"
                                               VerticalAlignment="Center"
                                               Margin="0,0,4,0"/>
                                     <TextBlock Grid.Column="1" Text="Game" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                     <Button Grid.Column="2"
-                                            Command="{Binding ClearBulkGameCommand}"
+                                            Command="{Binding BulkEdit.ClearBulkGameCommand}"
                                             ToolTip.Tip="Clear all staged game chips"
                                             Padding="3"
-                                            IsVisible="{Binding BulkPendingGames.Count}">
+                                            IsVisible="{Binding BulkEdit.BulkPendingGames.Count}">
                                         <icons:MaterialIcon Kind="DeleteSweep" Width="12" Height="12"/>
                                     </Button>
                                     <Button Grid.Column="3"
-                                            Command="{Binding ShowRemoveAllGameConfirmCommand}"
+                                            Command="{Binding BulkEdit.ShowRemoveAllGameConfirmCommand}"
                                             ToolTip.Tip="Remove game from ALL selected clips"
                                             Padding="3">
                                         <icons:MaterialIcon Kind="GamepadOff" Width="12" Height="12" Foreground="#E74C3C"/>
@@ -1408,14 +1408,14 @@
                                 </Grid>
 
                                 <!-- Remove-all-game confirmation strip -->
-                                <Border IsVisible="{Binding IsRemoveAllGameConfirmVisible}"
+                                <Border IsVisible="{Binding BulkEdit.IsRemoveAllGameConfirmVisible}"
                                         Background="#40E74C3C"
                                         CornerRadius="4"
                                         Padding="6,4">
                                     <Grid ColumnDefinitions="*,Auto,Auto">
                                         <TextBlock Grid.Column="0" Text="Remove game from ALL selected clips?" FontSize="11" VerticalAlignment="Center"/>
                                         <Button Grid.Column="1"
-                                                Command="{Binding ConfirmRemoveAllGameCommand}"
+                                                Command="{Binding BulkEdit.ConfirmRemoveAllGameCommand}"
                                                 Content="Remove"
                                                 Padding="6,2"
                                                 Margin="4,0,0,0"
@@ -1423,7 +1423,7 @@
                                                 Background="#E74C3C"
                                                 Foreground="White"/>
                                         <Button Grid.Column="2"
-                                                Command="{Binding ShowRemoveAllGameConfirmCommand}"
+                                                Command="{Binding BulkEdit.ShowRemoveAllGameConfirmCommand}"
                                                 Content="Cancel"
                                                 Padding="6,2"
                                                 Margin="4,0,0,0"
@@ -1432,7 +1432,7 @@
                                 </Border>
 
                                 <!-- Game chips (Shared=purple+X, Partial=red+promote+X, New=yellow+X) -->
-                                <ItemsControl ItemsSource="{Binding BulkPendingGames}">
+                                <ItemsControl ItemsSource="{Binding BulkEdit.BulkPendingGames}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel/>
@@ -1512,7 +1512,7 @@
                                 <Grid ColumnDefinitions="*,Auto">
                                     <ComboBox Grid.Column="0"
                                               ItemsSource="{Binding AvailableGameTags}"
-                                              SelectedItem="{Binding BulkSelectedGamePicker}"
+                                              SelectedItem="{Binding BulkEdit.BulkSelectedGamePicker}"
                                               PlaceholderText="Set game..."
                                               FontSize="12">
                                         <ComboBox.ItemTemplate>
@@ -1522,13 +1522,13 @@
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                     <Button Grid.Column="1"
-                                            Command="{Binding AddBulkGameCommand}"
+                                            Command="{Binding BulkEdit.AddBulkGameCommand}"
                                             Content="+"
                                             FontSize="13"
                                             FontWeight="Bold"
                                             Margin="4,0,0,0"
                                             Padding="8,3"
-                                            IsEnabled="{Binding BulkSelectedGamePicker, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                            IsEnabled="{Binding BulkEdit.BulkSelectedGamePicker, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                                 </Grid>
                             </StackPanel>
 
@@ -1537,7 +1537,7 @@
                             <!-- Apply / Cancel staged edits -->
                             <Grid ColumnDefinitions="*,Auto">
                                 <Button Grid.Column="0"
-                                        Command="{Binding ApplyBulkEditsCommand}"
+                                        Command="{Binding BulkEdit.ApplyBulkEditsCommand}"
                                         IsEnabled="{Binding HasSelectedClips}"
                                         HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Center"
@@ -1550,7 +1550,7 @@
                                     </StackPanel>
                                 </Button>
                                 <Button Grid.Column="1"
-                                        Command="{Binding CancelBulkEditsCommand}"
+                                        Command="{Binding BulkEdit.CancelBulkEditsCommand}"
                                         ToolTip.Tip="Discard staged changes"
                                         Padding="6,4"
                                         FontSize="12">
@@ -1561,8 +1561,8 @@
                             <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
 
                             <!-- Copy-Format button (disabled when not exactly 1 selected) -->
-                            <Button Command="{Binding StartCopyFormatCommand}"
-                                    IsEnabled="{Binding IsCopyFormatButtonEnabled}"
+                            <Button Command="{Binding BulkEdit.StartCopyFormatCommand}"
+                                    IsEnabled="{Binding BulkEdit.IsCopyFormatButtonEnabled}"
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Center"
                                     FontSize="12"
@@ -1591,8 +1591,8 @@
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center"/>
                                 <Button Grid.Column="1"
-                                        Command="{Binding CancelBulkTranscribeCommand}"
-                                        IsVisible="{Binding IsBulkTranscribing}"
+                                        Command="{Binding BulkEdit.CancelBulkTranscribeCommand}"
+                                        IsVisible="{Binding BulkEdit.IsBulkTranscribing}"
                                         Padding="6,2"
                                         FontSize="11"
                                         ToolTip.Tip="Cancel transcription queue">
@@ -1600,22 +1600,22 @@
                                 </Button>
                             </Grid>
 
-                            <ProgressBar Value="{Binding BulkTranscribeProgress}"
+                            <ProgressBar Value="{Binding BulkEdit.BulkTranscribeProgress}"
                                          Maximum="1"
                                          Height="4"
                                          CornerRadius="2"
-                                         IsVisible="{Binding IsBulkTranscribing}"/>
+                                         IsVisible="{Binding BulkEdit.IsBulkTranscribing}"/>
 
-                            <TextBlock Text="{Binding BulkTranscribeStatus}"
+                            <TextBlock Text="{Binding BulkEdit.BulkTranscribeStatus}"
                                        FontSize="11"
                                        TextWrapping="Wrap"
                                        Opacity="0.75"
-                                       IsVisible="{Binding BulkTranscribeStatus,
+                                       IsVisible="{Binding BulkEdit.BulkTranscribeStatus,
                                                            Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
 
-                            <Button Command="{Binding BulkTranscribeCommand}"
+                            <Button Command="{Binding BulkEdit.BulkTranscribeCommand}"
                                     IsEnabled="{Binding HasSelectedClips}"
-                                    IsVisible="{Binding !IsBulkTranscribing}"
+                                    IsVisible="{Binding !BulkEdit.IsBulkTranscribing}"
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Center"
                                     FontSize="12"
@@ -1633,8 +1633,8 @@
                         <!-- ===================== -->
                         <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
 
-                        <Button Command="{Binding ShowBulkDeleteConfirmCommand}"
-                                IsVisible="{Binding !IsBulkDeleteConfirmVisible}"
+                        <Button Command="{Binding BulkEdit.ShowBulkDeleteConfirmCommand}"
+                                IsVisible="{Binding !BulkEdit.IsBulkDeleteConfirmVisible}"
                                 HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Center"
                                 FontSize="12">
@@ -1644,7 +1644,7 @@
                             </StackPanel>
                         </Button>
 
-                        <Border IsVisible="{Binding IsBulkDeleteConfirmVisible}"
+                        <Border IsVisible="{Binding BulkEdit.IsBulkDeleteConfirmVisible}"
                                 Background="#E74C3C"
                                 CornerRadius="4"
                                 Padding="8,6">
@@ -1654,7 +1654,7 @@
                                            TextWrapping="Wrap"
                                            Foreground="White"/>
                                 <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <Button Command="{Binding BulkTrashCommand}"
+                                    <Button Command="{Binding BulkEdit.BulkTrashCommand}"
                                             FontSize="11"
                                             Padding="8,4">
                                         <TextBlock Text="Confirm" Foreground="White"/>
@@ -1669,7 +1669,7 @@
                         </Border>
 
                         <!-- Archive broken (visible only when broken clips are selected) -->
-                        <Button Command="{Binding BulkArchiveBrokenCommand}"
+                        <Button Command="{Binding BulkEdit.BulkArchiveBrokenCommand}"
                                 IsVisible="{Binding HasSelectedBrokenClips}"
                                 HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Center"
@@ -1691,7 +1691,7 @@
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center"/>
                                 <Button Grid.Column="1"
-                                        Command="{Binding ShowBulkClearAllDataConfirmCommand}"
+                                        Command="{Binding BulkEdit.ShowBulkClearAllDataConfirmCommand}"
                                         ToolTip.Tip="Remove all tags/players, reset rating and status to Unreviewed for selected clips"
                                         Padding="6,3"
                                         FontSize="11">
@@ -1703,7 +1703,7 @@
                             </Grid>
 
                             <!-- Clear-all-data confirmation strip -->
-                            <Border IsVisible="{Binding IsBulkClearAllDataConfirmVisible}"
+                            <Border IsVisible="{Binding BulkEdit.IsBulkClearAllDataConfirmVisible}"
                                     Background="#608B4513"
                                     CornerRadius="4"
                                     Padding="8,6">
@@ -1712,14 +1712,14 @@
                                                FontSize="11"
                                                TextWrapping="Wrap"/>
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <Button Command="{Binding ConfirmBulkClearAllDataCommand}"
+                                        <Button Command="{Binding BulkEdit.ConfirmBulkClearAllDataCommand}"
                                                 FontSize="11"
                                                 Padding="8,3"
                                                 Background="#E74C3C"
                                                 Foreground="White">
                                             Reset all
                                         </Button>
-                                        <Button Command="{Binding ShowBulkClearAllDataConfirmCommand}"
+                                        <Button Command="{Binding BulkEdit.ShowBulkClearAllDataConfirmCommand}"
                                                 FontSize="11"
                                                 Padding="8,3">
                                             Cancel
