@@ -224,6 +224,7 @@ Phase 0 closed - see "Fixed after Phase 0" below.
   `%TEMP%\clipstudio_audio.log` on every play event. Its own remark says to remove it once the
   audio issues are resolved - do that together with the master-volume item, since that is what it
   is currently being used to diagnose. (It is genuinely useful until then.)
+
 ### Pre-existing
 
 - [ ] Trash: sanitizer should detect clips moved to the system trash outside the app and drop their DB record (only on explicit sanitize run, never proactively)
