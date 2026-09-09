@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+using System.Linq;
 using ClipStudio.Core.Entities;
 
 namespace ClipStudio.UI.Behaviors;
@@ -114,10 +116,19 @@ public class TagPickerBehavior : ITagPickerHost
         _picker.SelectedItem   = null;
         _picker.IsDropDownOpen = false;
 
-        // Closing the drop-down can move focus off the picker, and this runs after the state
-        // machine already asked for focus, so it has to be taken again here - otherwise the field
-        // is empty and ready but the next keystroke goes somewhere else.
-        _picker.Focus();
+        // Focus the inner text box, not the AutoCompleteBox itself. Focusing the outer control
+        // leaves keyboard input going nowhere - the picker looks focused, but typing does not
+        // reach the field, because the editable part is a TextBox inside the template.
+        var textBox = _picker.FindDescendantOfType<TextBox>();
+        if (textBox is not null)
+        {
+            textBox.Focus();
+            textBox.CaretIndex = 0;
+        }
+        else
+        {
+            _picker.Focus();
+        }
     }
 
     // ---- ITagPickerHost ----
