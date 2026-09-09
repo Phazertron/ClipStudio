@@ -416,12 +416,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <summary>Gets the command that toggles the clip's favourite flag.</summary>
     public IAsyncRelayCommand ToggleFavouriteCommand { get; }
 
-    /// <summary>Gets the command that applies the currently selected general tag to the clip.</summary>
-    public IAsyncRelayCommand AddGeneralTagCommand { get; }
-
-    /// <summary>Gets the command that applies the currently selected game tag to the clip.</summary>
-    public IAsyncRelayCommand AddGameTagCommand { get; }
-
     /// <summary>Gets the command that enters the inline rename mode.</summary>
     public IRelayCommand BeginRenameCommand { get; }
 
@@ -592,8 +586,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         SaveNotesCommand          = new AsyncRelayCommand(SaveNotesAsync);
         MarkAsReviewedCommand     = new AsyncRelayCommand(MarkAsReviewedAsync);
         ToggleFavouriteCommand    = new AsyncRelayCommand(ToggleFavouriteAsync);
-        AddGeneralTagCommand      = new AsyncRelayCommand(AddGeneralTagAsync);
-        AddGameTagCommand         = new AsyncRelayCommand(AddGameTagAsync);
         BeginRenameCommand        = new RelayCommand(() => { RenameValue = ClipTitle; IsRenaming = true; });
         ConfirmRenameCommand      = new AsyncRelayCommand(ConfirmRenameAsync);
         CancelRenameCommand       = new RelayCommand(() => IsRenaming = false);
@@ -1186,9 +1178,6 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     }
 
     // Keep the backing AsyncRelayCommand wrappers so the existing command declarations still compile.
-    private Task AddGeneralTagAsync() => Task.CompletedTask;
-    private Task AddGameTagAsync()    => Task.CompletedTask;
-
     private async Task AutoMarkReviewedIfEnabledAsync()
     {
         if (_clip is null) return;
