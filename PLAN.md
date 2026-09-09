@@ -285,6 +285,15 @@ pure waste.
   **The blocker is not I/O, it is EF Core:** `DbContext` is not thread-safe and `ImportService`
   takes a scoped repository, so parallel imports need a scope per file and a rethink of how
   progress and results are collected. That is the actual work, and it is not small.
+- [x] **Hashing was a separate cost and is now fixed too.** The keyframe change did nothing for it:
+  hashing read 8 MB from each end of every clip, costing 570 ms on a spinning drive. Reduced to
+  1 MB, measured at 55 ms - tenfold, and it applies to Repair Library's backfill as much as to
+  import. Safe by construction: identical bytes always hash identically, so a smaller chunk can
+  only produce false positives, which the full hash rejects. Zero collisions across 124 clips of
+  the real library at 1 MB, and none at 256 KB either.
+
+  **Combined per clip on the real library: about 22.3s -> 2.8s. Across 885 clips, 5h 28m -> 42 min.**
+
 - [ ] The short-clip fallback is the remaining quality/speed tension. A 24s clip with 13 keyframes
   currently takes the 17.7s full decode to guarantee 20 distinct tiles. Two ways out, neither yet
   chosen: relax the guard and accept 13 distinct tiles out of 20 (silent quality loss, which is
