@@ -208,13 +208,48 @@ preferences, transcription, repair and now duplicate resolution.
 - [ ] `SettingsView.axaml.cs` already owns two dialogs; keep dialog ownership in the view and
   child view models free of windows.
 
-### 1.5.2 "Attention required" section
+### 1.5.2 Split the startup sanitize from the repair
+
+Today `App.InitializeServicesAsync` calls the full `SanitizeAsync()` on every launch.
+That is a repair pass doing regeneration, hashing and cache sweeps, run unannounced,
+uncancellable, with no progress, on every start.
+
+**Measured before proposing anything.** Steady state on a 23-clip library is ~220 ms,
+so roughly 10 ms per clip - about 9 seconds for an 885-clip library, every launch,
+and it grows linearly. The first run after enabling hashing adds ~49 seconds of
+hashing on that library, and any missing thumbnail or strip adds seconds more each.
+
+The surprise is where the cost is *not*: checking the disk is nearly free. One
+directory enumeration of 885 files measured at under a millisecond, and 885
+individual existence checks at ~11 ms. What costs is the regeneration work and
+loading every clip with its highlights and tags.
+
+So the split is cheap to make:
+
+- [ ] **Startup: a health check, not a repair.** Per source folder, one directory listing
+  compared against the clip paths in the database. That single pass answers everything worth
+  knowing at launch:
+  - the folder root is unreachable, so the drive is disconnected - archive its clips (this is
+    F-P in Phase 2, and it belongs here)
+  - database paths with no file on disk - mark broken
+  - files on disk with no database row - "a scan is recommended"
+- [ ] **Repair Library keeps the rest**: hash backfill, thumbnail and strip regeneration, highlight
+  thumbnails, orphan cache sweeps, the G5 timestamp heuristic.
+- [ ] **Findings go to the attention list** below rather than into a log line, which is what makes
+  the split safe to do.
+- [ ] **Watch for the thing the startup pass is quietly providing today:** it regenerates missing
+  thumbnails and strips, so a user who never runs Repair Library currently never notices they went
+  missing. Removing that needs lazy regeneration on demand - the grid asking for a thumbnail that
+  is not there should create it - or the split trades a slow start for visibly broken tiles.
+
+### 1.5.3 "Attention required" section
 
 A single list of everything the library needs a human to resolve. This is the home
 the existing findings never had.
 
-- [ ] Sources: duplicate clips, broken clips (`Clip.IsBroken`), highlights whose range falls
-  outside their clip (`WatchWindow.Clamp(...).IsUsable` is the existing definition - reuse it,
+- [ ] Sources: duplicate clips **already in the library** (see below), broken clips
+  (`Clip.IsBroken`), disconnected source drives, "a scan is recommended", highlights whose range
+  falls outside their clip (`WatchWindow.Clamp(...).IsUsable` is the existing definition - reuse it,
   do not restate it).
 - [ ] Populated by a sanitize run; each entry names the problem and offers the action that fixes it.
 - [ ] This subsumes an item already in the backlog: an out-of-range highlight can currently be
@@ -223,10 +258,18 @@ the existing findings never had.
   auto-resolved. This is why the sanitizer was changed to report rather than move an
   out-of-range highlight, and the same standard applies to everything listed here.
 
-### 1.5.3 Duplicate resolution with merge
+### 1.5.4 Duplicate resolution with merge
 
 - [ ] Sanitize hashes first, then presents what it found - hashing has to complete before the
   duplicate list can be right.
+- [ ] **Duplicates already in the library are currently invisible**, which is the gap testing hit
+  on 2026-09-09. Detection only runs at import, so once two copies are in the library nothing ever
+  compares them again. Proven on the test profile: two pairs shared a hash
+  (a Warframe clip and its copy, and a fixture pair) and nothing reported either. A clip that
+  imported while hashing was off is the common way in.
+- [ ] Smallest useful step, separable from the merge UI: have the sanitize summary report the
+  duplicate groups its hashing found, exactly as it already reports out-of-range highlights.
+  No new screens, and it makes Repair Library answer "did it find anything?".
 - [ ] List each duplicate group showing the ClipStudio metadata on both sides: tags, players,
   highlights, rating, notes. The file is the same; the metadata is what differs and what the user
   is actually choosing between.
@@ -240,7 +283,7 @@ the existing findings never had.
   selection, not a merge.
 - [ ] Removing the copies is destructive and comes last, after the survivor has its merged metadata.
 
-### 1.5.4 Import performance
+### 1.5.5 Import performance
 
 Measured, not assumed. On a 303 MB clip the quick hash costs ~633 ms cold and ~15 ms
 warm, while SHA-256 over the same 16 MB already in RAM takes 8 ms. **The hashing is
