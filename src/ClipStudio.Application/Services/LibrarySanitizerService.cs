@@ -23,6 +23,12 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
     private readonly AppDataPaths _paths;
     private readonly ILogger<LibrarySanitizerService> _logger;
 
+    /// <summary>
+    /// How much of the end of a clip a fully out-of-range highlight is anchored to. Long enough to
+    /// be watchable, short enough not to pretend the original range was recoverable.
+    /// </summary>
+    private static readonly TimeSpan OutOfRangeFallbackLength = TimeSpan.FromSeconds(10);
+
     /// <summary>Initializes a new instance of <see cref="LibrarySanitizerService"/>.</summary>
     public LibrarySanitizerService(
         IClipRepository clips,
@@ -258,6 +264,38 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
 
                 if (!string.IsNullOrEmpty(highlight.ThumbnailPath))
                     referencedPaths.Add(highlight.ThumbnailPath);
+
+                // ---- Out-of-range range repair ----
+                // A highlight's range is stored independently of its clip's duration, so a clip
+                // relocated to a shorter file, trimmed, or seeded without checking can leave a
+                // range that points past the end of the media. Watch mode is defended against that
+                // at playback time, but the row itself is still wrong, so repair it here where the
+                // duration is known.
+                if (clip.Duration > TimeSpan.Zero && highlight.EndTime > clip.Duration)
+                {
+                    var originalStart = highlight.StartTime;
+                    var originalEnd   = highlight.EndTime;
+
+                    highlight.EndTime = clip.Duration;
+                    if (highlight.StartTime >= highlight.EndTime)
+                    {
+                        // The whole range sits past the end of the media. There is no correct place
+                        // to put it, so anchor it to the last stretch of the clip rather than
+                        // deleting the user's label and rating.
+                        highlight.StartTime = clip.Duration > OutOfRangeFallbackLength
+                            ? clip.Duration - OutOfRangeFallbackLength
+                            : TimeSpan.Zero;
+                    }
+
+                    await _highlights.UpdateAsync(highlight, ct);
+                    repaired++;
+                    _logger.LogError(
+                        "Highlight {Id} on clip {ClipId} ran {From}-{To} but the clip is only "
+                        + "{Duration} long; repaired to {NewFrom}-{NewTo}.",
+                        highlight.Id, clip.Id, originalStart, originalEnd, clip.Duration,
+                        highlight.StartTime, highlight.EndTime);
+                    progress?.Report($"Highlight range repaired: {highlight.Label}");
+                }
 
                 if (!string.IsNullOrEmpty(highlight.ThumbnailPath) && _fileSystem.FileExists(highlight.ThumbnailPath))
                     continue;
