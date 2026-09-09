@@ -2,6 +2,7 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using ClipStudio.Core.Entities;
 
 namespace ClipStudio.UI.Behaviors;
@@ -91,9 +92,27 @@ public class TagPickerBehavior : ITagPickerHost
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (!_machine.NotifyKeyDown(e.Key)) return;
+
         // Marking the event handled is what keeps focus in the picker after a Tab commit.
-        if (_machine.NotifyKeyDown(e.Key))
-            e.Handled = true;
+        e.Handled = true;
+
+        // The state machine has already cleared Text, but this runs in the tunnel phase - before
+        // the AutoCompleteBox has finished with the key. Its text-completion bookkeeping tracks
+        // what the user actually typed separately from what is displayed, and writing that back
+        // afterwards restored the typed prefix: type "a", get the "aesthetic" completion, press
+        // Tab, and the field was left holding "a". Reset once the control has finished.
+        Dispatcher.UIThread.Post(ResetInput, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Returns the picker to an empty, closed state after a commit.
+    /// </summary>
+    protected virtual void ResetInput()
+    {
+        _picker.Text           = string.Empty;
+        _picker.SelectedItem   = null;
+        _picker.IsDropDownOpen = false;
     }
 
     // ---- ITagPickerHost ----
