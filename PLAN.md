@@ -6,7 +6,7 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-08, end of session): 0 warnings, 418 tests passing, 34 commits
+Status (2026-09-08, end of session): 0 warnings, 418 tests passing, 36 commits
 ahead of origin/master and unpushed. **Phase 0 is complete.** Phase 1 (F-R
 duplicate detection) is the next thing to start.
 
@@ -281,6 +281,15 @@ playback fixes all behaved correctly apart from the entries below.
   log-level parser reads the actual setting instead of the first level name in the file.
 - [x] The sanitizer repairs out-of-range highlight ranges, so Repair Library fixes the rows the
   playback guard only works around.
+- [x] The clip's tag pickers no longer offer tags the clip already has (`ClipGeneralTagOptions` /
+  `ClipGameTagOptions`). Highlight rows keep the full list on purpose - highlight tags propagate
+  to the clip, so filtering the shared list would hide clip tags from every row.
+- [ ] **Tab left the typed prefix in the picker** - candidate fix shipped (deferred reset past the
+  control's own key handling), NOT yet confirmed at a keyboard. Retest: type one letter, take the
+  inline completion with Tab, and check the field is empty afterwards.
+- [ ] **Highlight tag pickers still offer tags that highlight already has.** The clip-level
+  exclusion did not extend to them: `HighlightViewModel.AvailableTags` is a shared reference to
+  the full list, so a per-highlight exclusion needs its own filtered collection per row.
 
 ## Done
 
