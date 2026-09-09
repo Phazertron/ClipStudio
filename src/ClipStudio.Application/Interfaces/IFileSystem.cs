@@ -64,6 +64,16 @@ public interface IFileSystem
     /// <returns>The file length in bytes.</returns>
     long GetFileSizeBytes(string path);
 
+    /// <summary>Opens a file for reading.</summary>
+    /// <remarks>
+    /// The stream is seekable, which duplicate detection relies on to read the head and tail of a
+    /// large video file without streaming the whole thing. The caller owns the stream and must
+    /// dispose it.
+    /// </remarks>
+    /// <param name="path">The file to open.</param>
+    /// <returns>A readable, seekable stream over the file.</returns>
+    Stream OpenRead(string path);
+
     /// <summary>Reads the entire contents of a text file.</summary>
     /// <param name="path">The file to read.</param>
     /// <returns>The file contents.</returns>

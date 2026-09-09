@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
         // Resolved paths singleton — consumed by services that write to the data directory.
         services.AddSingleton(new AppDataPaths(appDataPath, isProfileScoped));
         services.AddSingleton<IFileSystem, PhysicalFileSystem>();
+        services.AddSingleton<IFileHashService, FileHashService>();
 
         // Settings must be registered first as other services depend on it.
         services.AddSingleton<ISettingsService>(sp =>

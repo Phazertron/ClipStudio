@@ -141,6 +141,13 @@ public sealed class FakeFileSystem : IFileSystem
     /// <inheritdoc/>
     public long GetFileSizeBytes(string path) => Require(path).SizeBytes;
 
+
+    /// <inheritdoc/>
+    /// <remarks>Serves the file's text contents as UTF-8 bytes, so hashing can be tested in memory.</remarks>
+    public Stream OpenRead(string path)
+        => _files.TryGetValue(Normalise(path), out var file)
+            ? new MemoryStream(System.Text.Encoding.UTF8.GetBytes(file.Contents), writable: false)
+            : throw new FileNotFoundException($"Fake file not found: {path}");
     /// <inheritdoc/>
     public string ReadAllText(string path) => Require(path).Contents;
 

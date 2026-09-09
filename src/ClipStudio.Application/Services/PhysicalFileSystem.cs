@@ -52,6 +52,9 @@ public sealed class PhysicalFileSystem : IFileSystem
     public long GetFileSizeBytes(string path) => new FileInfo(path).Length;
 
     /// <inheritdoc/>
+    public Stream OpenRead(string path) => File.OpenRead(path);
+
+    /// <inheritdoc/>
     public string ReadAllText(string path) => File.ReadAllText(path);
 
     /// <inheritdoc/>
