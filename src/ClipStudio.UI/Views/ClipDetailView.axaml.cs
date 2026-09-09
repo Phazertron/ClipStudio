@@ -289,7 +289,9 @@ public partial class ClipDetailView : UserControl
 
         if (DataContext is not ClipDetailViewModel vm) return null;
 
-        var source = isGame ? vm.AvailableGameTags : vm.AvailableGeneralTags;
+        // The same collections the pickers show, so a keyboard commit can never land on a tag the
+        // dropdown was not offering - these exclude what the clip already has.
+        var source = isGame ? vm.ClipGameTagOptions : vm.ClipGeneralTagOptions;
 
         // Prefer exact match; fall back to first Contains match (same as FilterMode=ContainsOrdinal).
         return source.FirstOrDefault(t => string.Equals(t.Name, text, StringComparison.OrdinalIgnoreCase))

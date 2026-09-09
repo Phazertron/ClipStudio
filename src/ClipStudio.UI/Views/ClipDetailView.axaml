@@ -568,7 +568,7 @@
 
                             <!-- Game tag picker -->
                             <AutoCompleteBox x:Name="GameTagPicker"
-                                             ItemsSource="{Binding AvailableGameTags}"
+                                             ItemsSource="{Binding ClipGameTagOptions}"
                                              ValueMemberBinding="{Binding Name}"
                                              FilterMode="ContainsOrdinal"
                                              IsTextCompletionEnabled="True"
@@ -692,7 +692,7 @@
 
                             <!-- General tag picker -->
                             <AutoCompleteBox x:Name="GeneralTagPicker"
-                                             ItemsSource="{Binding AvailableGeneralTags}"
+                                             ItemsSource="{Binding ClipGeneralTagOptions}"
                                              ValueMemberBinding="{Binding Name}"
                                              FilterMode="ContainsOrdinal"
                                              IsTextCompletionEnabled="True"

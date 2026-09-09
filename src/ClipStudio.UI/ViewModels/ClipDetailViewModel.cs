@@ -209,6 +209,24 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// <summary>Gets the list of available game tags for the game-tag picker.</summary>
     public ObservableCollection<Tag> AvailableGameTags { get; } = new();
 
+    /// <summary>
+    /// Gets the general tags offered by the clip's own tag picker: every general tag except the
+    /// ones the clip already has.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="AvailableGeneralTags"/> on purpose. Highlight tags propagate to
+    /// their clip, so filtering the shared list in place would hide a tag from every highlight row
+    /// as soon as any one highlight used it. The highlight pickers keep the full list; only the
+    /// clip's own picker is filtered.
+    /// </remarks>
+    public ObservableCollection<Tag> ClipGeneralTagOptions { get; } = new();
+
+    /// <summary>
+    /// Gets the game tags offered by the clip's game picker: every game tag except the one the clip
+    /// already carries, since a clip has at most one.
+    /// </summary>
+    public ObservableCollection<Tag> ClipGameTagOptions { get; } = new();
+
     /// <summary>Gets or sets the general tag selected in the picker (not yet applied).</summary>
     [ObservableProperty] private Tag? _selectedGeneralTag;
 
@@ -1012,6 +1030,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
             var isLocked = lockedTagIds.Contains(tagId);
             ClipGameTag = new TagChipViewModel(tagId, tagName, RemoveClipGameTagAsync, isLocked);
         }
+
+        RefreshClipTagOptions();
     }
 
     /// <summary>
@@ -1037,6 +1057,32 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         AvailableGameTags.Clear();
         foreach (var t in gameTags)
             AvailableGameTags.Add(t);
+
+        RefreshClipTagOptions();
+    }
+
+    /// <summary>
+    /// Rebuilds the clip pickers' option lists, dropping whatever the clip already has. Offering a
+    /// tag the clip carries is a dead entry: picking it applies a tag that is already there.
+    /// </summary>
+    /// <remarks>
+    /// Driven from <see cref="ClipTags"/> and <see cref="ClipGameTag"/> rather than from the clip
+    /// entity, because the removal paths update the chips optimistically and leave the entity stale
+    /// until the next reload.
+    /// </remarks>
+    private void RefreshClipTagOptions()
+    {
+        var appliedIds = ClipTags.Select(c => c.TagId).ToHashSet();
+
+        ClipGeneralTagOptions.Clear();
+        foreach (var t in AvailableGeneralTags.Where(t => !appliedIds.Contains(t.Id)))
+            ClipGeneralTagOptions.Add(t);
+
+        var appliedGameId = ClipGameTag?.TagId;
+
+        ClipGameTagOptions.Clear();
+        foreach (var t in AvailableGameTags.Where(t => t.Id != appliedGameId))
+            ClipGameTagOptions.Add(t);
     }
 
     private async Task RefreshPlayersAsync()
@@ -1195,6 +1241,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         if (_clip is null) return;
         await _clipService.RemoveTagAsync(_clip.Id, chip.TagId);
         ClipTags.Remove(chip);
+        RefreshClipTagOptions();
     }
 
     private async Task RemoveClipGameTagAsync(TagChipViewModel chip)
@@ -1202,6 +1249,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         if (_clip is null) return;
         await _clipService.RemoveTagAsync(_clip.Id, chip.TagId);
         ClipGameTag = null;
+        RefreshClipTagOptions();
     }
 
     private async Task ClearAllTagsAsync()
