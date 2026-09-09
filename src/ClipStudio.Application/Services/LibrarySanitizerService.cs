@@ -23,12 +23,6 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
     private readonly AppDataPaths _paths;
     private readonly ILogger<LibrarySanitizerService> _logger;
 
-    /// <summary>
-    /// How much of the end of a clip a fully out-of-range highlight is anchored to. Long enough to
-    /// be watchable, short enough not to pretend the original range was recoverable.
-    /// </summary>
-    private static readonly TimeSpan OutOfRangeFallbackLength = TimeSpan.FromSeconds(10);
-
     /// <summary>Initializes a new instance of <see cref="LibrarySanitizerService"/>.</summary>
     public LibrarySanitizerService(
         IClipRepository clips,
@@ -73,6 +67,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             if (!string.IsNullOrEmpty(tc.PreviewStripPath)) referencedPaths.Add(tc.PreviewStripPath);
         }
         var repaired    = 0;
+
+        // Highlights that fall outside their clip and cannot be repaired without guessing.
+        var outOfBounds = 0;
 
         var thumbnailOffset = TimeSpan.FromSeconds(
             _settings.Current.ThumbnailOffsetSeconds);
@@ -265,36 +262,43 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 if (!string.IsNullOrEmpty(highlight.ThumbnailPath))
                     referencedPaths.Add(highlight.ThumbnailPath);
 
-                // ---- Out-of-range range repair ----
-                // A highlight's range is stored independently of its clip's duration, so a clip
-                // relocated to a shorter file, trimmed, or seeded without checking can leave a
-                // range that points past the end of the media. Watch mode is defended against that
-                // at playback time, but the row itself is still wrong, so repair it here where the
-                // duration is known.
+                // ---- Out-of-range ranges ----
+                // A highlight's range is stored independently of its clip's duration. Saving one is
+                // validated, but a clip can still be relocated to a shorter file or trimmed
+                // afterwards, which leaves the range pointing past the end of the media.
+                //
+                // Only the unambiguous case is repaired. A range that starts inside the clip and
+                // runs past its end has one sensible reading - it should stop at the end - and
+                // truncating it moves nothing the user chose. A range that starts at or after the
+                // end of the clip has no correct position at all, so it is reported and left alone:
+                // guessing one would silently relabel a moment the user picked.
                 if (clip.Duration > TimeSpan.Zero && highlight.EndTime > clip.Duration)
                 {
-                    var originalStart = highlight.StartTime;
-                    var originalEnd   = highlight.EndTime;
-
-                    highlight.EndTime = clip.Duration;
-                    if (highlight.StartTime >= highlight.EndTime)
+                    if (highlight.StartTime < clip.Duration)
                     {
-                        // The whole range sits past the end of the media. There is no correct place
-                        // to put it, so anchor it to the last stretch of the clip rather than
-                        // deleting the user's label and rating.
-                        highlight.StartTime = clip.Duration > OutOfRangeFallbackLength
-                            ? clip.Duration - OutOfRangeFallbackLength
-                            : TimeSpan.Zero;
-                    }
+                        var originalEnd = highlight.EndTime;
+                        highlight.EndTime = clip.Duration;
 
-                    await _highlights.UpdateAsync(highlight, ct);
-                    repaired++;
-                    _logger.LogError(
-                        "Highlight {Id} on clip {ClipId} ran {From}-{To} but the clip is only "
-                        + "{Duration} long; repaired to {NewFrom}-{NewTo}.",
-                        highlight.Id, clip.Id, originalStart, originalEnd, clip.Duration,
-                        highlight.StartTime, highlight.EndTime);
-                    progress?.Report($"Highlight range repaired: {highlight.Label}");
+                        await _highlights.UpdateAsync(highlight, ct);
+                        repaired++;
+                        _logger.LogError(
+                            "Highlight {Id} on clip {ClipId} ended at {To} but the clip is only "
+                            + "{Duration} long; truncated to the end of the clip.",
+                            highlight.Id, clip.Id, originalEnd, clip.Duration);
+                        progress?.Report($"Highlight shortened to fit its clip: {highlight.Label}");
+                    }
+                    else
+                    {
+                        outOfBounds++;
+                        _logger.LogError(
+                            "Highlight {Id} ({Label}) on clip {ClipId} runs {From}-{To}, which "
+                            + "starts after the clip ends at {Duration}. Left unchanged - it needs "
+                            + "a new range chosen by hand.",
+                            highlight.Id, highlight.Label, clip.Id,
+                            highlight.StartTime, highlight.EndTime, clip.Duration);
+                        progress?.Report(
+                            $"Highlight needs attention - starts past the end of its clip: {highlight.Label}");
+                    }
                 }
 
                 if (!string.IsNullOrEmpty(highlight.ThumbnailPath) && _fileSystem.FileExists(highlight.ThumbnailPath))
@@ -552,6 +556,12 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                     + $"{audioCleaned} orphan audio cache file(s) removed, "
                     + $"{srtCleaned} orphan SRT file(s) removed, "
                     + $"{trashNuked} trash intruder(s) removed.";
+
+        // Reported last and separately: these were not fixed, and the run should not look clean.
+        if (outOfBounds > 0)
+            summary += $" {outOfBounds} highlight(s) start past the end of their clip and need a "
+                     + "new range chosen by hand.";
+
         progress?.Report(summary);
         _logger.LogInformation("{Summary}", summary);
     }

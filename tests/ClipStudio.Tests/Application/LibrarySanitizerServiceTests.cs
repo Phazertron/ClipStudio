@@ -490,20 +490,55 @@ public sealed class LibrarySanitizerServiceTests
     }
 
     [Fact]
-    public async Task SanitizeAsync_HighlightEntirelyPastTheClip_IsAnchoredToTheEnd()
+    public async Task SanitizeAsync_HighlightEntirelyPastTheClip_IsReportedAndLeftAlone()
     {
-        // The demo library's "lucky escape": starts after the clip has already finished.
+        // The demo library's "lucky escape": starts after the clip has already finished. There is
+        // no correct range to move it to, so the sanitizer must not invent one.
         var clip = HealthyClip();
         var highlight = AddHighlight(clip, TimeSpan.FromSeconds(180), TimeSpan.FromSeconds(210));
         SetUpLibrary(clip);
 
+        var messages = new List<string>();
+        await _service.SanitizeAsync(new Progress<string>(messages.Add));
+
+        Assert.Equal(TimeSpan.FromSeconds(180), highlight.StartTime);
+        Assert.Equal(TimeSpan.FromSeconds(210), highlight.EndTime);
+        _highlightRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<Highlight>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_ShortClipWithAnOverrunningHighlight_TruncatesWithoutGoingNegative()
+    {
+        // A five second clip is shorter than any fallback window would be, so this is the case
+        // where inventing a range by subtracting from the end would produce a negative start.
+        var clip = HealthyClip();
+        clip.Duration = TimeSpan.FromSeconds(5);
+        var highlight = AddHighlight(clip, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(210));
+        SetUpLibrary(clip);
+
         await _service.SanitizeAsync();
 
-        Assert.Equal(clip.Duration, highlight.EndTime);
+        Assert.Equal(TimeSpan.FromSeconds(2), highlight.StartTime);
+        Assert.Equal(TimeSpan.FromSeconds(5), highlight.EndTime);
+        Assert.True(highlight.StartTime >= TimeSpan.Zero);
         Assert.True(highlight.StartTime < highlight.EndTime);
-        Assert.True(highlight.EndTime <= clip.Duration);
-        // The label is the user's work and survives a bad time range.
-        Assert.Equal("highlight", highlight.Label);
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_ShortClipWithAHighlightPastItsEnd_IsReportedNotMoved()
+    {
+        var clip = HealthyClip();
+        clip.Duration = TimeSpan.FromSeconds(5);
+        var highlight = AddHighlight(clip, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60));
+        SetUpLibrary(clip);
+
+        await _service.SanitizeAsync();
+
+        // Nothing is written, so no arithmetic can produce a negative or inverted range.
+        Assert.Equal(TimeSpan.FromSeconds(30), highlight.StartTime);
+        _highlightRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<Highlight>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
