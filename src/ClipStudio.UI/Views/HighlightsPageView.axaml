@@ -411,10 +411,19 @@
 
                                     <!-- Label + Clip name + rating + favourite -->
                                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center" Margin="8,0,0,0">
-                                        <TextBlock Text="{Binding Label}"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold"
-                                                   TextTrimming="CharacterEllipsis"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <!-- Range falls outside the clip: cannot be watched, skipped by the queue. -->
+                                            <icons:MaterialIcon Kind="AlertCircleOutline"
+                                                                Width="13" Height="13"
+                                                                Foreground="#E57373"
+                                                                VerticalAlignment="Center"
+                                                                IsVisible="{Binding IsOutOfRange}"
+                                                                ToolTip.Tip="{Binding OutOfRangeMessage}"/>
+                                            <TextBlock Text="{Binding Label}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
                                         <TextBlock Text="{Binding ClipName}"
                                                    FontSize="11"
                                                    Opacity="0.5"

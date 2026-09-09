@@ -92,6 +92,21 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
     public string? ThumbnailPath { get; }
 
     /// <summary>
+    /// Gets a value indicating whether this highlight's range falls outside its clip, leaving
+    /// nothing that can actually be played.
+    /// </summary>
+    /// <remarks>
+    /// Happens when a clip is relocated to a shorter file or trimmed after the highlight was
+    /// written. Such a highlight cannot be watched, is skipped when a queue advances, and is marked
+    /// in the list so it can be found and given a new range. The judgement is
+    /// <see cref="WatchWindow.Clamp"/>'s, so the list and the player agree on what is playable.
+    /// </remarks>
+    public bool IsOutOfRange { get; }
+
+    /// <summary>Gets an explanation of why the highlight cannot be played, or null when it can.</summary>
+    public string? OutOfRangeMessage { get; }
+
+    /// <summary>
     /// Gets or sets the decoded thumbnail bitmap loaded asynchronously.
     /// Null until <see cref="LoadThumbnailAsync"/> completes.
     /// </summary>
@@ -176,6 +191,16 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
         Rating           = highlight.Rating;
         IsFavorite       = highlight.IsFavorite;
 
+        var clipDuration = highlight.Clip?.Duration ?? TimeSpan.Zero;
+        if (clipDuration > TimeSpan.Zero &&
+            !WatchWindow.Clamp(highlight.StartTime, highlight.EndTime, clipDuration).IsUsable)
+        {
+            IsOutOfRange      = true;
+            OutOfRangeMessage =
+                $"Starts at {FormatTimePrecise(highlight.StartTime)} but the clip ends at "
+                + $"{FormatTimePrecise(clipDuration)}. Give it a new range to play it.";
+        }
+
         // Derive game and player display from parent clip navigation properties.
         var gameTag = highlight.Clip?.ClipTags
             .Select(ct => ct.Tag)
@@ -198,7 +223,13 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
     /// <summary>
     /// Called by the view's Tapped handler to open this highlight in watch mode.
     /// </summary>
-    public void RequestWatch() => _onWatch?.Invoke(this);
+    public void RequestWatch()
+    {
+        // Nothing to play, so opening it would show a watch view that cannot start.
+        if (IsOutOfRange) return;
+
+        _onWatch?.Invoke(this);
+    }
 
     /// <summary>
     /// Asynchronously decodes the highlight thumbnail image on a background thread and stores it in

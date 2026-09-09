@@ -332,7 +332,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             {
                 // Capture LoopMode before CloseClipDetail() nulls _currentDetailVm.
                 var loopMode = _currentDetailVm?.Playback.LoopMode ?? LoopMode.LoopThis;
-                int prevIndex = sequenceIndex > 0 ? sequenceIndex - 1 : sequence.Count - 1;
+                var prevIndex = HighlightQueue.FindPlayable(sequence, sequenceIndex, step: -1);
+                if (prevIndex < 0) return;
                 var prev = sequence[prevIndex];
                 OpenHighlightWatchMode(prev.ClipId, prev.StartTime, prev.EndTime, sequence, prevIndex, loopMode);
             };
@@ -341,8 +342,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             {
                 // Capture LoopMode before CloseClipDetail() nulls _currentDetailVm.
                 var loopMode = _currentDetailVm?.Playback.LoopMode ?? LoopMode.LoopThis;
-                // Wrap around from the last highlight back to the first for LoopAll cycling.
-                int nextIndex = sequenceIndex < sequence.Count - 1 ? sequenceIndex + 1 : 0;
+                var nextIndex = HighlightQueue.FindPlayable(sequence, sequenceIndex, step: 1);
+                if (nextIndex < 0) return;
                 var next = sequence[nextIndex];
                 OpenHighlightWatchMode(next.ClipId, next.StartTime, next.EndTime, sequence, nextIndex, loopMode);
             };
