@@ -6,7 +6,7 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-08, end of session): 0 warnings, 438 tests passing, 43 commits
+Status (2026-09-08, end of session): 0 warnings, 445 tests passing, 45 commits
 ahead of origin/master and unpushed. **Phase 0 is complete.** Phase 1 (F-R
 duplicate detection) is the next thing to start.
 
@@ -287,9 +287,11 @@ playback fixes all behaved correctly apart from the entries below.
 - [x] The clip's tag pickers no longer offer tags the clip already has (`ClipGeneralTagOptions` /
   `ClipGameTagOptions`). Highlight rows keep the full list on purpose - highlight tags propagate
   to the clip, so filtering the shared list would hide clip tags from every row.
-- [ ] **Tab reset and refocus** - two rounds of fixes shipped (deferred reset past the control's
-  own key handling; focus the inner TextBox rather than the AutoCompleteBox). The second addressed
-  "it may be focused but typing does nothing". NOT yet confirmed at a keyboard.
+- [ ] **Tag picker keyboard behaviour** - three rounds of fixes, none yet confirmed at a keyboard:
+  the reset deferred past the control's own key handling; focus moved to the inner TextBox rather
+  than the AutoCompleteBox; and typing no longer confirms the suggestion inline completion selects.
+  Retest as one flow: type a few letters, check nothing is applied while typing, then Tab to take
+  the suggestion and confirm the field is empty, focused and accepting the next tag.
 - [ ] **An out-of-range highlight can be seen but not repaired in place.** It is now marked in the
   list, refused for watching and skipped by the queue, and the sanitize summary counts it - so it
   can be found. What is still missing is a way to fix it: an editor that opens the row with its
