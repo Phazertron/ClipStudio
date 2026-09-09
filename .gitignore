@@ -9,6 +9,7 @@ releases/
 *.db-wal
 settings.json
 notes.md
+PLAN.md
 DECISION_LOG.md
 .claude/
 obs-scripts/__pycache__/
