@@ -768,6 +768,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
             IsLoading = false;
             _isRepairing = false;
         }
+
+        // A repair is the thing that clears the unhashed-clip warning, so the count has to be
+        // re-read here. Without it the warning stayed up, naming a number that was no longer true,
+        // until the page happened to be reloaded.
+        await RefreshUnhashedClipCountAsync();
     }
 
     // ---- OBS helpers ----
