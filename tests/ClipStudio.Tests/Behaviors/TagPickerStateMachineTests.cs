@@ -182,6 +182,7 @@ public class TagPickerStateMachineTests
 
         Assert.Equal(new[] { tag }, host.Committed);
 
+        // Clearing the field closes the dropdown; that close must not commit a second time.
         machine.NotifyDropDownClosed();
         Assert.Single(host.Committed);
     }
@@ -251,17 +252,82 @@ public class TagPickerStateMachineTests
         Assert.Equal(1, host.FocusCalls);
     }
 
+    // ---- Tab: take the tag and stay, or move on ----
+
     [Fact]
-    public void TabNeverTakesFocusBackEvenWhenRefocusIsOn()
+    public void TabWithAMatchIsConsumedSoFocusStaysInThePicker()
     {
-        var (machine, host) = Create(refocus: true);
+        var (machine, host) = Create();
 
         host.Text           = "Ace";
         host.TextResolution = MakeTag();
-        machine.NotifyKeyDown(Key.Tab);
 
+        var handled = machine.NotifyKeyDown(Key.Tab);
+
+        // Handled keeps Tab from moving focus, so the user can type the next tag straight away.
+        Assert.True(handled);
         Assert.Single(host.Committed);
+        Assert.Equal(1, host.FocusCalls);
+        Assert.Equal(string.Empty, host.Text);
+    }
+
+    [Fact]
+    public void TabOnAnEmptyPickerIsNotConsumedSoFocusMovesOn()
+    {
+        var (machine, host) = Create();
+
+        var handled = machine.NotifyKeyDown(Key.Tab);
+
+        Assert.False(handled);
+        Assert.Empty(host.Committed);
         Assert.Equal(0, host.FocusCalls);
+    }
+
+    [Fact]
+    public void TabOnTextMatchingNoTagIsNotConsumed()
+    {
+        var (machine, host) = Create();
+
+        host.Text = "not a tag";
+
+        var handled = machine.NotifyKeyDown(Key.Tab);
+
+        Assert.False(handled);
+        Assert.Empty(host.Committed);
+    }
+
+    [Fact]
+    public void TabTwiceTakesTheTagThenLeavesThePicker()
+    {
+        var (machine, host) = Create();
+        var tag = MakeTag();
+
+        // First Tab: a tag is showing, so it is taken and the picker keeps focus.
+        host.Text           = "Ace";
+        host.TextResolution = tag;
+        Assert.True(machine.NotifyKeyDown(Key.Tab));
+
+        // The commit cleared the field, so there is nothing left to take.
+        host.TextResolution = null;
+        Assert.False(machine.NotifyKeyDown(Key.Tab));
+
+        Assert.Equal(new[] { tag }, host.Committed);
+    }
+
+    [Fact]
+    public void OnlyTabIsEverConsumed()
+    {
+        var (machine, host) = Create();
+        var tag = MakeTag();
+
+        host.SelectedTag = tag;
+        machine.NotifySelectionChanged();
+
+        Assert.False(machine.NotifyKeyDown(Key.Enter));
+        Assert.False(machine.NotifyKeyDown(Key.Escape));
+        Assert.False(machine.NotifyKeyDown(Key.Down));
+        Assert.False(machine.NotifyKeyDown(Key.Up));
+        Assert.False(machine.NotifyKeyDown(Key.A));
     }
 
     [Fact]

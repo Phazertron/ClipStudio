@@ -23,7 +23,8 @@ namespace ClipStudio.UI.Behaviors;
 ///     <description>
 ///     <see cref="NotifyKeyDown"/> flags arrow navigation, confirms on Enter (falling back to
 ///     resolving the typed text when nothing is selected), commits immediately on Tab, and
-///     records an Escape so the following close discards instead of commits.
+///     records an Escape so the following close discards instead of commits. It is also the only
+///     notification that can consume the key, which it does for a Tab that took a tag.
 ///     </description>
 ///   </item>
 ///   <item>
@@ -50,9 +51,13 @@ public class TagPickerStateMachine
     /// <summary>Initialises a new <see cref="TagPickerStateMachine"/>.</summary>
     /// <param name="host">The picker surface this machine drives.</param>
     /// <param name="refocusAfterCommit">
-    /// When <c>true</c>, focus is returned to the picker after a commit and after an Escape, so the
-    /// user can keep adding tags without reaching for the mouse. Pickers that sit in a form the user
-    /// tabs out of pass <c>false</c>.
+    /// When <c>true</c>, focus is returned to the picker after a click or Enter commit and after an
+    /// Escape, so the user can keep adding tags without reaching for the mouse. Pickers that sit in
+    /// a form the user tabs out of pass <c>false</c>.
+    /// <para>
+    /// A Tab commit ignores this and always keeps focus, because Tab is the one path where the user
+    /// has said what to do with focus next: take this tag now, and press Tab again to leave.
+    /// </para>
     /// </param>
     public TagPickerStateMachine(ITagPickerHost host, bool refocusAfterCommit = false)
     {
@@ -90,7 +95,11 @@ public class TagPickerStateMachine
     /// Handles the keys that take part in a commit. Every other key is left alone.
     /// </summary>
     /// <param name="key">The key that was pressed.</param>
-    public virtual void NotifyKeyDown(Key key)
+    /// <returns>
+    /// <see langword="true"/> when the key was consumed and must not reach the rest of the UI.
+    /// Only a Tab that commits a tag does this; see the Tab case for why.
+    /// </returns>
+    public virtual bool NotifyKeyDown(Key key)
     {
         switch (key)
         {
@@ -98,7 +107,7 @@ public class TagPickerStateMachine
             case Key.Down:
                 // Tell NotifySelectionChanged that the selection about to change is navigation.
                 _justNavByKey = true;
-                return;
+                return false;
 
             case Key.Enter:
                 if (_pendingTag is not null)
@@ -111,20 +120,27 @@ public class TagPickerStateMachine
                     // Enter keeps the user in the picker so they can type the next tag.
                     CommitResolved(refocus: _refocusAfterCommit);
                 }
-                return;
+                return false;
 
             case Key.Escape:
                 _escapePending = true;
-                return;
+                return false;
 
             case Key.Tab:
-                // Committed here rather than on close so the tag lands before focus leaves.
-                // The event is deliberately left unhandled so Tab still moves focus, which raises
-                // DropDownClosed and clears the guard flag. Focus is never taken back here - that
-                // would fight the focus move Tab is being pressed for.
-                CommitResolved(refocus: false);
-                return;
+                // Tab means two different things depending on whether there is a tag to take.
+                //
+                // With a match, it takes the tag and stays: the field is cleared and focus is kept,
+                // so the user can type the next tag straight away. The key is consumed to make that
+                // deliberate - otherwise focus leaves and the reopened dropdown pulls it back, which
+                // is the behaviour that felt like a bug.
+                //
+                // With nothing to take - an empty field, or text matching no tag - Tab is left
+                // alone and moves focus like anywhere else. So a second Tab on the now-empty field
+                // leaves the picker.
+                return CommitResolved(refocus: true);
         }
+
+        return false;
     }
 
     /// <summary>
@@ -168,13 +184,15 @@ public class TagPickerStateMachine
     /// guarding the following close so it does not commit a second time.
     /// </summary>
     /// <param name="refocus">Whether focus should be returned to the picker after the commit.</param>
-    private void CommitResolved(bool refocus)
+    /// <returns><see langword="true"/> when a tag was resolved and committed.</returns>
+    private bool CommitResolved(bool refocus)
     {
         var tag = _host.ResolveTag();
-        if (tag is null) return;
+        if (tag is null) return false;
 
         _tabCommitted = true;
         Apply(tag, refocus);
+        return true;
     }
 
     /// <summary>Clears the picker and hands the tag to the host.</summary>

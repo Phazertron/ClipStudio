@@ -33,7 +33,8 @@ public class TagPickerBehavior : ITagPickerHost
     /// </param>
     /// <param name="commit">Applies a resolved tag.</param>
     /// <param name="refocusAfterCommit">
-    /// When <c>true</c>, focus returns to the picker after a commit or an Escape.
+    /// When <c>true</c>, focus returns to the picker after a click or Enter commit, or an Escape.
+    /// A Tab commit keeps focus regardless; see <see cref="TagPickerStateMachine"/>.
     /// </param>
     public TagPickerBehavior(
         AutoCompleteBox picker,
@@ -88,8 +89,12 @@ public class TagPickerBehavior : ITagPickerHost
     private void OnDropDownClosed(object? sender, EventArgs e) =>
         _machine.NotifyDropDownClosed();
 
-    private void OnKeyDown(object? sender, KeyEventArgs e) =>
-        _machine.NotifyKeyDown(e.Key);
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        // Marking the event handled is what keeps focus in the picker after a Tab commit.
+        if (_machine.NotifyKeyDown(e.Key))
+            e.Handled = true;
+    }
 
     // ---- ITagPickerHost ----
 
