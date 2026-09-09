@@ -144,6 +144,13 @@ independent, and grouped search is UI-only and can slot in anywhere.
   length plus the first and last 8 MB, full hash confirms. Files below two chunks are hashed whole,
   which makes the quick hash conclusive for short files.
 - [x] Backfill hashes for existing clips in `LibrarySanitizerService`, reported in the summary.
+  **Correction to an earlier note here:** the backfill is not confined to an explicit Repair
+  Library. `App.InitializeServicesAsync` runs `SanitizeAsync()` on every startup, so the backfill
+  runs there too. Confirmed working end to end - a startup run hashed all 19 demo clips and
+  reported the out-of-range highlight. The cost is one-off per clip, but on the 885-clip library it
+  is roughly 49 seconds of disk work on the first launch after upgrading (and would have been
+  8.4 minutes before the chunk size was reduced). Worth deciding whether unbounded startup work
+  should be bounded, deferred, or announced.
 - [x] `ImportService` - hashes before the expensive work, confirms every quick-hash match with a
   full hash, and returns `ImportResult.Duplicate` with both clips without importing. An
   `allowDuplicate` flag covers "import anyway".
