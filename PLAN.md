@@ -6,7 +6,7 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-08, end of session): 0 warnings, 410 tests passing, 28 commits
+Status (2026-09-08, end of session): 0 warnings, 418 tests passing, 34 commits
 ahead of origin/master and unpushed. **Phase 0 is complete.** Phase 1 (F-R
 duplicate detection) is the next thing to start.
 
@@ -231,15 +231,6 @@ From a full pass over the Phase 0 verification checklist. The checklist itself i
 done - the tag pickers, bulk edit, copy-format, destructive confirmations and both
 playback fixes all behaved correctly apart from the entries below.
 
-- [ ] **Tab in a tag picker adds the tag but does not move focus.** Pre-existing, not
-  from the `TagPickerBehavior` extraction - the original code is byte-identical in
-  this path, and its own comment ("Do NOT set e.Handled - let Tab move focus
-  naturally") records an assumption nobody had checked. Likely cause: the commit
-  clears `Text`, which re-triggers the AutoCompleteBox filter and can reopen the
-  dropdown, whose popup then takes focus back. Candidate fix is to close the
-  dropdown explicitly on the Tab commit before clearing the text. Needs a
-  mouse-and-keyboard pass to confirm either way, so it was not changed blind -
-  input handling is where an unverified change does the most damage.
 - [ ] **No way to create a tag from the clip editor.** The pickers resolve only
   against existing tags, so typing a new name and pressing Enter does nothing; the
   user has to go to the Tags page first. `ITagService.CreateAsync` already exists,
@@ -284,6 +275,12 @@ playback fixes all behaved correctly apart from the entries below.
 - [x] The library-repair progress bar vanished when navigating away from Settings and back.
 - [x] Dropped two dead stub commands (`AddGeneralTagCommand`, `AddGameTagCommand`) that
   returned `Task.CompletedTask` and were bound to nothing.
+- [x] Tab in a tag picker now takes the tag and stays in the field; a second Tab leaves.
+  Nothing to take means Tab moves focus as normal.
+- [x] Data-integrity faults are logged at Error so they survive the default log level, and the
+  log-level parser reads the actual setting instead of the first level name in the file.
+- [x] The sanitizer repairs out-of-range highlight ranges, so Repair Library fixes the rows the
+  playback guard only works around.
 
 ## Done
 
