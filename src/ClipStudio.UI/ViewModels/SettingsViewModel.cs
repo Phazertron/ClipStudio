@@ -374,7 +374,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
         }
         finally
         {
-            IsLoading = false;
+            // A repair owns IsLoading for its whole run, and it drives the progress bar. Navigating
+            // away and back re-enters LoadAsync, so clearing the flag unconditionally here hid the
+            // bar while the repair was still going and left the user with no sign of progress.
+            // StatusMessage is already guarded the same way at the top of this method.
+            if (!_isRepairing) IsLoading = false;
         }
     }
 
