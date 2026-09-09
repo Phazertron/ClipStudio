@@ -66,11 +66,25 @@ public sealed class ImportServiceTests
             .Setup(r => r.ExistsByFilePathAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
+        _clipRepo
+            .Setup(r => r.GetByFileHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
         _aliases
             .Setup(a => a.FindByAliasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((GameTagAlias?)null);
 
-        _service = new ImportService(
+        _service = BuildService(new FileHashService(_fileSystem));
+    }
+
+    /// <summary>Builds an import service over the shared mocks with the given hash service.</summary>
+    /// <param name="fileHashes">
+    /// The hasher to use. Tests that need a quick-hash collision pass one with a small chunk size,
+    /// since the default 8 MB chunks make the quick hash conclusive for any fixture-sized file.
+    /// </param>
+    /// <returns>The service under test.</returns>
+    private ImportService BuildService(IFileHashService fileHashes)
+        => new ImportService(
             _clipRepo.Object,
             _folderRepo.Object,
             _media.Object,
@@ -80,8 +94,8 @@ public sealed class ImportServiceTests
             _transcription.Object,
             _fileSystem,
             new AppDataPaths(DataRoot),
+            fileHashes,
             NullLogger<ImportService>.Instance);
-    }
 
     /// <summary>Captures the clip handed to <see cref="IClipRepository.AddAsync"/> and assigns it an id.</summary>
     /// <param name="id">The identifier to stamp onto the persisted clip.</param>
@@ -416,5 +430,141 @@ public sealed class ImportServiceTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => _service.ScanFolderAsync(1, null, cts.Token));
+    }
+
+    // ---- Duplicate detection ----
+
+    /// <summary>Registers an existing clip that the hash lookup will return as a candidate.</summary>
+    /// <param name="path">The existing clip's file path, which must also exist on the fake disk.</param>
+    /// <param name="hash">The quick hash stored against it.</param>
+    /// <returns>The clip standing in for the library row.</returns>
+    private Clip ExistingClipWithHash(string path, string hash)
+    {
+        var clip = new Clip
+        {
+            Id       = 42,
+            FilePath = path,
+            FileName = Path.GetFileName(path),
+            FileHash = hash,
+        };
+
+        _clipRepo
+            .Setup(r => r.GetByFileHashAsync(hash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([clip]);
+
+        return clip;
+    }
+
+    /// <summary>Returns the quick hash the service would compute for a file on the fake disk.</summary>
+    /// <param name="path">The file to hash.</param>
+    /// <param name="chunkSize">Chunk size, matching whichever service the test is exercising.</param>
+    private async Task<string> QuickHashOf(
+        string path, int chunkSize = FileHashService.DefaultChunkSizeBytes)
+        => await new FileHashService(_fileSystem, chunkSize).ComputeQuickHashAsync(path);
+
+    [Fact]
+    public async Task ImportFileAsync_FileMatchingAnExistingClip_StopsAndReportsTheDuplicate()
+    {
+        const string existingPath = $"{SourcePath}/original.mp4";
+        const string newPath      = $"{SourcePath}/copy.mp4";
+        _fileSystem.AddFile(existingPath, contents: "same contents");
+        _fileSystem.AddFile(newPath, contents: "same contents");
+
+        var existing = ExistingClipWithHash(existingPath, await QuickHashOf(existingPath));
+
+        var result = await _service.ImportFileAsync(newPath, 1);
+
+        Assert.True(result.IsDuplicate);
+        Assert.Same(existing, result.DuplicateOf);
+        Assert.Equal(newPath, result.DuplicateFilePath);
+        _clipRepo.Verify(r => r.AddAsync(It.IsAny<Clip>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_AllowDuplicate_ImportsAnyway()
+    {
+        const string existingPath = $"{SourcePath}/original.mp4";
+        const string newPath      = $"{SourcePath}/copy.mp4";
+        _fileSystem.AddFile(existingPath, contents: "same contents");
+        _fileSystem.AddFile(newPath, contents: "same contents");
+        ExistingClipWithHash(existingPath, await QuickHashOf(existingPath));
+
+        var added  = CaptureAddedClip();
+        var result = await _service.ImportFileAsync(newPath, 1, allowDuplicate: true);
+
+        Assert.False(result.IsDuplicate);
+        Assert.NotNull(added.Value);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_DetectionDisabled_ImportsWithoutChecking()
+    {
+        const string existingPath = $"{SourcePath}/original.mp4";
+        const string newPath      = $"{SourcePath}/copy.mp4";
+        _fileSystem.AddFile(existingPath, contents: "same contents");
+        _fileSystem.AddFile(newPath, contents: "same contents");
+        ExistingClipWithHash(existingPath, await QuickHashOf(existingPath));
+
+        _appSettings.DuplicateDetectionEnabled = false;
+
+        var added  = CaptureAddedClip();
+        var result = await _service.ImportFileAsync(newPath, 1);
+
+        Assert.False(result.IsDuplicate);
+        Assert.NotNull(added.Value);
+        // Recorded even when detection is off, so turning it on works immediately.
+        Assert.False(string.IsNullOrEmpty(added.Value!.FileHash));
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_QuickHashCollisionWithDifferentContents_ImportsNormally()
+    {
+        // Same length, same head and tail, different middle: the quick hash matches but the files
+        // are not the same, so the full-hash confirmation must let this through. Needs a small
+        // chunk size, because the default hashes a fixture-sized file whole and never collides.
+        const int chunkSize = 4;
+        const string existingPath = $"{SourcePath}/original.mp4";
+        const string newPath      = $"{SourcePath}/other.mp4";
+        _fileSystem.AddFile(existingPath, contents: "HEADaaaaaaaaaaaaaaaaaaaaaaaaFOOT");
+        _fileSystem.AddFile(newPath,      contents: "HEADbbbbbbbbbbbbbbbbbbbbbbbbFOOT");
+
+        var hash = await QuickHashOf(existingPath, chunkSize);
+        Assert.Equal(hash, await QuickHashOf(newPath, chunkSize));
+        ExistingClipWithHash(existingPath, hash);
+
+        var service = BuildService(new FileHashService(_fileSystem, chunkSize));
+        var added   = CaptureAddedClip();
+        var result  = await service.ImportFileAsync(newPath, 1);
+
+        Assert.False(result.IsDuplicate);
+        Assert.NotNull(added.Value);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_CandidateFileMissing_DoesNotBlockTheImport()
+    {
+        // The library row survives its file being deleted outside the app; a row that cannot be
+        // confirmed must not stop an import.
+        const string newPath = $"{SourcePath}/copy.mp4";
+        _fileSystem.AddFile(newPath, contents: "same contents");
+        ExistingClipWithHash("/clips/gone.mp4", await QuickHashOf(newPath));
+
+        var added  = CaptureAddedClip();
+        var result = await _service.ImportFileAsync(newPath, 1);
+
+        Assert.False(result.IsDuplicate);
+        Assert.NotNull(added.Value);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_StoresTheHashOnAnImportedClip()
+    {
+        const string path = $"{SourcePath}/Replay.mp4";
+        _fileSystem.AddFile(path, contents: "unique contents");
+
+        var added = CaptureAddedClip();
+        await _service.ImportFileAsync(path, 1);
+
+        Assert.Equal(await QuickHashOf(path), added.Value!.FileHash);
     }
 }

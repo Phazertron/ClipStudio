@@ -28,6 +28,7 @@ public sealed class ImportService : IImportService
     private readonly ITranscriptionService _transcription;
     private readonly IFileSystem _fileSystem;
     private readonly AppDataPaths _paths;
+    private readonly IFileHashService _fileHashes;
     private readonly ILogger<ImportService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="ImportService"/>.</summary>
@@ -41,6 +42,7 @@ public sealed class ImportService : IImportService
         ITranscriptionService transcription,
         IFileSystem fileSystem,
         AppDataPaths paths,
+        IFileHashService fileHashes,
         ILogger<ImportService> logger)
     {
         _clips = clips;
@@ -52,6 +54,7 @@ public sealed class ImportService : IImportService
         _transcription = transcription;
         _fileSystem = fileSystem;
         _paths = paths;
+        _fileHashes = fileHashes;
         _logger = logger;
     }
 
@@ -59,6 +62,7 @@ public sealed class ImportService : IImportService
     public async Task<ImportResult> ImportFileAsync(
         string filePath,
         int sourceFolderId,
+        bool allowDuplicate = false,
         CancellationToken cancellationToken = default)
     {
         if (!ClipFileNameParser.IsSupportedVideoFile(filePath))
@@ -69,6 +73,23 @@ public sealed class ImportService : IImportService
 
         if (await _clips.ExistsByFilePathAsync(filePath, cancellationToken))
             return ImportResult.Skipped($"Already in library: {Path.GetFileName(filePath)}");
+
+        // Hashed before any of the expensive work below, so a duplicate costs a hash rather than a
+        // thumbnail and a preview strip. Recorded on the clip either way, so detection works the
+        // moment the setting is turned on.
+        var fileHash = await TryComputeQuickHashAsync(filePath, cancellationToken);
+
+        if (!allowDuplicate && _settings.Current.DuplicateDetectionEnabled && fileHash is not null)
+        {
+            var existing = await FindDuplicateAsync(filePath, fileHash, cancellationToken);
+            if (existing is not null)
+            {
+                _logger.LogInformation(
+                    "Import stopped: {FilePath} has the same contents as clip {ClipId} ({FileName}).",
+                    filePath, existing.Id, existing.FileName);
+                return ImportResult.Duplicate(filePath, existing);
+            }
+        }
 
         _logger.LogInformation("Importing clip: {FilePath}", filePath);
 
@@ -108,7 +129,8 @@ public sealed class ImportService : IImportService
                 ThumbnailPath = thumbnailPath,
                 PreviewStripPath = previewStripPath,
                 Status = ClipStatus.Unreviewed,
-                SuggestedGameName = suggestedGameName
+                SuggestedGameName = suggestedGameName,
+                FileHash = fileHash
             };
 
             await _clips.AddAsync(clip, cancellationToken);
@@ -181,7 +203,10 @@ public sealed class ImportService : IImportService
             cancellationToken.ThrowIfCancellationRequested();
 
             var file   = files[i];
-            var result = await ImportFileAsync(file, sourceFolderId, cancellationToken);
+            // A folder scan cannot ask, so duplicates are reported in the results and left for the
+            // caller to resolve rather than imported silently.
+            var result = await ImportFileAsync(
+                file, sourceFolderId, allowDuplicate: false, cancellationToken);
             results.Add(result);
 
             if (result.Success && result.Clip != null) imported++;
@@ -264,5 +289,97 @@ public sealed class ImportService : IImportService
     {
         _fileSystem.CreateDirectory(_paths.MediaCachePath);
         return _paths.MediaCachePath;
+    }
+
+    /// <summary>
+    /// Hashes a file, returning null rather than failing the import when it cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// A clip that imports without a hash is worse than one that does not import at all only if
+    /// the hash were essential - it is not. Detection simply cannot speak for that clip until the
+    /// sanitizer backfills it.
+    /// </remarks>
+    /// <param name="filePath">The file to hash.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The quick hash, or null when it could not be computed.</returns>
+    private async Task<string?> TryComputeQuickHashAsync(
+        string filePath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _fileHashes.ComputeQuickHashAsync(filePath, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not hash {FilePath}; importing without one.", filePath);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Finds a clip already in the library with the same contents as the given file.
+    /// </summary>
+    /// <remarks>
+    /// The quick hash only screens, so every candidate it returns is confirmed by comparing full
+    /// hashes before the file is called a duplicate. A candidate whose own file has since gone
+    /// missing cannot be confirmed and is passed over, so a stale row never blocks an import.
+    /// </remarks>
+    /// <param name="filePath">The file being imported.</param>
+    /// <param name="quickHash">Its quick hash.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The matching clip, or null when none matches.</returns>
+    private async Task<Clip?> FindDuplicateAsync(
+        string filePath, string quickHash, CancellationToken cancellationToken)
+    {
+        var candidates = await _clips.GetByFileHashAsync(quickHash, cancellationToken);
+        if (candidates.Count == 0) return null;
+
+        string? fullHash = null;
+
+        foreach (var candidate in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!_fileSystem.FileExists(candidate.FilePath)) continue;
+
+            // Computed once, and only when there is a candidate worth confirming.
+            fullHash ??= await TryComputeFullHashAsync(filePath, cancellationToken);
+            if (fullHash is null) return null;
+
+            var candidateHash = await TryComputeFullHashAsync(candidate.FilePath, cancellationToken);
+            if (candidateHash == fullHash) return candidate;
+
+            _logger.LogInformation(
+                "Quick hash collision between {FilePath} and clip {ClipId}; contents differ.",
+                filePath, candidate.Id);
+        }
+
+        return null;
+    }
+
+    /// <summary>Hashes a file in full, returning null when it cannot be read.</summary>
+    /// <param name="filePath">The file to hash.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The full hash, or null when it could not be computed.</returns>
+    private async Task<string?> TryComputeFullHashAsync(
+        string filePath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _fileHashes.ComputeFullHashAsync(filePath, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not hash {FilePath} to confirm a duplicate.", filePath);
+            return null;
+        }
     }
 }

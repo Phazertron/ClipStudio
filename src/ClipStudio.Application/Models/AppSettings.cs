@@ -58,6 +58,16 @@ public sealed class AppSettings
     public bool AutoScanAtStartup { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets whether an import checks whether the file is already in the library by content.
+    /// </summary>
+    /// <remarks>
+    /// On by default. Turning it off skips the hash comparison, so the same recording can be
+    /// imported twice under different names; the hash is still recorded either way, so detection
+    /// works immediately when it is turned back on.
+    /// </remarks>
+    public bool DuplicateDetectionEnabled { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets whether mixed audio previews are cached on disk so repeated playback of the
     /// same track selection does not require re-running FFmpeg. Defaults to <c>true</c>.
     /// </summary>

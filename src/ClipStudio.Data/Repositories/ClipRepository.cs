@@ -155,6 +155,14 @@ internal sealed class ClipRepository : IClipRepository
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<Clip>> GetByFileHashAsync(
+        string fileHash, CancellationToken cancellationToken = default)
+        => await _context.Clips
+            .AsNoTrackingWithIdentityResolution()
+            .Where(c => !c.IsDeleted && c.FileHash == fileHash)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
     public async Task<Clip?> GetByFilePathAsync(string filePath, CancellationToken cancellationToken = default)
         => await _context.Clips
             .AsNoTrackingWithIdentityResolution()

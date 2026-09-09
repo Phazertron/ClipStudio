@@ -14,11 +14,18 @@ public interface IImportService
     /// </summary>
     /// <param name="filePath">The absolute path to the video file to import.</param>
     /// <param name="sourceFolderId">The identifier of the source folder this file belongs to.</param>
+    /// <param name="allowDuplicate">
+    /// When <see langword="false"/> (the default) an import whose contents match a clip already in
+    /// the library stops and returns <see cref="ImportResult.IsDuplicate"/> without writing
+    /// anything, so the caller can ask the user what to do. Pass <see langword="true"/> to import
+    /// it regardless, which is what "import anyway" does.
+    /// </param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>An <see cref="ImportResult"/> describing the outcome.</returns>
     Task<ImportResult> ImportFileAsync(
         string filePath,
         int sourceFolderId,
+        bool allowDuplicate = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>

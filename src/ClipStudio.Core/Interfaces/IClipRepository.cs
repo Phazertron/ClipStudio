@@ -78,6 +78,19 @@ public interface IClipRepository
     Task<Clip?> GetByFilePathAsync(string filePath, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns every clip whose <see cref="Clip.FileHash"/> matches the given hash.
+    /// </summary>
+    /// <remarks>
+    /// More than one clip can share a quick hash - it screens rather than proves - so the caller
+    /// confirms a real match by comparing full hashes. Soft-deleted clips are excluded: a file in
+    /// the trash should not block re-importing the same recording.
+    /// </remarks>
+    /// <param name="fileHash">The quick hash to look up.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The clips carrying that hash, empty when none do.</returns>
+    Task<IReadOnlyList<Clip>> GetByFileHashAsync(string fileHash, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Atomically increments <see cref="Clip.PlayCount"/> by one for the given clip identifier.
     /// No-ops silently if the clip does not exist.
     /// </summary>
