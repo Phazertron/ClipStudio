@@ -6,7 +6,7 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-08, end of session): 0 warnings, 418 tests passing, 36 commits
+Status (2026-09-08, end of session): 0 warnings, 426 tests passing, 40 commits
 ahead of origin/master and unpushed. **Phase 0 is complete.** Phase 1 (F-R
 duplicate detection) is the next thing to start.
 
@@ -279,14 +279,22 @@ playback fixes all behaved correctly apart from the entries below.
   Nothing to take means Tab moves focus as normal.
 - [x] Data-integrity faults are logged at Error so they survive the default log level, and the
   log-level parser reads the actual setting instead of the first level name in the file.
-- [x] The sanitizer repairs out-of-range highlight ranges, so Repair Library fixes the rows the
-  playback guard only works around.
+- [x] Highlight ranges are validated on save, so the app can no longer write one that does not
+  fit its clip. The sanitizer still checks, since a clip can be relocated or trimmed afterwards.
+- [x] The sanitizer truncates a highlight that overruns its clip end, and *reports* rather than
+  moves one that starts past the end - there is no correct range to guess, and the summary says
+  how many need attention.
 - [x] The clip's tag pickers no longer offer tags the clip already has (`ClipGeneralTagOptions` /
   `ClipGameTagOptions`). Highlight rows keep the full list on purpose - highlight tags propagate
   to the clip, so filtering the shared list would hide clip tags from every row.
 - [ ] **Tab left the typed prefix in the picker** - candidate fix shipped (deferred reset past the
-  control's own key handling), NOT yet confirmed at a keyboard. Retest: type one letter, take the
-  inline completion with Tab, and check the field is empty afterwards.
+  control's own key handling, then refocus), NOT yet confirmed at a keyboard. Retest: type one
+  letter, take the inline completion with Tab, and check the field is empty AND still focused so a
+  second Tab leaves it.
+- [ ] **Out-of-bounds highlights are reported but there is nowhere to act on them.** The sanitize
+  summary gives a count and the log names each one, which is enough to know but not to fix. The
+  natural next step is a prompt or a "needs attention" list that opens the highlight with its range
+  ready to re-pick. Needs a design decision before it is worth building.
 - [ ] **Highlight tag pickers still offer tags that highlight already has.** The clip-level
   exclusion did not extend to them: `HighlightViewModel.AvailableTags` is a shared reference to
   the full list, so a per-highlight exclusion needs its own filtered collection per row.
