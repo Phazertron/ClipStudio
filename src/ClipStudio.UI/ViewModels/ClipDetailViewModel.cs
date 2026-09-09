@@ -666,7 +666,7 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
             {
                 // Nothing of the highlight overlaps the media, so there is nothing to watch. Fall
                 // back to the whole clip rather than opening a view that cannot play anything.
-                Log.Warning(
+                Log.Error(
                     "Highlight range {Start}-{End} lies outside clip {ClipId} (duration {Duration}); "
                     + "opening the whole clip instead.",
                     WatchStart, WatchEnd, clipId, _clip.Duration);
@@ -1565,9 +1565,11 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
                         // that, and this makes any case it does not cover a stop rather than a hang.
                         if (_watchRestartWithoutProgress)
                         {
-                            Log.Warning(
-                                "Watch mode reached the end again without progress; stopping rather "
-                                + "than restarting.");
+                            Log.Error(
+                                "Watch mode reached the end again without progress on clip {ClipId} "
+                                + "(window {Start}-{End}); stopping rather than restarting. This "
+                                + "guard exists to turn a player restart loop into a stop.",
+                                _clip?.Id, WatchStart, WatchEnd);
                             MediaPlayer.Pause();
                             return;
                         }

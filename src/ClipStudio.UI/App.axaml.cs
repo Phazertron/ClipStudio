@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using AvaloniaApp = Avalonia.Application;
@@ -64,31 +65,28 @@ public partial class App : AvaloniaApp
     internal static void SetupSerilog(string settingsPath)
     {
         // Determine the minimum log level from persisted settings (if available).
+        //
+        // This reads the MinimumLogLevel property itself rather than searching the file for a level
+        // name. The previous substring search took the first level name appearing anywhere in the
+        // JSON, so any unrelated setting whose value happened to be "Debug" or "Information" - a
+        // folder name, a model name - silently changed how much the app logged.
         LogEventLevel level = LogEventLevel.Error;
         try
         {
             if (File.Exists(settingsPath))
             {
-                var json   = File.ReadAllText(settingsPath);
-                // Simple string search to avoid a full JSON parse dependency here.
-                if (json.Contains("\"MinimumLogLevel\""))
+                using var doc = JsonDocument.Parse(File.ReadAllText(settingsPath));
+                if (doc.RootElement.TryGetProperty("MinimumLogLevel", out var levelProperty) &&
+                    levelProperty.ValueKind == JsonValueKind.String &&
+                    Enum.TryParse<LogEventLevel>(levelProperty.GetString(), out var parsed))
                 {
-                    foreach (var candidate in new[] {
-                        "Verbose", "Debug", "Information", "Warning", "Error", "Fatal" })
-                    {
-                        if (json.Contains($"\"{candidate}\"") &&
-                            Enum.TryParse<LogEventLevel>(candidate, out var parsed))
-                        {
-                            level = parsed;
-                            break;
-                        }
-                    }
+                    level = parsed;
                 }
             }
         }
         catch
         {
-            // Fallback to Error level if settings cannot be read.
+            // Unreadable or malformed settings: fall back to Error rather than failing to start.
         }
 
         Directory.CreateDirectory(LogsFolder);
