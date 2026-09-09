@@ -6,7 +6,7 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-08, end of session): 0 warnings, 399 tests passing, 23 commits
+Status (2026-09-08, end of session): 0 warnings, 410 tests passing, 28 commits
 ahead of origin/master and unpushed. **Phase 0 is complete.** Phase 1 (F-R
 duplicate detection) is the next thing to start.
 
@@ -225,6 +225,33 @@ Phase 0 closed - see "Fixed after Phase 0" below.
   audio issues are resolved - do that together with the master-volume item, since that is what it
   is currently being used to diagnose. (It is genuinely useful until then.)
 
+### Found in manual testing (2026-09-09)
+
+From a full pass over the Phase 0 verification checklist. The checklist itself is
+done - the tag pickers, bulk edit, copy-format, destructive confirmations and both
+playback fixes all behaved correctly apart from the entries below.
+
+- [ ] **Tab in a tag picker adds the tag but does not move focus.** Pre-existing, not
+  from the `TagPickerBehavior` extraction - the original code is byte-identical in
+  this path, and its own comment ("Do NOT set e.Handled - let Tab move focus
+  naturally") records an assumption nobody had checked. Likely cause: the commit
+  clears `Text`, which re-triggers the AutoCompleteBox filter and can reopen the
+  dropdown, whose popup then takes focus back. Candidate fix is to close the
+  dropdown explicitly on the Tab commit before clearing the text. Needs a
+  mouse-and-keyboard pass to confirm either way, so it was not changed blind -
+  input handling is where an unverified change does the most damage.
+- [ ] **No way to create a tag from the clip editor.** The pickers resolve only
+  against existing tags, so typing a new name and pressing Enter does nothing; the
+  user has to go to the Tags page first. `ITagService.CreateAsync` already exists,
+  so this is a UI affordance plus one decision: should an unmatched name create a
+  tag silently, or require an explicit "create" action? Silent creation turns every
+  typo into a tag, so an explicit affordance is probably right.
+- [ ] **Screenshot capture gives no feedback.** Pressing the button reports nothing -
+  not where the file went, not whether the clip already has screenshots, and there
+  is no audible or visual confirmation. Needs design, not just a toast: the natural
+  fix is a screenshot list on the clip, which is what `ScreenshotViewModel` was
+  extracted for.
+
 ### Pre-existing
 
 - [ ] Trash: sanitizer should detect clips moved to the system trash outside the app and drop their DB record (only on explicit sanitize run, never proactively)
@@ -252,6 +279,11 @@ Phase 0 closed - see "Fixed after Phase 0" below.
   a build error everywhere rather than a silent no-op at runtime.
 - [x] The `OWNER/ClipStudio` GitHub placeholders were already replaced with the real
   repository URL; the backlog entry was stale.
+- [x] Watch mode hung the app on a highlight starting past the clip end (`WatchWindow.Clamp`
+  plus a restart guard). Found in manual testing.
+- [x] The library-repair progress bar vanished when navigating away from Settings and back.
+- [x] Dropped two dead stub commands (`AddGeneralTagCommand`, `AddGameTagCommand`) that
+  returned `Task.CompletedTask` and were bound to nothing.
 
 ## Done
 
