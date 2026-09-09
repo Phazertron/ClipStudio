@@ -57,6 +57,9 @@ public sealed class HighlightService : IHighlightService
         if (endTime <= startTime)
             throw new ArgumentException("EndTime must be greater than StartTime.");
 
+        var existingClip = await _clips.GetByIdAsync(clipId, cancellationToken);
+        EnsureRangeFitsClip(existingClip, startTime, endTime);
+
         var highlight = new Highlight
         {
             ClipId = clipId,
@@ -112,6 +115,9 @@ public sealed class HighlightService : IHighlightService
             throw new ArgumentException("EndTime must be greater than StartTime.");
 
         var highlight       = await RequireHighlightAsync(highlightId, cancellationToken);
+        EnsureRangeFitsClip(
+            await _clips.GetByIdAsync(highlight.ClipId, cancellationToken), startTime, endTime);
+
         var timesChanged    = highlight.StartTime != startTime || highlight.EndTime != endTime;
         highlight.StartTime = startTime;
         highlight.EndTime   = endTime;
@@ -191,6 +197,34 @@ public sealed class HighlightService : IHighlightService
     /// <inheritdoc/>
     public Task DeleteAsync(int highlightId, CancellationToken cancellationToken = default)
         => _highlights.DeleteAsync(highlightId, cancellationToken);
+
+    /// <summary>
+    /// Rejects a time range that does not fit inside its clip.
+    /// </summary>
+    /// <remarks>
+    /// Highlights are created by this application, so a range outside the clip is a bug rather than
+    /// something to repair later. Left unchecked it reaches playback, where a range starting past
+    /// the end of the media used to lock the player in a restart loop. The library sanitizer still
+    /// reports ranges that fall out of bounds afterwards - a clip can be relocated to a shorter file
+    /// or trimmed, which no save-time check can prevent - but nothing should be able to write one.
+    /// </remarks>
+    /// <param name="clip">The clip the highlight belongs to, or null when it cannot be loaded.</param>
+    /// <param name="startTime">The proposed start.</param>
+    /// <param name="endTime">The proposed end.</param>
+    /// <exception cref="ArgumentException">The range extends past the end of the clip.</exception>
+    private static void EnsureRangeFitsClip(Clip? clip, TimeSpan startTime, TimeSpan endTime)
+    {
+        // A duration of zero means it was never probed; there is nothing to validate against.
+        if (clip is null || clip.Duration <= TimeSpan.Zero) return;
+
+        if (startTime < TimeSpan.Zero)
+            throw new ArgumentException("StartTime cannot be negative.");
+
+        if (endTime > clip.Duration)
+            throw new ArgumentException(
+                $"Highlight range {startTime}-{endTime} does not fit clip {clip.Id}, "
+                + $"which is {clip.Duration} long.");
+    }
 
     private async Task<Highlight> RequireHighlightAsync(int highlightId, CancellationToken cancellationToken)
     {

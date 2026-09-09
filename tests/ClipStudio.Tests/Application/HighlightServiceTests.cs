@@ -299,4 +299,87 @@ public sealed class HighlightServiceTests
         await _service.ToggleFavoriteAsync(1);
         Assert.False(highlight.IsFavorite);
     }
+
+    // ---- Range must fit the clip ----
+
+    /// <summary>Re-stubs the clip repository with a clip of a known duration.</summary>
+    /// <param name="duration">The duration the clip should report.</param>
+    private void ClipOfDuration(TimeSpan duration)
+        => _clipRepo
+            .Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Clip
+            {
+                Id            = 1,
+                FilePath      = ClipPath,
+                FileName      = "Replay.mp4",
+                ThumbnailPath = ThumbnailPath,
+                Duration      = duration,
+            });
+
+    [Fact]
+    public async Task CreateAsync_RangeEndingPastTheClip_Throws()
+    {
+        // The shape that used to reach playback and lock the player in a restart loop.
+        ClipOfDuration(TimeSpan.FromSeconds(178.5));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.CreateAsync(
+            1, TimeSpan.FromSeconds(180), TimeSpan.FromSeconds(210)));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RangeOverrunningTheClipEnd_Throws()
+    {
+        ClipOfDuration(TimeSpan.FromSeconds(178.5));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.CreateAsync(
+            1, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(210)));
+    }
+
+    [Fact]
+    public async Task CreateAsync_NegativeStart_Throws()
+    {
+        ClipOfDuration(TimeSpan.FromSeconds(180));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.CreateAsync(
+            1, TimeSpan.FromSeconds(-5), TimeSpan.FromSeconds(20)));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RangeEndingExactlyAtTheClipEnd_IsAllowed()
+    {
+        ClipOfDuration(TimeSpan.FromSeconds(180));
+
+        var highlight = await _service.CreateAsync(
+            1, TimeSpan.FromSeconds(150), TimeSpan.FromSeconds(180));
+
+        Assert.Equal(TimeSpan.FromSeconds(180), highlight.EndTime);
+    }
+
+    [Fact]
+    public async Task CreateAsync_UnknownClipDuration_IsAllowed()
+    {
+        // Duration zero means it was never probed. Rejecting here would block highlights on any
+        // clip whose metadata has not been read yet.
+        ClipOfDuration(TimeSpan.Zero);
+
+        var highlight = await _service.CreateAsync(
+            1, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60));
+
+        Assert.Equal(TimeSpan.FromSeconds(60), highlight.EndTime);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RangeMovedPastTheClipEnd_Throws()
+    {
+        ClipOfDuration(TimeSpan.FromSeconds(180));
+        var highlight = await _service.CreateAsync(
+            1, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60));
+
+        _highlightRepo
+            .Setup(r => r.GetByIdAsync(highlight.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(highlight);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.UpdateAsync(
+            highlight.Id, TimeSpan.FromSeconds(150), TimeSpan.FromSeconds(240), null, null));
+    }
 }
