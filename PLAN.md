@@ -173,6 +173,33 @@ the backfill should run once automatically after an upgrade, is an open decision
   The fix is to gate that first load behind migrations rather than to move migrations earlier,
   which would undo the deliberately fast window.
 
+### Agreed next, from the 2026-09-09 review
+
+Points 1-4 are done (name detection always on, the toggle now governs hashing
+itself, the wizard offers it, Settings warns about unhashed clips). Two remain,
+both needing a design conversation first:
+
+- [ ] **5. Sanitize should hash first, then present the duplicates it found** as a list
+  showing each clip's ClipStudio metadata - tags, highlights, rating - and ask what to do,
+  including merging them into one and removing the copies. Merging is the hard part: two clips
+  can carry conflicting tags, separate highlights and different ratings, so "merge" needs a
+  defined rule per field before it can be built.
+- [ ] **6. An "Attention required" section in Settings** listing everything a sanitize run found
+  that the user has to resolve: duplicates, broken clips, out-of-range highlights. This is the
+  home the existing findings never had - they are currently only logged or counted in a summary
+  line that scrolls away.
+
+### Performance work agreed for after the above
+
+Measured on a 303 MB clip: the quick hash costs ~633 ms cold and ~15 ms warm, while
+SHA-256 over the same 16 MB already in RAM is 8 ms. The hashing is not the cost -
+the disk read is, and the import pipeline currently reads each file several times
+(FFprobe metadata, thumbnail, preview strip, hash).
+
+- [ ] Read the clip once into memory and serve metadata, thumbnail, strip and hash from that
+  read, rather than re-reading per step.
+- [ ] Parallelise the independent per-file work across threads.
+
 ### F-A - Link clips
 
 - [ ] `ClipLink` entity (SourceClipId, TargetClipId, LinkType, Note, CreatedAt) + `ClipLinkType` enum (SameMoment, Sequel, Reaction, Variant)
