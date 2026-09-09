@@ -113,6 +113,11 @@ public class TagPickerBehavior : ITagPickerHost
         _picker.Text           = string.Empty;
         _picker.SelectedItem   = null;
         _picker.IsDropDownOpen = false;
+
+        // Closing the drop-down can move focus off the picker, and this runs after the state
+        // machine already asked for focus, so it has to be taken again here - otherwise the field
+        // is empty and ready but the next keystroke goes somewhere else.
+        _picker.Focus();
     }
 
     // ---- ITagPickerHost ----
