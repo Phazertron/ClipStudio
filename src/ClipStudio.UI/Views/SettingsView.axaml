@@ -299,6 +299,20 @@
                     </StackPanel>
 
                     <StackPanel Spacing="4">
+                        <TextBlock Text="Detect duplicate clips on import"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="Compares the contents of each new file against the library and asks before adding a recording you already have, even when the file name differs. Turning this off imports everything; clips are still hashed, so turning it back on works immediately."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding DuplicateDetectionEnabled}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
                         <TextBlock Text="Cache audio mix previews"
                                    FontSize="12"
                                    Opacity="0.7"/>

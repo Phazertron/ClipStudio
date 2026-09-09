@@ -14,6 +14,7 @@ using ClipStudio.Core.Entities;
 using ClipStudio.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Serilog;
 using FFMpegCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -90,6 +91,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     private bool _autoScanAtStartup;
+
+    /// <summary>
+    /// Gets or sets whether an import checks whether the file is already in the library by content.
+    /// </summary>
+    [ObservableProperty]
+    private bool _duplicateDetectionEnabled;
 
     /// <summary>
     /// Gets or sets whether mixed audio preview files are cached on disk between sessions.
@@ -350,6 +357,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             AutoMarkReviewedOnTagAdd   = s.AutoMarkReviewedOnTagAdd;
             AutoPlayOnOpen             = s.AutoPlayOnOpen;
             AutoScanAtStartup              = s.AutoScanAtStartup;
+            DuplicateDetectionEnabled      = s.DuplicateDetectionEnabled;
             CacheAudioPreviews             = s.CacheAudioPreviews;
             TrashExpiredSendToRecycleBin   = s.TrashExpiredSendToRecycleBin;
             AutoApplyMePlayerOnImport      = s.AutoApplyMePlayerOnImport;
@@ -520,6 +528,41 @@ public sealed partial class SettingsViewModel : ViewModelBase
         row.IsActive = folder.IsActive;
     }
 
+    /// <summary>
+    /// Asks the user what to do about one duplicate file. Set by the view's code-behind, which owns
+    /// the window a dialog needs; left null in tests and headless contexts, where every duplicate is
+    /// skipped rather than silently imported.
+    /// </summary>
+    public Func<DuplicateClipPrompt, Task<DuplicateResolution>>? DuplicateResolutionRequested { get; set; }
+
+    /// <summary>
+    /// Puts each duplicate a scan found to the user and imports the ones they want kept.
+    /// </summary>
+    /// <param name="folderId">The source folder the scan ran over.</param>
+    /// <param name="results">The scan's results.</param>
+    /// <returns>How many duplicates were imported and how many were skipped.</returns>
+    private async Task<DuplicateResolutionSummary> ResolveDuplicatesAsync(
+        int folderId, IReadOnlyList<ImportResult> results)
+    {
+        var ask = DuplicateResolutionRequested;
+
+        // With nowhere to ask, skipping is the safe answer: it leaves the file on disk and the
+        // library unchanged, and the next scan will offer it again.
+        if (ask is null)
+            ask = _ => Task.FromResult(DuplicateResolution.Skip);
+
+        return await DuplicateImportResolver.ResolveAsync(
+            results,
+            ask,
+            async path =>
+            {
+                var result = await _importService.ImportFileAsync(path, folderId, allowDuplicate: true);
+                if (result.Clip is null)
+                    Log.Warning("Importing duplicate {Path} failed: {Message}", path, result.Message);
+                return result.Clip is not null;
+            });
+    }
+
     private async Task ScanFolderAsync(SourceFolderRowViewModel row)
     {
         _activeScanCount++;
@@ -552,11 +595,16 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
             var results = await _importService.ScanFolderAsync(row.FolderId, progress);
 
-            var imported = results.Count(r => r.Success && r.Clip != null);
-            var skipped  = results.Count(r => r.Success && r.Clip == null);
+            // Import refuses duplicates rather than deciding for the user, so they are resolved
+            // here - after the scan, so a long scan is never blocked waiting on a dialog.
+            var duplicates = await ResolveDuplicatesAsync(row.FolderId, results);
+
+            var imported = results.Count(r => r.Success && r.Clip != null) + duplicates.Imported;
             var failed   = results.Count(r => !r.Success);
+            var skipped  = results.Count(r => r.Success && r.Clip == null && !r.IsDuplicate);
 
             row.LastScanSummary = $"{imported} imported, {skipped} already in library"
+                + (duplicates.Skipped > 0 ? $", {duplicates.Skipped} duplicate(s) skipped" : string.Empty)
                 + (failed > 0 ? $", {failed} failed" : string.Empty);
 
             if (imported > 0)
@@ -600,6 +648,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         s.AutoMarkReviewedOnTagAdd = AutoMarkReviewedOnTagAdd;
         s.AutoPlayOnOpen           = AutoPlayOnOpen;
         s.AutoScanAtStartup              = AutoScanAtStartup;
+        s.DuplicateDetectionEnabled      = DuplicateDetectionEnabled;
         s.CacheAudioPreviews             = CacheAudioPreviews;
         s.TrashExpiredSendToRecycleBin   = TrashExpiredSendToRecycleBin;
         s.AutoApplyMePlayerOnImport      = AutoApplyMePlayerOnImport;

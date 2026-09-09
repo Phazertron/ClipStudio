@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -59,8 +60,34 @@ public partial class SettingsView : UserControl
 
     private void OnAttachedToVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
     {
-        if (DataContext is SettingsViewModel vm)
-            vm.LoadCommand.Execute(null);
+        if (DataContext is not SettingsViewModel vm) return;
+
+        // The view model resolves a scan's duplicates but has no window to ask through, so the
+        // dialog is supplied from here. Left unset it skips them, which is the safe default.
+        vm.DuplicateResolutionRequested = AskAboutDuplicateAsync;
+
+        vm.LoadCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Shows the duplicate dialog and returns what the user chose.
+    /// </summary>
+    /// <param name="prompt">The duplicate being asked about.</param>
+    /// <returns>
+    /// The user's resolution, or a skip when there is no window to show a dialog over - dismissing
+    /// the dialog must never import something by default.
+    /// </returns>
+    private async Task<DuplicateResolution> AskAboutDuplicateAsync(DuplicateClipPrompt prompt)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window window)
+            return DuplicateResolution.Skip;
+
+        var dialogVm = new DuplicateClipDialogViewModel(prompt);
+        var dialog   = new DuplicateClipDialog { DataContext = dialogVm };
+        dialogVm.CloseRequested = resolution => dialog.Close(resolution);
+
+        // Closing the window with its title bar returns null; treat that as a skip.
+        return await dialog.ShowDialog<DuplicateResolution?>(window) ?? DuplicateResolution.Skip;
     }
 
     /// <summary>
