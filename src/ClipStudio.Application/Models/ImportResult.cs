@@ -30,6 +30,9 @@ public sealed class ImportResult
     /// <summary>Gets or sets the path of the file that was found to be a duplicate.</summary>
     public string? DuplicateFilePath { get; set; }
 
+    /// <summary>Gets or sets how the match was recognised: by file name, or by contents.</summary>
+    public DuplicateMatchKind DuplicateMatch { get; set; }
+
     /// <summary>
     /// Gets whether the import stopped because the file is already in the library by content.
     /// </summary>
@@ -52,14 +55,19 @@ public sealed class ImportResult
     /// been imported; the caller chooses whether to skip it or import it anyway.
     /// </summary>
     /// <param name="filePath">The path of the file being imported.</param>
-    /// <param name="existing">The clip already holding the same content.</param>
+    /// <param name="existing">The clip already in the library that it matched.</param>
+    /// <param name="match">How the match was recognised.</param>
     /// <returns>The duplicate result.</returns>
-    public static ImportResult Duplicate(string filePath, Clip existing) =>
+    public static ImportResult Duplicate(
+        string filePath, Clip existing, DuplicateMatchKind match = DuplicateMatchKind.Content) =>
         new()
         {
             Success           = true,
             DuplicateOf       = existing,
             DuplicateFilePath = filePath,
-            Message           = $"Already in the library as \"{existing.FileName}\".",
+            DuplicateMatch    = match,
+            Message           = match == DuplicateMatchKind.FileName
+                ? $"A clip named \"{existing.FileName}\" is already in the library."
+                : $"Already in the library as \"{existing.FileName}\".",
         };
 }

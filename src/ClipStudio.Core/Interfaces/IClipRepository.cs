@@ -91,6 +91,26 @@ public interface IClipRepository
     Task<IReadOnlyList<Clip>> GetByFileHashAsync(string fileHash, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns every clip whose file name matches the given one, ignoring case.
+    /// </summary>
+    /// <remarks>
+    /// Two recordings from different source folders can share a name without sharing a path -
+    /// "Replay.mp4" in two folders, say - which is worth telling the user about whether or not
+    /// the contents match. Soft-deleted clips are excluded.
+    /// </remarks>
+    /// <param name="fileName">The file name to look up, without its directory.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The clips carrying that name, empty when none do.</returns>
+    Task<IReadOnlyList<Clip>> GetByFileNameAsync(string fileName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Counts the clips that carry no content hash and so take no part in duplicate detection.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>How many live clips have no hash.</returns>
+    Task<int> CountWithoutFileHashAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Atomically increments <see cref="Clip.PlayCount"/> by one for the given clip identifier.
     /// No-ops silently if the clip does not exist.
     /// </summary>

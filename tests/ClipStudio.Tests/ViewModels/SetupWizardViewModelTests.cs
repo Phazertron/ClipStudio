@@ -27,7 +27,8 @@ public sealed class SetupWizardViewModelTests
         var welcome        = new WelcomeStepViewModel();
         var sourceFolders  = new SourceFoldersStepViewModel(
             new Mock<ClipStudio.Core.Interfaces.ISourceFolderRepository>().Object,
-            new Mock<ILibraryWatcherService>().Object);
+            new Mock<ILibraryWatcherService>().Object,
+            _settingsMock.Object);
         _ffmpeg            = new FfmpegStepViewModel();
         var transcription  = new TranscriptionSetupStepViewModel(_settingsMock.Object);
         var finish         = new FinishStepViewModel(_settingsMock.Object);

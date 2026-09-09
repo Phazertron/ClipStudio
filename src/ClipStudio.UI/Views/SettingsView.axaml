@@ -299,17 +299,34 @@
                     </StackPanel>
 
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Detect duplicate clips on import"
+                        <TextBlock Text="Hash clip contents"
                                    FontSize="12"
                                    Opacity="0.7"/>
-                        <TextBlock Text="Compares the contents of each new file against the library and asks before adding a recording you already have, even when the file name differs. Turning this off imports everything; clips are still hashed, so turning it back on works immediately."
+                        <TextBlock Text="Reads part of every clip so the library can recognise the same recording imported again under a different name. This is the slow part of an import; turning it off skips the reading entirely. Clips that share a file name are always reported, whether this is on or off."
                                    FontSize="11"
                                    Opacity="0.5"
                                    TextWrapping="Wrap"/>
-                        <ToggleSwitch IsChecked="{Binding DuplicateDetectionEnabled}"
+                        <ToggleSwitch IsChecked="{Binding ContentHashingEnabled}"
                                       OnContent="Enabled"
                                       OffContent="Disabled"
                                       FontSize="12"/>
+
+                        <!-- Part of the library predates hashing, so it silently takes no part in it. -->
+                        <Border IsVisible="{Binding ShowUnhashedClipNote}"
+                                Background="#33FFA000"
+                                CornerRadius="4"
+                                Padding="10,8"
+                                Margin="0,4,0,0">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <icons:MaterialIcon Kind="AlertOutline"
+                                                    Width="15" Height="15"
+                                                    Foreground="#FFC107"
+                                                    VerticalAlignment="Top"/>
+                                <TextBlock Text="{Binding UnhashedClipNote}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <StackPanel Spacing="4">

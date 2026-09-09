@@ -20,6 +20,7 @@ public sealed partial class SourceFoldersStepViewModel : WizardStepViewModel
 {
     private readonly ISourceFolderRepository _folders;
     private readonly ILibraryWatcherService _watcher;
+    private readonly ISettingsService _settings;
 
     /// <inheritdoc/>
     public override string Title => "Source Folders";
@@ -38,6 +39,17 @@ public sealed partial class SourceFoldersStepViewModel : WizardStepViewModel
     [ObservableProperty]
     private string? _folderError;
 
+    /// <summary>
+    /// Gets or sets whether clip contents are hashed on import.
+    /// </summary>
+    /// <remarks>
+    /// Offered here, at first run, because it is the one import setting with a real cost attached -
+    /// it reads part of every file - and because a library built without it has to be re-read later
+    /// to catch up. Defaults to on; the choice is written straight through to settings.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _contentHashingEnabled = true;
+
     /// <summary>Gets the command that validates and saves the typed folder path.</summary>
     public IAsyncRelayCommand AddFolderCommand { get; }
 
@@ -55,8 +67,14 @@ public sealed partial class SourceFoldersStepViewModel : WizardStepViewModel
     /// </summary>
     /// <param name="folders">Source folder repository for persistence.</param>
     /// <param name="watcher">Library watcher service to start watching the new folder.</param>
-    public SourceFoldersStepViewModel(ISourceFolderRepository folders, ILibraryWatcherService watcher)
+    /// <param name="settings">Settings service the hashing choice is written to.</param>
+    public SourceFoldersStepViewModel(
+        ISourceFolderRepository folders,
+        ILibraryWatcherService watcher,
+        ISettingsService settings)
     {
+        _settings              = settings;
+        _contentHashingEnabled = settings.Current.ContentHashingEnabled;
         _folders         = folders;
         _watcher         = watcher;
         AddFolderCommand = new AsyncRelayCommand(AddFolderAsync);
@@ -116,5 +134,16 @@ public sealed partial class SourceFoldersStepViewModel : WizardStepViewModel
         {
             FolderError = $"Failed to remove folder: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Persists the hashing choice as soon as the toggle changes, so leaving the wizard by any
+    /// route keeps it.
+    /// </summary>
+    /// <param name="value">The new value.</param>
+    partial void OnContentHashingEnabledChanged(bool value)
+    {
+        _settings.Current.ContentHashingEnabled = value;
+        _ = _settings.SaveAsync();
     }
 }

@@ -93,10 +93,31 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private bool _autoScanAtStartup;
 
     /// <summary>
-    /// Gets or sets whether an import checks whether the file is already in the library by content.
+    /// Gets or sets whether clip files are hashed on import and during Repair Library.
     /// </summary>
     [ObservableProperty]
-    private bool _duplicateDetectionEnabled;
+    [NotifyPropertyChangedFor(nameof(ShowUnhashedClipNote))]
+    private bool _contentHashingEnabled;
+
+    /// <summary>Gets or sets how many clips in the library carry no content hash.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowUnhashedClipNote))]
+    [NotifyPropertyChangedFor(nameof(UnhashedClipNote))]
+    private int _unhashedClipCount;
+
+    /// <summary>
+    /// Gets whether to warn that part of the library takes no part in duplicate detection.
+    /// </summary>
+    /// <remarks>
+    /// Only worth saying while hashing is on: with it off, nothing is being detected anyway, so the
+    /// note would be noise rather than a warning.
+    /// </remarks>
+    public bool ShowUnhashedClipNote => ContentHashingEnabled && UnhashedClipCount > 0;
+
+    /// <summary>Gets the warning text naming how many clips are not yet hashed.</summary>
+    public string UnhashedClipNote => UnhashedClipCount == 1
+        ? "1 clip has not been hashed yet and will not be matched against new imports. Run Repair Library to include it."
+        : $"{UnhashedClipCount} clips have not been hashed yet and will not be matched against new imports. Run Repair Library to include them.";
 
     /// <summary>
     /// Gets or sets whether mixed audio preview files are cached on disk between sessions.
@@ -343,6 +364,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
             // navigated away and come back.  Only refresh when the UI is idle.
             if (_activeScanCount == 0)
             {
+                await RefreshUnhashedClipCountAsync();
+
                 var all = await _folders.GetAllAsync();
                 SourceFolders.Clear();
 
@@ -357,7 +380,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             AutoMarkReviewedOnTagAdd   = s.AutoMarkReviewedOnTagAdd;
             AutoPlayOnOpen             = s.AutoPlayOnOpen;
             AutoScanAtStartup              = s.AutoScanAtStartup;
-            DuplicateDetectionEnabled      = s.DuplicateDetectionEnabled;
+            ContentHashingEnabled          = s.ContentHashingEnabled;
             CacheAudioPreviews             = s.CacheAudioPreviews;
             TrashExpiredSendToRecycleBin   = s.TrashExpiredSendToRecycleBin;
             AutoApplyMePlayerOnImport      = s.AutoApplyMePlayerOnImport;
@@ -529,6 +552,29 @@ public sealed partial class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Recounts the clips with no content hash, which drives the warning next to the hashing toggle.
+    /// </summary>
+    /// <remarks>
+    /// Read through a scope because the repository is scoped and this view model outlives one.
+    /// A failure here is not worth surfacing - the count is advisory, so it falls back to zero and
+    /// simply hides the note.
+    /// </remarks>
+    private async Task RefreshUnhashedClipCountAsync()
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var clips = scope.ServiceProvider.GetRequiredService<IClipRepository>();
+            UnhashedClipCount = await clips.CountWithoutFileHashAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not count unhashed clips.");
+            UnhashedClipCount = 0;
+        }
+    }
+
+    /// <summary>
     /// Asks the user what to do about one duplicate file. Set by the view's code-behind, which owns
     /// the window a dialog needs; left null in tests and headless contexts, where every duplicate is
     /// skipped rather than silently imported.
@@ -648,7 +694,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         s.AutoMarkReviewedOnTagAdd = AutoMarkReviewedOnTagAdd;
         s.AutoPlayOnOpen           = AutoPlayOnOpen;
         s.AutoScanAtStartup              = AutoScanAtStartup;
-        s.DuplicateDetectionEnabled      = DuplicateDetectionEnabled;
+        s.ContentHashingEnabled          = ContentHashingEnabled;
         s.CacheAudioPreviews             = CacheAudioPreviews;
         s.TrashExpiredSendToRecycleBin   = TrashExpiredSendToRecycleBin;
         s.AutoApplyMePlayerOnImport      = AutoApplyMePlayerOnImport;

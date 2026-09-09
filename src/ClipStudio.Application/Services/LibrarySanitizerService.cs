@@ -211,8 +211,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             // ---- Content hash backfill ----
             // Clips imported before hashing, or whose file could not be read at the time, carry no
             // hash and are invisible to duplicate detection. Filling them in here rather than at
-            // startup keeps the cost on an action the user asked for.
-            if (string.IsNullOrEmpty(clip.FileHash))
+            // startup keeps the cost on an action the user asked for, and it is skipped entirely
+            // when hashing is off - Repair Library must not do work the setting says not to.
+            if (string.IsNullOrEmpty(clip.FileHash) && _settings.Current.ContentHashingEnabled)
             {
                 try
                 {

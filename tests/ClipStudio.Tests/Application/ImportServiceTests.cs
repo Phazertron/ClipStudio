@@ -70,6 +70,10 @@ public sealed class ImportServiceTests
             .Setup(r => r.GetByFileHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
+        _clipRepo
+            .Setup(r => r.GetByFileNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
         _aliases
             .Setup(a => a.FindByAliasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((GameTagAlias?)null);
@@ -497,7 +501,7 @@ public sealed class ImportServiceTests
     }
 
     [Fact]
-    public async Task ImportFileAsync_DetectionDisabled_ImportsWithoutChecking()
+    public async Task ImportFileAsync_HashingDisabled_ImportsWithoutHashing()
     {
         const string existingPath = $"{SourcePath}/original.mp4";
         const string newPath      = $"{SourcePath}/copy.mp4";
@@ -505,15 +509,15 @@ public sealed class ImportServiceTests
         _fileSystem.AddFile(newPath, contents: "same contents");
         ExistingClipWithHash(existingPath, await QuickHashOf(existingPath));
 
-        _appSettings.DuplicateDetectionEnabled = false;
+        _appSettings.ContentHashingEnabled = false;
 
         var added  = CaptureAddedClip();
         var result = await _service.ImportFileAsync(newPath, 1);
 
         Assert.False(result.IsDuplicate);
         Assert.NotNull(added.Value);
-        // Recorded even when detection is off, so turning it on works immediately.
-        Assert.False(string.IsNullOrEmpty(added.Value!.FileHash));
+        // No hash at all: the setting skips the reading, which is the whole point of turning it off.
+        Assert.True(string.IsNullOrEmpty(added.Value!.FileHash));
     }
 
     [Fact]
@@ -566,5 +570,113 @@ public sealed class ImportServiceTests
         await _service.ImportFileAsync(path, 1);
 
         Assert.Equal(await QuickHashOf(path), added.Value!.FileHash);
+    }
+
+    // ---- Duplicate file names ----
+
+    /// <summary>Registers an existing clip that the file-name lookup will return.</summary>
+    private Clip ExistingClipNamed(string path)
+    {
+        var clip = new Clip
+        {
+            Id       = 77,
+            FilePath = path,
+            FileName = Path.GetFileName(path),
+        };
+
+        _clipRepo
+            .Setup(r => r.GetByFileNameAsync(clip.FileName, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([clip]);
+
+        return clip;
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_SameNameInAnotherFolder_IsReportedAsANameMatch()
+    {
+        const string incoming = "/clips/Replay.mp4";
+        _fileSystem.AddFile(incoming, contents: "totally different contents");
+        var existing = ExistingClipNamed("/other-source/Replay.mp4");
+
+        var result = await _service.ImportFileAsync(incoming, 1);
+
+        Assert.True(result.IsDuplicate);
+        Assert.Equal(DuplicateMatchKind.FileName, result.DuplicateMatch);
+        Assert.Same(existing, result.DuplicateOf);
+        _clipRepo.Verify(r => r.AddAsync(It.IsAny<Clip>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_NameMatchIsReportedEvenWithHashingOff()
+    {
+        // The toggle governs hashing, not name matching - a repeated name is always worth saying.
+        const string incoming = "/clips/Replay.mp4";
+        _fileSystem.AddFile(incoming, contents: "different contents");
+        ExistingClipNamed("/other-source/Replay.mp4");
+        _appSettings.ContentHashingEnabled = false;
+
+        var result = await _service.ImportFileAsync(incoming, 1);
+
+        Assert.True(result.IsDuplicate);
+        Assert.Equal(DuplicateMatchKind.FileName, result.DuplicateMatch);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_NameMatchIsCheckedBeforeHashing()
+    {
+        // Cheaper, so it runs first: a name match must not cost a file read.
+        const string incoming = "/clips/Replay.mp4";
+        _fileSystem.AddFile(incoming, contents: "contents");
+        ExistingClipNamed("/other-source/Replay.mp4");
+
+        await _service.ImportFileAsync(incoming, 1);
+
+        _clipRepo.Verify(
+            r => r.GetByFileHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_AllowDuplicate_SkipsTheNameCheckToo()
+    {
+        const string incoming = "/clips/Replay.mp4";
+        _fileSystem.AddFile(incoming, contents: "contents");
+        ExistingClipNamed("/other-source/Replay.mp4");
+
+        var added  = CaptureAddedClip();
+        var result = await _service.ImportFileAsync(incoming, 1, allowDuplicate: true);
+
+        Assert.False(result.IsDuplicate);
+        Assert.NotNull(added.Value);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_TheSamePathIsNotANameMatch()
+    {
+        // The exact-path check already handles re-importing the same file; a row pointing at the
+        // same path must not be reported as a different clip sharing a name.
+        const string incoming = "/clips/Replay.mp4";
+        _fileSystem.AddFile(incoming, contents: "contents");
+        ExistingClipNamed(incoming);
+
+        var added  = CaptureAddedClip();
+        var result = await _service.ImportFileAsync(incoming, 1);
+
+        Assert.False(result.IsDuplicate);
+        Assert.NotNull(added.Value);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_HashingOff_DoesNotReadTheFileForAHash()
+    {
+        const string incoming = "/clips/Replay.mp4";
+        _fileSystem.AddFile(incoming, contents: "contents");
+        _appSettings.ContentHashingEnabled = false;
+
+        var added = CaptureAddedClip();
+        await _service.ImportFileAsync(incoming, 1);
+
+        Assert.Null(added.Value!.FileHash);
+        _clipRepo.Verify(
+            r => r.GetByFileHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

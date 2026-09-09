@@ -588,6 +588,19 @@ public sealed class LibrarySanitizerServiceTests
     }
 
     [Fact]
+    public async Task SanitizeAsync_HashingDisabled_SkipsTheBackfill()
+    {
+        // Repair Library must not do work the setting says not to do.
+        var clip = HealthyClip();
+        _appSettings.ContentHashingEnabled = false;
+        SetUpLibrary(clip);
+
+        await _service.SanitizeAsync();
+
+        Assert.True(string.IsNullOrEmpty(clip.FileHash));
+    }
+
+    [Fact]
     public async Task SanitizeAsync_ClipThatAlreadyHasAHash_IsLeftAlone()
     {
         var clip = HealthyClip();

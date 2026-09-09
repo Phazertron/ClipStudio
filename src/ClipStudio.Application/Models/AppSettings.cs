@@ -58,14 +58,17 @@ public sealed class AppSettings
     public bool AutoScanAtStartup { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets whether an import checks whether the file is already in the library by content.
+    /// Gets or sets whether clip files are hashed, on import and during Repair Library.
     /// </summary>
     /// <remarks>
-    /// On by default. Turning it off skips the hash comparison, so the same recording can be
-    /// imported twice under different names; the hash is still recorded either way, so detection
-    /// works immediately when it is turned back on.
+    /// On by default. Hashing is what lets the library recognise the same recording under a
+    /// different name, and it is the expensive part of an import - reading megabytes from each
+    /// file. Turning it off skips the hashing entirely rather than merely skipping the comparison,
+    /// so the cost is actually saved; clips imported while it is off carry no hash and take no part
+    /// in duplicate detection until Repair Library fills them in.
+    /// Detecting a repeated file *name* does not depend on this and is always on.
     /// </remarks>
-    public bool DuplicateDetectionEnabled { get; set; } = true;
+    public bool ContentHashingEnabled { get; set; } = true;
 
     /// <summary>
     /// Gets or sets whether mixed audio previews are cached on disk so repeated playback of the

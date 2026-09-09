@@ -1,3 +1,4 @@
+using ClipStudio.Application.Models;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Interfaces;
@@ -14,6 +15,8 @@ public sealed class SourceFoldersStepViewModelTests : IDisposable
 {
     private readonly Mock<ISourceFolderRepository> _repoMock = new();
     private readonly Mock<ILibraryWatcherService>  _watcherMock = new();
+    private readonly Mock<ISettingsService>        _settingsMock = new();
+    private readonly AppSettings                   _settings = new();
     private readonly SourceFoldersStepViewModel    _vm;
 
     // A temporary directory that genuinely exists on disk
@@ -21,7 +24,9 @@ public sealed class SourceFoldersStepViewModelTests : IDisposable
 
     public SourceFoldersStepViewModelTests()
     {
-        _vm      = new SourceFoldersStepViewModel(_repoMock.Object, _watcherMock.Object);
+        _settingsMock.Setup(x => x.Current).Returns(_settings);
+        _vm      = new SourceFoldersStepViewModel(
+            _repoMock.Object, _watcherMock.Object, _settingsMock.Object);
         _tempDir = Path.Combine(Path.GetTempPath(), $"ClipStudioTests_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_tempDir);
     }

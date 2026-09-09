@@ -74,20 +74,40 @@ public sealed class ImportService : IImportService
         if (await _clips.ExistsByFilePathAsync(filePath, cancellationToken))
             return ImportResult.Skipped($"Already in library: {Path.GetFileName(filePath)}");
 
-        // Hashed before any of the expensive work below, so a duplicate costs a hash rather than a
-        // thumbnail and a preview strip. Recorded on the clip either way, so detection works the
-        // moment the setting is turned on.
-        var fileHash = await TryComputeQuickHashAsync(filePath, cancellationToken);
-
-        if (!allowDuplicate && _settings.Current.DuplicateDetectionEnabled && fileHash is not null)
+        // A repeated file name is checked first: it costs one indexed query, needs no hashing, and
+        // is worth surfacing whether or not the contents turn out to match. Always on - the hashing
+        // setting does not govern it.
+        if (!allowDuplicate)
         {
-            var existing = await FindDuplicateAsync(filePath, fileHash, cancellationToken);
-            if (existing is not null)
+            var sameName = await FindSameNameAsync(filePath, cancellationToken);
+            if (sameName is not null)
             {
                 _logger.LogInformation(
-                    "Import stopped: {FilePath} has the same contents as clip {ClipId} ({FileName}).",
-                    filePath, existing.Id, existing.FileName);
-                return ImportResult.Duplicate(filePath, existing);
+                    "Import stopped: {FilePath} shares a name with clip {ClipId} at '{Existing}'.",
+                    filePath, sameName.Id, sameName.FilePath);
+                return ImportResult.Duplicate(filePath, sameName, DuplicateMatchKind.FileName);
+            }
+        }
+
+        // Hashing is the expensive part of an import - megabytes read from every file - so the
+        // setting skips it outright rather than merely skipping the comparison. Done before the
+        // thumbnail and preview strip so a duplicate costs a hash rather than the whole pipeline.
+        string? fileHash = null;
+
+        if (_settings.Current.ContentHashingEnabled)
+        {
+            fileHash = await TryComputeQuickHashAsync(filePath, cancellationToken);
+
+            if (!allowDuplicate && fileHash is not null)
+            {
+                var existing = await FindDuplicateAsync(filePath, fileHash, cancellationToken);
+                if (existing is not null)
+                {
+                    _logger.LogInformation(
+                        "Import stopped: {FilePath} has the same contents as clip {ClipId} ({FileName}).",
+                        filePath, existing.Id, existing.FileName);
+                    return ImportResult.Duplicate(filePath, existing, DuplicateMatchKind.Content);
+                }
             }
         }
 
@@ -289,6 +309,25 @@ public sealed class ImportService : IImportService
     {
         _fileSystem.CreateDirectory(_paths.MediaCachePath);
         return _paths.MediaCachePath;
+    }
+
+    /// <summary>
+    /// Finds a live clip already in the library carrying the same file name.
+    /// </summary>
+    /// <remarks>
+    /// The exact-path check above has already run, so anything found here is the same name in a
+    /// different folder - which is what makes it worth reporting rather than skipping silently.
+    /// </remarks>
+    /// <param name="filePath">The file being imported.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The clip sharing the name, or null when none does.</returns>
+    private async Task<Clip?> FindSameNameAsync(string filePath, CancellationToken cancellationToken)
+    {
+        var fileName = Path.GetFileName(filePath);
+        var matches  = await _clips.GetByFileNameAsync(fileName, cancellationToken);
+
+        return matches.FirstOrDefault(c =>
+            !string.Equals(c.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

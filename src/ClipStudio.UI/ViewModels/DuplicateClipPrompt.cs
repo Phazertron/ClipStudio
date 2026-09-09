@@ -1,3 +1,4 @@
+using ClipStudio.Application.Models;
 using ClipStudio.Core.Entities;
 
 namespace ClipStudio.UI.ViewModels;
@@ -12,7 +13,12 @@ namespace ClipStudio.UI.ViewModels;
 /// How many further duplicates are still to be resolved after this one. Drives whether an
 /// "apply to the rest" option is worth offering at all.
 /// </param>
+/// <param name="Match">
+/// How the match was recognised. A shared name is a warning; identical contents is a fact, and the
+/// user is told which so they can judge it.
+/// </param>
 public sealed record DuplicateClipPrompt(
     string IncomingFilePath,
     Clip ExistingClip,
-    int RemainingCount);
+    int RemainingCount,
+    DuplicateMatchKind Match = DuplicateMatchKind.Content);

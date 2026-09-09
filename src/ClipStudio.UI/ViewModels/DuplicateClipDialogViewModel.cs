@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using ClipStudio.Application.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -15,6 +16,15 @@ namespace ClipStudio.UI.ViewModels;
 /// </remarks>
 public sealed partial class DuplicateClipDialogViewModel : ViewModelBase
 {
+    /// <summary>Gets the dialog's headline, which differs by how the match was recognised.</summary>
+    public string Headline { get; }
+
+    /// <summary>Gets the explanation of what was matched and what it does or does not prove.</summary>
+    public string Explanation { get; }
+
+    /// <summary>Gets the label above the existing clip, naming what it shares with the new file.</summary>
+    public string ExistingLabel { get; }
+
     /// <summary>Gets the file name of the file being imported.</summary>
     public string IncomingFileName { get; }
 
@@ -60,6 +70,20 @@ public sealed partial class DuplicateClipDialogViewModel : ViewModelBase
     /// <param name="prompt">The duplicate being asked about.</param>
     public DuplicateClipDialogViewModel(DuplicateClipPrompt prompt)
     {
+        var byName = prompt.Match == DuplicateMatchKind.FileName;
+
+        Headline = byName
+            ? "A clip with this name is already in your library"
+            : "This clip is already in your library";
+
+        // Said plainly, because the two mean different things: one file name can belong to two
+        // unrelated recordings, whereas identical contents are identical contents.
+        Explanation = byName
+            ? "A clip in a different folder has the same file name. The recordings may or may not be the same - check the folders below before deciding."
+            : "The file below has the same contents as a clip you already have. It was not caught by name, so the two differ somewhere - check which one you want before deciding.";
+
+        ExistingLabel = byName ? "Already in the library, same name" : "Already in the library";
+
         IncomingFileName = Path.GetFileName(prompt.IncomingFilePath);
         IncomingFolder   = Path.GetDirectoryName(prompt.IncomingFilePath) ?? string.Empty;
 

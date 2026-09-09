@@ -62,7 +62,8 @@ public static class DuplicateImportResolver
                 var answer = await ask(new DuplicateClipPrompt(
                     duplicate.DuplicateFilePath!,
                     duplicate.DuplicateOf!,
-                    duplicates.Count - i - 1));
+                    duplicates.Count - i - 1,
+                    duplicate.DuplicateMatch));
 
                 decision = answer.Decision;
 
