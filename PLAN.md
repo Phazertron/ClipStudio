@@ -6,10 +6,14 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-09): 0 warnings, 468 tests passing, synced with origin/master as
-of the start of Phase 1. **Phase 0 is complete and verified at a keyboard.**
-Phase 1 is in progress: F-R is built through the service layer, with only the
-dialog left.
+Status (2026-09-09): 0 warnings, 487 tests passing. **Phase 0 is complete and
+verified at a keyboard. F-R is complete** apart from "import and link", which waits
+on F-A.
+
+**Start here next: Phase 1.5 below.** It is written to be picked up cold and covers
+the Settings overhaul, the "Attention required" list, duplicate merge, and the
+import performance work - in that order, because each gives the next one somewhere
+to live.
 
 Commit style from 2026-09-09 onwards follows the conventional-commit skill
 (`type(scope): subject` plus a bullet body), maintained in the `claude-skills`
@@ -184,8 +188,8 @@ offers it, Settings warns when clips are unhashed).
 user must act on - broken clips, highlights whose range falls outside their clip,
 and now duplicates - and none of them have anywhere to live. They are logged, or
 counted in a summary line that scrolls away, or marked on one page only. Settings
-also needs a structural pass in its own right: `SettingsView.axaml` is 699 lines of
-one flat scroll and `SettingsViewModel.cs` is over 800, mixing folder management,
+also needs a structural pass in its own right: `SettingsView.axaml` is 731 lines of
+one flat scroll and `SettingsViewModel.cs` is 869, mixing folder management,
 preferences, transcription, repair and now duplicate resolution.
 
 ### 1.5.1 Settings restructure
