@@ -184,4 +184,45 @@ public class FileHashServiceTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new FileHashService(_fileSystem, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new FileHashService(_fileSystem, -1));
     }
+
+    // ---- Chunk size ----
+
+    [Fact]
+    public void TheDefaultChunkSizeIsOneMegabyte()
+    {
+        // Pinned because it is a measured trade, not an arbitrary constant: 8 MB cost 570 ms per
+        // clip on a spinning drive against 55 ms for 1 MB. Changing it should be deliberate.
+        Assert.Equal(1024 * 1024, FileHashService.DefaultChunkSizeBytes);
+    }
+
+    [Fact]
+    public async Task IdenticalFilesHashTheSameAtEveryChunkSize()
+    {
+        // The property that makes shrinking the chunk safe: the same bytes always produce the same
+        // quick hash, so a smaller chunk can never cause a duplicate to be missed. It can only
+        // cause two different files to collide, and the full hash rejects those.
+        File("/clips/a.mp4", "HEADERmiddlemiddlemiddleFOOTER");
+        File("/clips/b.mp4", "HEADERmiddlemiddlemiddleFOOTER");
+
+        foreach (var chunk in new[] { 2, 4, 8, 1024 })
+        {
+            var service = Create(chunk);
+
+            Assert.Equal(
+                await service.ComputeQuickHashAsync("/clips/a.mp4"),
+                await service.ComputeQuickHashAsync("/clips/b.mp4"));
+        }
+    }
+
+    [Fact]
+    public async Task ASmallerChunkStillSeparatesFilesThatDifferAtTheirEnds()
+    {
+        File("/clips/a.mp4", "HEADmiddlemiddlemiddleFOOT");
+        File("/clips/b.mp4", "XEADmiddlemiddlemiddleFOOX");
+        var service = Create(chunkSize: 2);
+
+        Assert.NotEqual(
+            await service.ComputeQuickHashAsync("/clips/a.mp4"),
+            await service.ComputeQuickHashAsync("/clips/b.mp4"));
+    }
 }

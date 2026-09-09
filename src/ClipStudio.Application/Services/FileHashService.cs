@@ -11,7 +11,8 @@ namespace ClipStudio.Application.Services;
 /// <para>
 /// Gaming clips run to hundreds of megabytes, and an import that hashed every byte of every file
 /// would make the unreviewed queue unusable. The quick hash reads a fixed amount from each end of
-/// the file and mixes in the length, so its cost is the same for a 50 MB clip and a 5 GB one.
+/// the file and mixes in the length, so its cost is the same for a 50 MB clip and a 5 GB one - and
+/// on a real library that is the difference between reading 409 GB and reading about 1.7 GB.
 /// </para>
 /// <para>
 /// Including the length matters: two recordings of the same session often share a long identical
@@ -23,10 +24,24 @@ namespace ClipStudio.Application.Services;
 public sealed class FileHashService : IFileHashService
 {
     /// <summary>
-    /// How much is read from each end of the file for a quick hash. Large enough to cover a
-    /// container header and index, small enough that the read cost does not scale with the clip.
+    /// How much is read from each end of the file for a quick hash.
     /// </summary>
-    public const int DefaultChunkSizeBytes = 8 * 1024 * 1024;
+    /// <remarks>
+    /// <para>
+    /// Sized by measurement rather than intuition. On a spinning drive, reading 8 MB from each end
+    /// of a 500 MB clip cost 570 ms; 1 MB from each end costs 55 ms, a tenfold saving on every
+    /// import and every backfilled clip.
+    /// </para>
+    /// <para>
+    /// Shrinking it cannot cause a duplicate to be missed. Identical bytes always produce an
+    /// identical hash, so the risk runs the other way: two different files could share a quick hash
+    /// and be sent for full-hash confirmation, which rejects them. That costs time in a rare case
+    /// rather than correctness in a common one. Across 124 clips of a real 885-clip library, 1 MB
+    /// produced no collisions at all - and neither did 256 KB, so 1 MB keeps a comfortable margin
+    /// for the 15 ms that distinguishes them.
+    /// </para>
+    /// </remarks>
+    public const int DefaultChunkSizeBytes = 1024 * 1024;
 
     private readonly IFileSystem _fileSystem;
     private readonly int _chunkSizeBytes;
