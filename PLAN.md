@@ -6,12 +6,14 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-09): 0 warnings, 445 tests passing, 47 commits ahead of
-origin/master and unpushed. **Phase 0 is complete and verified at a keyboard.**
-Phase 1 (F-R duplicate detection) is the next thing to start.
+Status (2026-09-09): 0 warnings, 468 tests passing, synced with origin/master as
+of the start of Phase 1. **Phase 0 is complete and verified at a keyboard.**
+Phase 1 is in progress: F-R is built through the service layer, with only the
+dialog left.
 
-Nothing is blocked. The 47 unpushed commits are worth pushing before Phase 1
-starts, so the hardening work is not sitting only on one machine.
+Commit style from 2026-09-09 onwards follows the conventional-commit skill
+(`type(scope): subject` plus a bullet body), maintained in the `claude-skills`
+repo and cloned at `~/.claude/commands/`.
 
 ---
 
@@ -132,13 +134,25 @@ independent, and grouped search is UI-only and can slot in anywhere.
 
 ### F-R - Duplicate clip detection
 
-- [ ] `Clip.FileHash` (string, nullable, indexed) + migration `Round15FileHash`
-- [ ] `IFileHashService` / `FileHashService` - SHA-256, streamed, cancellable; hash only first + last N MB plus file size for speed, full hash on collision
-- [ ] Backfill hashes for existing clips in `LibrarySanitizerService` (opt-in progress step)
-- [ ] `ImportService` - after metadata, look up hash; if match found raise `DuplicateDetected` with both clips
-- [ ] `DuplicateClipDialog` - Skip / Import anyway / Import and link (link requires F-A)
-- [ ] Setting `DuplicateDetectionEnabled` (default on)
-- [ ] Tests: hash stability, collision path, dialog result routing
+- [x] `Clip.FileHash` (string, nullable, indexed) + migration `Round15FileHash`. Verified against
+  a populated library.
+- [x] `IFileHashService` / `FileHashService` - SHA-256, streamed, cancellable; quick hash covers
+  length plus the first and last 8 MB, full hash confirms. Files below two chunks are hashed whole,
+  which makes the quick hash conclusive for short files.
+- [x] Backfill hashes for existing clips in `LibrarySanitizerService`, reported in the summary.
+- [x] `ImportService` - hashes before the expensive work, confirms every quick-hash match with a
+  full hash, and returns `ImportResult.Duplicate` with both clips without importing. An
+  `allowDuplicate` flag covers "import anyway".
+- [ ] `DuplicateClipDialog` - Skip / Import anyway. **"Import and link" is deliberately left out
+  until F-A lands**, rather than holding F-R back to build both together.
+- [x] Setting `DuplicateDetectionEnabled` (default on). Not yet exposed in the Settings UI.
+- [x] Tests: hash stability, the head/tail/length sensitivities, a real quick-hash collision,
+  a missing candidate file, backfill. Dialog result routing still to come.
+
+**Where the import pipeline stands:** a folder scan reports duplicates in its
+results and imports nothing for them. Until the dialog exists, that means a
+duplicate is silently not imported - the dialog is what makes the choice visible,
+so it is the next thing to build.
 
 ### F-A - Link clips
 
