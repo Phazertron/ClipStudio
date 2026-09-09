@@ -6,16 +6,12 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-08, end of session): 0 warnings, 445 tests passing, 45 commits
-ahead of origin/master and unpushed. **Phase 0 is complete.** Phase 1 (F-R
-duplicate detection) is the next thing to start.
+Status (2026-09-09): 0 warnings, 445 tests passing, 47 commits ahead of
+origin/master and unpushed. **Phase 0 is complete and verified at a keyboard.**
+Phase 1 (F-R duplicate detection) is the next thing to start.
 
-One debt carried out of Phase 0: the view-layer changes of the last three commits
-(`TagPickerBehavior`, compiled bindings on LibraryView, `BulkEditViewModel`) are
-verified only as far as "the app starts and stays up on a populated library". The
-pickers and the bulk-edit panel still need one pass with a mouse and keyboard -
-see "Verifying a change in the running app" below, and the checklist at the end
-of this section.
+Nothing is blocked. The 47 unpushed commits are worth pushing before Phase 1
+starts, so the hardening work is not sitting only on one machine.
 
 ---
 
@@ -91,19 +87,13 @@ such items are listed there.
   features do not land in a 2,800-line file, and that is now true of both view
   models the goal named.
 
-### 0.2 verification still owed
+### 0.2 verification - done (2026-09-09)
 
-Compiled bindings catch a moved property, but not a code-behind `PropertyChanged`
-subscription and not the picker state machine's event wiring. One pass with a
-mouse and keyboard over:
-
-- [ ] Game, general, new-highlight and per-highlight-row tag pickers: click a
-  suggestion, arrow+Enter, type+Enter, type+Tab, Escape. Tab should move focus on;
-  the highlight pickers should keep focus after the other commit paths.
-- [ ] Bulk-edit panel: select 2+ clips, check a shared tag reads Shared and a
-  partial one Partial, promote a partial, Apply, then Cancel on a fresh staging.
-- [ ] Copy-format: source deselects on start, paste applies only the toggled aspects.
-- [ ] The four destructive confirmations, and "remove all broken" from the toolbar.
+Walked at a keyboard: the four tag picker sites, bulk edit with staged and promoted
+chips, copy-format, the destructive confirmations, and both playback fixes. Five
+bugs came out of that pass and are fixed - the watch-mode hang, the repair progress
+bar, and three separate faults in the tag pickers' keyboard handling. Two further
+findings are in the backlog below as features rather than defects.
 
 ### 0.3 Small fixes
 
@@ -275,8 +265,12 @@ playback fixes all behaved correctly apart from the entries below.
 - [x] The library-repair progress bar vanished when navigating away from Settings and back.
 - [x] Dropped two dead stub commands (`AddGeneralTagCommand`, `AddGameTagCommand`) that
   returned `Task.CompletedTask` and were bound to nothing.
-- [x] Tab in a tag picker now takes the tag and stays in the field; a second Tab leaves.
-  Nothing to take means Tab moves focus as normal.
+- [x] Tag picker keyboard behaviour, confirmed by hand 2026-09-09. Tab takes the tag and stays in
+  the field ready for the next one; a second Tab leaves. Nothing to take means Tab moves focus as
+  normal. Typing never commits - inline completion selects a suggestion, but only Enter, Tab or a
+  click takes it. Three fixes were needed: defer the reset past the control's own key handling,
+  focus the inner TextBox rather than the AutoCompleteBox, and stop treating a completion-driven
+  selection as a choice.
 - [x] Data-integrity faults are logged at Error so they survive the default log level, and the
   log-level parser reads the actual setting instead of the first level name in the file.
 - [x] Highlight ranges are validated on save, so the app can no longer write one that does not
@@ -287,11 +281,6 @@ playback fixes all behaved correctly apart from the entries below.
 - [x] The clip's tag pickers no longer offer tags the clip already has (`ClipGeneralTagOptions` /
   `ClipGameTagOptions`). Highlight rows keep the full list on purpose - highlight tags propagate
   to the clip, so filtering the shared list would hide clip tags from every row.
-- [ ] **Tag picker keyboard behaviour** - three rounds of fixes, none yet confirmed at a keyboard:
-  the reset deferred past the control's own key handling; focus moved to the inner TextBox rather
-  than the AutoCompleteBox; and typing no longer confirms the suggestion inline completion selects.
-  Retest as one flow: type a few letters, check nothing is applied while typing, then Tab to take
-  the suggestion and confirm the field is empty, focused and accepting the next tag.
 - [ ] **An out-of-range highlight can be seen but not repaired in place.** It is now marked in the
   list, refused for watching and skipped by the queue, and the sanitize summary counts it - so it
   can be found. What is still missing is a way to fix it: an editor that opens the row with its
