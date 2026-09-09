@@ -173,32 +173,93 @@ the backfill should run once automatically after an upgrade, is an open decision
   The fix is to gate that first load behind migrations rather than to move migrations earlier,
   which would undo the deliberately fast window.
 
-### Agreed next, from the 2026-09-09 review
+## Phase 1.5 - Settings overhaul and library health
 
-Points 1-4 are done (name detection always on, the toggle now governs hashing
-itself, the wizard offers it, Settings warns about unhashed clips). Two remain,
-both needing a design conversation first:
+Agreed 2026-09-09. Self-contained: a fresh session can start here without reading
+the rest of this file. Points 1-4 of that review are already done (duplicate name
+detection is always on, the toggle now governs content hashing itself, the wizard
+offers it, Settings warns when clips are unhashed).
 
-- [ ] **5. Sanitize should hash first, then present the duplicates it found** as a list
-  showing each clip's ClipStudio metadata - tags, highlights, rating - and ask what to do,
-  including merging them into one and removing the copies. Merging is the hard part: two clips
-  can carry conflicting tags, separate highlights and different ratings, so "merge" needs a
-  defined rule per field before it can be built.
-- [ ] **6. An "Attention required" section in Settings** listing everything a sanitize run found
-  that the user has to resolve: duplicates, broken clips, out-of-range highlights. This is the
-  home the existing findings never had - they are currently only logged or counted in a summary
-  line that scrolls away.
+**Why this is a phase rather than two tickets.** Sanitize already finds things the
+user must act on - broken clips, highlights whose range falls outside their clip,
+and now duplicates - and none of them have anywhere to live. They are logged, or
+counted in a summary line that scrolls away, or marked on one page only. Settings
+also needs a structural pass in its own right: `SettingsView.axaml` is 699 lines of
+one flat scroll and `SettingsViewModel.cs` is over 800, mixing folder management,
+preferences, transcription, repair and now duplicate resolution.
 
-### Performance work agreed for after the above
+### 1.5.1 Settings restructure
 
-Measured on a 303 MB clip: the quick hash costs ~633 ms cold and ~15 ms warm, while
-SHA-256 over the same 16 MB already in RAM is 8 ms. The hashing is not the cost -
-the disk read is, and the import pipeline currently reads each file several times
-(FFprobe metadata, thumbnail, preview strip, hash).
+- [ ] Split `SettingsView` into sections that can be navigated rather than scrolled.
+- [ ] Split `SettingsViewModel` along the same seams, using the `I...Host` child view model
+  pattern established in Phase 0.2 - see the `BulkEditViewModel` / `IBulkEditHost` pair for the
+  shape to copy, and keep each child testable behind a fake host.
+- [ ] `SettingsView.axaml.cs` already owns two dialogs; keep dialog ownership in the view and
+  child view models free of windows.
 
-- [ ] Read the clip once into memory and serve metadata, thumbnail, strip and hash from that
-  read, rather than re-reading per step.
-- [ ] Parallelise the independent per-file work across threads.
+### 1.5.2 "Attention required" section
+
+A single list of everything the library needs a human to resolve. This is the home
+the existing findings never had.
+
+- [ ] Sources: duplicate clips, broken clips (`Clip.IsBroken`), highlights whose range falls
+  outside their clip (`WatchWindow.Clamp(...).IsUsable` is the existing definition - reuse it,
+  do not restate it).
+- [ ] Populated by a sanitize run; each entry names the problem and offers the action that fixes it.
+- [ ] This subsumes an item already in the backlog: an out-of-range highlight can currently be
+  found but not repaired in place, and its fix-it entry belongs here.
+- [ ] The user's rule for the whole section: **never guess.** Every entry prompts; nothing is
+  auto-resolved. This is why the sanitizer was changed to report rather than move an
+  out-of-range highlight, and the same standard applies to everything listed here.
+
+### 1.5.3 Duplicate resolution with merge
+
+- [ ] Sanitize hashes first, then presents what it found - hashing has to complete before the
+  duplicate list can be right.
+- [ ] List each duplicate group showing the ClipStudio metadata on both sides: tags, players,
+  highlights, rating, notes. The file is the same; the metadata is what differs and what the user
+  is actually choosing between.
+- [ ] The user picks which clip survives.
+- [ ] **Tags and players: reuse the bulk edit promote/demote chips.** `BulkEditViewModel` already
+  models exactly this - Shared, Partial and New across a set of clips, with promote to spread a
+  partial one - so the merge screen should reuse that rather than invent a second way to reconcile
+  tags. The resulting set is applied to the surviving clip.
+- [ ] **Highlights: list all of them from every copy and let the user choose which to keep.** They
+  are time ranges over identical content, so all of them are valid against the survivor; this is a
+  selection, not a merge.
+- [ ] Removing the copies is destructive and comes last, after the survivor has its merged metadata.
+
+### 1.5.4 Import performance
+
+Measured, not assumed. On a 303 MB clip the quick hash costs ~633 ms cold and ~15 ms
+warm, while SHA-256 over the same 16 MB already in RAM takes 8 ms. **The hashing is
+not the cost - the file reading is.**
+
+**Correction to an earlier suggestion in this file:** "read the clip once into RAM
+and serve every step from it" does not work. FFMpegCore runs `ffmpeg`/`ffprobe` as
+external processes that open the file by path; they cannot be handed a buffer, and
+piping a 300 MB video through stdin would be worse and would break the seeking that
+thumbnails and strips need. The saving has to come from fewer and better-overlapped
+passes, not from a shared buffer.
+
+What one import currently costs, counted in `MediaService`:
+
+1. `GetMetadataAsync` - one `FFProbe` process
+2. `GenerateThumbnailAsync` - one `ffmpeg` process
+3. `GeneratePreviewStripAsync` - **a second `FFProbe`** for the duration, then one `ffmpeg`
+4. The quick hash - our own read
+
+That is four external process launches plus our own read, and the second probe is
+pure waste.
+
+- [ ] Drop the redundant probe: pass the duration already obtained in step 1 into the strip
+  generation. Cheapest win here and worth doing on its own.
+- [ ] Produce the thumbnail and the preview strip in a single `ffmpeg` invocation.
+- [ ] Run the hash concurrently with the FFmpeg work - it is a separate process, so this is real
+  overlap rather than contention, and needs no shared state.
+- [ ] Only then consider parallelising across files in a scan, with a bounded degree of
+  parallelism. Measure before and after: on a spinning disk concurrent reads across large files
+  can be slower than sequential.
 
 ### F-A - Link clips
 
