@@ -449,4 +449,91 @@ public sealed class LibrarySanitizerServiceTests
         Assert.True(_fileSystem.DirectoryExists(MediaCache));
         Assert.True(_fileSystem.DirectoryExists(AudioCache));
     }
+
+    // ---- Out-of-range highlight ranges ----
+
+    /// <summary>Adds a highlight with an existing thumbnail so only the range check can fire.</summary>
+    /// <param name="clip">The clip to attach the highlight to.</param>
+    /// <param name="start">The highlight start.</param>
+    /// <param name="end">The highlight end.</param>
+    /// <returns>The attached highlight.</returns>
+    private Highlight AddHighlight(Clip clip, TimeSpan start, TimeSpan end)
+    {
+        var highlight = new Highlight
+        {
+            Id            = clip.Id * 100,
+            ClipId        = clip.Id,
+            Label         = "highlight",
+            StartTime     = start,
+            EndTime       = end,
+            ThumbnailPath = $"{MediaCache}/hl{clip.Id}.png",
+        };
+
+        _fileSystem.AddFile(highlight.ThumbnailPath);
+        clip.Highlights.Add(highlight);
+        return highlight;
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_HighlightEndPastTheClip_IsPulledBack()
+    {
+        // The demo library's "boss fight": 120-210s on a clip of about 179s.
+        var clip = HealthyClip();
+        var highlight = AddHighlight(clip, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(210));
+        SetUpLibrary(clip);
+
+        await _service.SanitizeAsync();
+
+        Assert.Equal(TimeSpan.FromSeconds(60), highlight.StartTime);
+        Assert.Equal(clip.Duration, highlight.EndTime);
+        _highlightRepo.Verify(r => r.UpdateAsync(highlight, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_HighlightEntirelyPastTheClip_IsAnchoredToTheEnd()
+    {
+        // The demo library's "lucky escape": starts after the clip has already finished.
+        var clip = HealthyClip();
+        var highlight = AddHighlight(clip, TimeSpan.FromSeconds(180), TimeSpan.FromSeconds(210));
+        SetUpLibrary(clip);
+
+        await _service.SanitizeAsync();
+
+        Assert.Equal(clip.Duration, highlight.EndTime);
+        Assert.True(highlight.StartTime < highlight.EndTime);
+        Assert.True(highlight.EndTime <= clip.Duration);
+        // The label is the user's work and survives a bad time range.
+        Assert.Equal("highlight", highlight.Label);
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_HighlightInsideTheClip_IsLeftAlone()
+    {
+        var clip = HealthyClip();
+        var highlight = AddHighlight(clip, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60));
+        SetUpLibrary(clip);
+
+        await _service.SanitizeAsync();
+
+        Assert.Equal(TimeSpan.FromSeconds(30), highlight.StartTime);
+        Assert.Equal(TimeSpan.FromSeconds(60), highlight.EndTime);
+        _highlightRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<Highlight>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_ClipWithUnknownDuration_LeavesHighlightsAlone()
+    {
+        // Duration zero means it was never probed; clamping to it would destroy every range.
+        var clip = HealthyClip();
+        clip.Duration = TimeSpan.Zero;
+        var highlight = AddHighlight(clip, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60));
+        SetUpLibrary(clip);
+
+        await _service.SanitizeAsync();
+
+        Assert.Equal(TimeSpan.FromSeconds(60), highlight.EndTime);
+        _highlightRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<Highlight>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }
