@@ -69,6 +69,7 @@ public sealed class LibrarySanitizerServiceTests
             _recycleBin.Object,
             _fileSystem,
             new AppDataPaths(DataRoot),
+            new FileHashService(_fileSystem),
             NullLogger<LibrarySanitizerService>.Instance);
     }
 
@@ -570,5 +571,60 @@ public sealed class LibrarySanitizerServiceTests
         Assert.Equal(TimeSpan.FromSeconds(60), highlight.EndTime);
         _highlightRepo.Verify(
             r => r.UpdateAsync(It.IsAny<Highlight>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ---- Content hash backfill ----
+
+    [Fact]
+    public async Task SanitizeAsync_ClipWithoutAHash_IsBackfilled()
+    {
+        var clip = HealthyClip();
+        SetUpLibrary(clip);
+
+        await _service.SanitizeAsync();
+
+        Assert.False(string.IsNullOrEmpty(clip.FileHash));
+        _clipRepo.Verify(r => r.UpdateAsync(clip, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_ClipThatAlreadyHasAHash_IsLeftAlone()
+    {
+        var clip = HealthyClip();
+        clip.FileHash = "existing-hash";
+        SetUpLibrary(clip);
+
+        await _service.SanitizeAsync();
+
+        Assert.Equal("existing-hash", clip.FileHash);
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_TwoIdenticalFiles_BackfillToTheSameHash()
+    {
+        // What makes the backfill useful: clips imported before hashing become comparable.
+        var first  = HealthyClip(1, "one.mp4");
+        var second = HealthyClip(2, "two.mp4");
+        _fileSystem.AddFile(first.FilePath, contents: "identical");
+        _fileSystem.AddFile(second.FilePath, contents: "identical");
+        SetUpLibrary(first, second);
+
+        await _service.SanitizeAsync();
+
+        Assert.Equal(first.FileHash, second.FileHash);
+        Assert.False(string.IsNullOrEmpty(first.FileHash));
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_BrokenClip_IsNotHashed()
+    {
+        // Its file is gone, so there is nothing to hash; the next run will pick it up if it returns.
+        var clip = HealthyClip();
+        _fileSystem.DeleteFile(clip.FilePath);
+        SetUpLibrary(clip);
+
+        await _service.SanitizeAsync();
+
+        Assert.True(string.IsNullOrEmpty(clip.FileHash));
     }
 }

@@ -21,6 +21,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
     private readonly IRecycleBinService _recycleBin;
     private readonly IFileSystem _fileSystem;
     private readonly AppDataPaths _paths;
+    private readonly IFileHashService _fileHashes;
     private readonly ILogger<LibrarySanitizerService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="LibrarySanitizerService"/>.</summary>
@@ -34,6 +35,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         IRecycleBinService recycleBin,
         IFileSystem fileSystem,
         AppDataPaths paths,
+        IFileHashService fileHashes,
         ILogger<LibrarySanitizerService> logger)
     {
         _clips          = clips;
@@ -45,6 +47,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         _recycleBin     = recycleBin;
         _fileSystem     = fileSystem;
         _paths          = paths;
+        _fileHashes     = fileHashes;
         _logger         = logger;
     }
 
@@ -70,6 +73,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
 
         // Highlights that fall outside their clip and cannot be repaired without guessing.
         var outOfBounds = 0;
+
+        // Clips given a content hash for the first time.
+        var hashed = 0;
 
         var thumbnailOffset = TimeSpan.FromSeconds(
             _settings.Current.ThumbnailOffsetSeconds);
@@ -200,6 +206,30 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                 changed = true;
                 repaired++;
                 _logger.LogInformation("Clip {Id} IsBroken cleared: source file found at '{Path}'.", clip.Id, clip.FilePath);
+            }
+
+            // ---- Content hash backfill ----
+            // Clips imported before hashing, or whose file could not be read at the time, carry no
+            // hash and are invisible to duplicate detection. Filling them in here rather than at
+            // startup keeps the cost on an action the user asked for.
+            if (string.IsNullOrEmpty(clip.FileHash))
+            {
+                try
+                {
+                    clip.FileHash = await _fileHashes.ComputeQuickHashAsync(clip.FilePath, ct);
+                    changed = true;
+                    hashed++;
+                    _logger.LogDebug("Backfilled content hash for clip {Id}.", clip.Id);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // Unreadable now; the next run will try again.
+                    _logger.LogWarning(ex, "Could not hash clip {Id} at '{Path}'.", clip.Id, clip.FilePath);
+                }
             }
 
             // Track existing paths for orphan detection even if regeneration is not needed.
@@ -558,6 +588,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
                     + $"{trashNuked} trash intruder(s) removed.";
 
         // Reported last and separately: these were not fixed, and the run should not look clean.
+        if (hashed > 0)
+            summary += $" {hashed} clip(s) hashed for duplicate detection.";
+
         if (outOfBounds > 0)
             summary += $" {outOfBounds} highlight(s) start past the end of their clip and need a "
                      + "new range chosen by hand.";
