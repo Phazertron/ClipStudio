@@ -143,16 +143,35 @@ independent, and grouped search is UI-only and can slot in anywhere.
 - [x] `ImportService` - hashes before the expensive work, confirms every quick-hash match with a
   full hash, and returns `ImportResult.Duplicate` with both clips without importing. An
   `allowDuplicate` flag covers "import anyway".
-- [ ] `DuplicateClipDialog` - Skip / Import anyway. **"Import and link" is deliberately left out
-  until F-A lands**, rather than holding F-R back to build both together.
-- [x] Setting `DuplicateDetectionEnabled` (default on). Not yet exposed in the Settings UI.
+- [x] `DuplicateClipDialog` - Skip / Import anyway, plus "do the same for the other N", since a
+  scan can turn up dozens. **"Import and link" is deliberately left out until F-A lands**, rather
+  than holding F-R back to build both together.
+- [x] Setting `DuplicateDetectionEnabled` (default on), exposed in Settings.
 - [x] Tests: hash stability, the head/tail/length sensitivities, a real quick-hash collision,
-  a missing candidate file, backfill. Dialog result routing still to come.
+  a missing candidate file, backfill, and the dialog's result routing through
+  `DuplicateImportResolver`.
 
-**Where the import pipeline stands:** a folder scan reports duplicates in its
-results and imports nothing for them. Until the dialog exists, that means a
-duplicate is silently not imported - the dialog is what makes the choice visible,
-so it is the next thing to build.
+**F-R is feature-complete apart from linking.** Verified against real files: a
+303 MB clip copied under a different name produces an identical quick hash in 15 ms,
+and a different clip does not collide. The dialog itself has not been driven at a
+keyboard yet.
+
+**One wrinkle worth knowing:** detection compares against stored hashes, and clips
+imported before this feature have none. Until Repair Library backfills them, a
+duplicate of an older clip imports without a word. Whether that is acceptable, or
+the backfill should run once automatically after an upgrade, is an open decision.
+
+### Found while building F-R
+
+- [ ] **The first launch after any migration logs a burst of query errors.** `LibraryView`
+  loads as soon as the window is shown, but migrations are applied afterwards in
+  `InitializeServicesAsync`, so that first load queries a schema that does not exist yet - eleven
+  `no such column: c.FileHash` errors on the launch that added the column. It self-heals: step 3
+  of the same routine reloads the library once migrations are done, so the user sees a correct
+  library and only the log shows it. Pre-existing and true of every migration, not just this one;
+  surfaced because `Round15FileHash` was the first schema change since the startup order was set.
+  The fix is to gate that first load behind migrations rather than to move migrations earlier,
+  which would undo the deliberately fast window.
 
 ### F-A - Link clips
 
