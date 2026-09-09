@@ -263,6 +263,17 @@ pure waste.
   (`-discard nokey`) took it from 6,114 ms to 280 ms on the same file. A guard falls back to a
   full decode when the file has fewer keyframes than the strip has tiles.
   End to end, cold, on real 300 MB clips: **9,538 ms -> 2,141 ms per clip, 4.5x**.
+
+  **Verified against the real library** (`E:\Clip stream\#LastAdded`, 885 clips, 409 GB - read
+  only, never modified). Its clips are far heavier than the showcase set: high-bitrate HEVC,
+  2560x1080 at 60fps, around 170 Mbps, so a 24-second clip is half a gigabyte and used to take
+  17.7 seconds to decode for its strip. Averaged over three cold clips:
+  **21,699 ms -> 2,773 ms per clip, 7.8x. Across all 885 clips that is 5h 20m -> 41 min.**
+
+  Keyframe density there is about one every two seconds, so the guard only rejects clips shorter
+  than roughly 40 seconds - **8% of a 78-clip duration sample**. The other 92% take the fast path.
+  On the rejected ones, `-hwaccel auto` cuts the full decode from 17.4s to 10.2s and `-threads 4`
+  makes it *worse* (22.8s), so neither is a substitute for keyframe-only decoding.
 - [ ] Combining the thumbnail and strip into one `ffmpeg` pass is no longer worth it. The
   thumbnail costs ~360 ms because `-ss` seeks straight to the frame, while a combined pass has to
   reach that timestamp through the filter graph. Measured slower than the two separate passes.
@@ -274,6 +285,11 @@ pure waste.
   **The blocker is not I/O, it is EF Core:** `DbContext` is not thread-safe and `ImportService`
   takes a scoped repository, so parallel imports need a scope per file and a rethink of how
   progress and results are collected. That is the actual work, and it is not small.
+- [ ] The short-clip fallback is the remaining quality/speed tension. A 24s clip with 13 keyframes
+  currently takes the 17.7s full decode to guarantee 20 distinct tiles. Two ways out, neither yet
+  chosen: relax the guard and accept 13 distinct tiles out of 20 (silent quality loss, which is
+  why it was not just done), or store the actual tile count per clip so a shorter strip can be
+  rendered honestly - that needs a schema change and the hover-scrub mapping updated.
 - [ ] Remaining smaller win: the keyframe count is a second `ffprobe` launch (~150 ms warm, 1,330
   ms on a cold spinning-disk read). It could be folded into the metadata probe by replacing
   `FFProbe.AnalyseAsync` with one call that requests format, streams and keyframe times together.
