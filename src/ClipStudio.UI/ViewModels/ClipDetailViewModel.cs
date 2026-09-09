@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using Serilog;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
@@ -116,6 +117,13 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
     /// clip's natural end so the user can replay the highlight from its start).
     /// </summary>
     private bool _watchModeEndPending;
+
+    /// <summary>
+    /// Set when watch mode restarts the media at its end, and cleared as soon as playback actually
+    /// advances inside the window. If the end arrives again while this is still set, no progress was
+    /// made and restarting again would loop forever.
+    /// </summary>
+    private bool _watchRestartWithoutProgress;
 
 
     // ---- Player ----
@@ -650,9 +658,31 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         HighlightEditor.ResetForm();
         if (IsWatchMode)
         {
-            var watchDuration = WatchEnd - WatchStart;
-            _clipDuration = watchDuration;
-            Playback.SetWindow(WatchStart, WatchEnd);
+            // The stored range is not guaranteed to lie inside the clip, and a range starting past
+            // the end of the media locks the player in a restart loop. Clamp before it reaches the
+            // transport; see WatchWindow.
+            var window = WatchWindow.Clamp(WatchStart, WatchEnd, _clip.Duration);
+
+            if (window.IsUsable)
+            {
+                WatchStart    = window.Start;
+                WatchEnd      = window.End;
+                _clipDuration = window.Length;
+                Playback.SetWindow(window.Start, window.End);
+            }
+            else
+            {
+                // Nothing of the highlight overlaps the media, so there is nothing to watch. Fall
+                // back to the whole clip rather than opening a view that cannot play anything.
+                Log.Warning(
+                    "Highlight range {Start}-{End} lies outside clip {ClipId} (duration {Duration}); "
+                    + "opening the whole clip instead.",
+                    WatchStart, WatchEnd, clipId, _clip.Duration);
+
+                IsWatchMode   = false;
+                _clipDuration = _clip.Duration;
+                Playback.SetWindow(null, null);
+            }
         }
         else
         {
@@ -1386,6 +1416,10 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
             if (IsWatchMode)
             {
+                // Playback advanced inside the window, so a later restart is a real one.
+                if (ts > WatchStart && ts < WatchEnd)
+                    _watchRestartWithoutProgress = false;
+
                 // When the watched highlight's end is reached, behaviour depends on LoopMode.
                 if (ts >= WatchEnd)
                 {
@@ -1535,6 +1569,21 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
                     case LoopMode.Off:
                         // Clip reached its natural end exactly at WatchEnd. Restart media so we
                         // can seek back to WatchStart and then pause, ready for the user to replay.
+                        //
+                        // The restart is only legitimate once per playthrough. If the end is
+                        // reached again without any playback having happened in between, restarting
+                        // would spin forever, so stop instead. WatchWindow.Clamp should prevent
+                        // that, and this makes any case it does not cover a stop rather than a hang.
+                        if (_watchRestartWithoutProgress)
+                        {
+                            Log.Warning(
+                                "Watch mode reached the end again without progress; stopping rather "
+                                + "than restarting.");
+                            MediaPlayer.Pause();
+                            return;
+                        }
+
+                        _watchRestartWithoutProgress = true;
                         _watchModeEndPending = true;
                         MediaPlayer.Stop();
                         MediaPlayer.Play();
