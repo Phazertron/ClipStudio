@@ -54,7 +54,8 @@ public sealed class LibrarySanitizerServiceTests
 
         _media
             .Setup(m => m.GeneratePreviewStripAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+                It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync($"{MediaCache}/regenerated-strip.jpg");
 
         _recycleBin.Setup(r => r.TryMoveToRecycleBin(It.IsAny<string>())).Returns(true);
@@ -144,7 +145,7 @@ public sealed class LibrarySanitizerServiceTests
             It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
         _media.Verify(m => m.GeneratePreviewStripAsync(
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
-            It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

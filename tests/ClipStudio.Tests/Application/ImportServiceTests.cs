@@ -59,7 +59,8 @@ public sealed class ImportServiceTests
 
         _media
             .Setup(m => m.GeneratePreviewStripAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+                It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("/appdata/ClipStudio/media-cache/strip.jpg");
 
         _clipRepo

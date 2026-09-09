@@ -42,12 +42,17 @@ public interface IMediaService
     /// <param name="filePath">The absolute path to the source video file.</param>
     /// <param name="outputDirectory">The directory in which to save the strip JPEG.</param>
     /// <param name="frameCount">The number of frames to include in the strip.</param>
+    /// <param name="knownDuration">
+    /// The clip's duration when the caller already has it. Supplying it avoids a second probe of a
+    /// file whose metadata has just been read.
+    /// </param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>The absolute path to the generated strip file.</returns>
     Task<string> GeneratePreviewStripAsync(
         string filePath,
         string outputDirectory,
         int frameCount,
+        TimeSpan? knownDuration = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

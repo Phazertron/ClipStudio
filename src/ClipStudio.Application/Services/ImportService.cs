@@ -125,8 +125,10 @@ public sealed class ImportService : IImportService
             var thumbnailPath = await _media.GenerateThumbnailAsync(
                 filePath, dataDirectory, thumbnailOffset, cancellationToken: cancellationToken);
 
+            // Duration comes from the metadata probe above, so the strip does not repeat it.
             var previewStripPath = await _media.GeneratePreviewStripAsync(
-                filePath, dataDirectory, _settings.Current.PreviewStripFrameCount, cancellationToken);
+                filePath, dataDirectory, _settings.Current.PreviewStripFrameCount,
+                metadata.Duration, cancellationToken);
 
             var suggestedGameName = ClipFileNameParser.ExtractGameName(filePath);
 

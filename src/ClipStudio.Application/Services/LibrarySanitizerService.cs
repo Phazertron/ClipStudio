@@ -267,8 +267,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             {
                 try
                 {
+                    // The clip's duration is already known from its database row.
                     var path = await _media.GeneratePreviewStripAsync(
-                        clip.FilePath, dataDir, stripFrameCount, ct);
+                        clip.FilePath, dataDir, stripFrameCount, clip.Duration, ct);
 
                     clip.PreviewStripPath = path;
                     referencedPaths.Add(path);
