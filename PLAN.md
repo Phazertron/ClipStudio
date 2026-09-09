@@ -256,14 +256,27 @@ What one import currently costs, counted in `MediaService`:
 That is four external process launches plus our own read, and the second probe is
 pure waste.
 
-- [ ] Drop the redundant probe: pass the duration already obtained in step 1 into the strip
-  generation. Cheapest win here and worth doing on its own.
-- [ ] Produce the thumbnail and the preview strip in a single `ffmpeg` invocation.
-- [ ] Run the hash concurrently with the FFmpeg work - it is a separate process, so this is real
-  overlap rather than contention, and needs no shared state.
-- [ ] Only then consider parallelising across files in a scan, with a bounded degree of
-  parallelism. Measure before and after: on a spinning disk concurrent reads across large files
-  can be slower than sequential.
+- [x] Drop the redundant probe: the duration is passed in from the metadata already read.
+- [x] **The strip was the whole cost, and it is fixed.** It decoded every frame of the clip -
+  ~10,800 for a 180s recording - to keep 20 of them, because the `fps` filter drops frames only
+  after the decoder has produced them. Decoding keyframes at the demuxer instead
+  (`-discard nokey`) took it from 6,114 ms to 280 ms on the same file. A guard falls back to a
+  full decode when the file has fewer keyframes than the strip has tiles.
+  End to end, cold, on real 300 MB clips: **9,538 ms -> 2,141 ms per clip, 4.5x**.
+- [ ] Combining the thumbnail and strip into one `ffmpeg` pass is no longer worth it. The
+  thumbnail costs ~360 ms because `-ss` seeks straight to the frame, while a combined pass has to
+  reach that timestamp through the filter graph. Measured slower than the two separate passes.
+- [ ] **Parallelism across files is worth doing, and the spinning disk does not rule it out.**
+  Measured on eight untouched clips, run in both directions to cancel out cache warmth:
+  sequential 1,136 ms and 1,132 ms, four-way parallel 723 ms and 700 ms - consistently ~1.6x.
+  Keyframe-only decoding turned this step from streaming-bound into seek-and-CPU-bound, which is
+  why overlapping now helps where it would not have before.
+  **The blocker is not I/O, it is EF Core:** `DbContext` is not thread-safe and `ImportService`
+  takes a scoped repository, so parallel imports need a scope per file and a rethink of how
+  progress and results are collected. That is the actual work, and it is not small.
+- [ ] Remaining smaller win: the keyframe count is a second `ffprobe` launch (~150 ms warm, 1,330
+  ms on a cold spinning-disk read). It could be folded into the metadata probe by replacing
+  `FFProbe.AnalyseAsync` with one call that requests format, streams and keyframe times together.
 
 ### F-A - Link clips
 
