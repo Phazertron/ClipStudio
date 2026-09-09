@@ -65,6 +65,17 @@ public class Clip
     /// </summary>
     public string? SuggestedGameName { get; set; }
 
+    /// <summary>
+    /// Gets or sets the quick content hash used to recognise a file the library already holds.
+    /// </summary>
+    /// <remarks>
+    /// Covers the file length plus the start and end of its contents, so it is cheap to compute for
+    /// a large clip. A match means "probably the same file" and is confirmed by comparing full
+    /// hashes before anything is treated as a duplicate. Null when the clip predates hashing or its
+    /// file could not be read.
+    /// </remarks>
+    public string? FileHash { get; set; }
+
     /// <summary>Gets the collection of tags applied directly to this clip.</summary>
     public ICollection<ClipTag> ClipTags { get; set; } = new List<ClipTag>();
 
