@@ -14,9 +14,10 @@ namespace ClipStudio.UI.Behaviors;
 ///   <item>
 ///     <description>
 ///     <see cref="NotifySelectionChanged"/> captures the selection into a pending slot. It marks
-///     that pending tag as confirmed only when the change did NOT come from arrow-key navigation,
-///     because moving the highlight through the list must not commit on its own - the user still
-///     has to press Enter or click.
+///     that pending tag as confirmed only when the user actually chose it - not when the change
+///     came from arrow-key navigation, and not when it came from inline text completion selecting
+///     a suggestion as the user types. Both capture the tag so Enter or Tab can take it; neither
+///     commits on its own.
 ///     </description>
 ///   </item>
 ///   <item>
@@ -45,6 +46,7 @@ public class TagPickerStateMachine
     private Tag? _pendingTag;
     private bool _confirmed;
     private bool _justNavByKey;
+    private bool _justTypedText;
     private bool _escapePending;
     private bool _tabCommitted;
 
@@ -67,8 +69,20 @@ public class TagPickerStateMachine
 
     /// <summary>
     /// Captures the newly selected tag, or ignores the change when Avalonia cleared the selection
-    /// internally. A selection caused by arrow-key navigation is captured but left unconfirmed.
+    /// internally. A selection the user did not actually choose is captured but left unconfirmed.
     /// </summary>
+    /// <remarks>
+    /// Three things raise this, and only one of them is a choice:
+    /// <list type="bullet">
+    ///   <item><description>A click on a suggestion - a choice, so it is confirmed.</description></item>
+    ///   <item><description>Arrow-key navigation - the user is still looking; Enter confirms.</description></item>
+    ///   <item><description>
+    ///   Inline text completion, which selects the matching suggestion as a side effect of typing.
+    ///   Confirming that meant the next drop-down close committed a tag nobody chose: typing "air"
+    ///   selected "airshot", and the "g" of "airg" closed the list and applied it.
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
     public virtual void NotifySelectionChanged()
     {
         // Read the selection directly - the event's AddedItems may carry display strings, not tags.
@@ -80,10 +94,11 @@ public class TagPickerStateMachine
 
         _pendingTag = tag;
 
-        if (_justNavByKey)
+        if (_justNavByKey || _justTypedText)
         {
-            _justNavByKey = false;
-            _confirmed    = false;
+            _justNavByKey  = false;
+            _justTypedText = false;
+            _confirmed     = false;
         }
         else
         {
@@ -126,6 +141,23 @@ public class TagPickerStateMachine
                 _escapePending = true;
                 return false;
 
+            case Key.Left:
+            case Key.Right:
+            case Key.Home:
+            case Key.End:
+            case Key.PageUp:
+            case Key.PageDown:
+            case Key.LeftShift:
+            case Key.RightShift:
+            case Key.LeftCtrl:
+            case Key.RightCtrl:
+            case Key.LeftAlt:
+            case Key.RightAlt:
+            case Key.CapsLock:
+                // Moves the caret or holds a modifier; cannot change the text, so it cannot trigger
+                // a completion. Left alone so it does not mask a following click.
+                return false;
+
             case Key.Tab:
                 // Tab means two different things depending on whether there is a tag to take.
                 //
@@ -140,6 +172,10 @@ public class TagPickerStateMachine
                 return CommitResolved(refocus: true);
         }
 
+        // Anything else edits the text. Inline completion selects a suggestion as a side effect,
+        // and that selection is not a choice the user made - flag it so NotifySelectionChanged
+        // captures it without confirming it.
+        _justTypedText = true;
         return false;
     }
 

@@ -361,4 +361,123 @@ public class TagPickerStateMachineTests
 
         Assert.Equal(new[] { first, second }, host.Committed);
     }
+
+    // ---- Typing must never commit on its own ----
+
+    [Fact]
+    public void TypingThatTriggersInlineCompletionDoesNotCommitWhenTheListCloses()
+    {
+        // The reported sequence: type "air", inline completion selects "airshot", then type "g".
+        // "airg" matches nothing, the drop-down closes - and that close used to apply "airshot".
+        var (machine, host) = Create();
+        var airshot = MakeTag(1, "airshot");
+
+        foreach (var key in new[] { Key.A, Key.I, Key.R })
+            machine.NotifyKeyDown(key);
+
+        host.SelectedTag = airshot;
+        machine.NotifySelectionChanged();
+
+        machine.NotifyKeyDown(Key.G);
+        host.SelectedTag = null;
+        machine.NotifyDropDownClosed();
+
+        Assert.Empty(host.Committed);
+    }
+
+    [Fact]
+    public void ASingleKeystrokeThatCompletesDoesNotConfirm()
+    {
+        var (machine, host) = Create();
+
+        machine.NotifyKeyDown(Key.A);
+        host.SelectedTag = MakeTag();
+        machine.NotifySelectionChanged();
+        machine.NotifyDropDownClosed();
+
+        Assert.Empty(host.Committed);
+    }
+
+    [Fact]
+    public void BackspacingDownToAMatchDoesNotCommitEither()
+    {
+        var (machine, host) = Create();
+
+        machine.NotifyKeyDown(Key.Back);
+        host.SelectedTag = MakeTag();
+        machine.NotifySelectionChanged();
+        machine.NotifyDropDownClosed();
+
+        Assert.Empty(host.Committed);
+    }
+
+    [Fact]
+    public void EnterStillCommitsWhatTypingSelected()
+    {
+        // Typing captures the tag without confirming it; Enter is what confirms.
+        var (machine, host) = Create();
+        var tag = MakeTag(1, "airshot");
+
+        machine.NotifyKeyDown(Key.A);
+        host.SelectedTag = tag;
+        machine.NotifySelectionChanged();
+
+        machine.NotifyKeyDown(Key.Enter);
+        machine.NotifyDropDownClosed();
+
+        Assert.Equal(new[] { tag }, host.Committed);
+    }
+
+    [Fact]
+    public void ClickingAfterTypingStillCommits()
+    {
+        // The typing flag is consumed by the selection it explains, so a later click is still a
+        // choice and still commits.
+        var (machine, host) = Create();
+        var first  = MakeTag(1, "airshot");
+        var second = MakeTag(2, "aesthetic");
+
+        machine.NotifyKeyDown(Key.A);
+        host.SelectedTag = first;
+        machine.NotifySelectionChanged();
+
+        host.SelectedTag = second;
+        machine.NotifySelectionChanged();
+        machine.NotifyDropDownClosed();
+
+        Assert.Equal(new[] { second }, host.Committed);
+    }
+
+    [Fact]
+    public void TabStillTakesTheTagAfterTyping()
+    {
+        var (machine, host) = Create();
+        var tag = MakeTag(1, "airshot");
+
+        machine.NotifyKeyDown(Key.A);
+        host.SelectedTag = tag;
+        machine.NotifySelectionChanged();
+
+        Assert.True(machine.NotifyKeyDown(Key.Tab));
+        Assert.Equal(new[] { tag }, host.Committed);
+    }
+
+    [Fact]
+    public void CaretAndModifierKeysDoNotCountAsTyping()
+    {
+        // They cannot change the text, so they cannot trigger a completion - and must not mask a
+        // click that follows.
+        foreach (var key in new[] { Key.Left, Key.Right, Key.Home, Key.End, Key.LeftShift, Key.LeftCtrl })
+        {
+            var (machine, host) = Create();
+            var tag = MakeTag();
+
+            machine.NotifyKeyDown(key);
+            host.SelectedTag = tag;
+            machine.NotifySelectionChanged();
+            machine.NotifyDropDownClosed();
+
+            Assert.Equal(new[] { tag }, host.Committed);
+        }
+    }
 }
