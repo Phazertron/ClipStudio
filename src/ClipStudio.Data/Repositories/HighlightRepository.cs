@@ -1,6 +1,7 @@
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
 using ClipStudio.Core.Interfaces;
+using ClipStudio.Core.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClipStudio.Data.Repositories;
@@ -23,6 +24,17 @@ internal sealed class HighlightRepository : IHighlightRepository
         => await _context.Highlights
             .Include(h => h.HighlightTags).ThenInclude(ht => ht.Tag)
             .FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<HighlightRangeSnapshot>> GetRangeSnapshotsAsync(
+        CancellationToken cancellationToken = default)
+        => await _context.Highlights
+            .AsNoTracking()
+            .Where(h => !h.Clip.IsDeleted)
+            .Select(h => new HighlightRangeSnapshot(
+                h.Id, h.ClipId, h.Label, h.Clip.FileName,
+                h.StartTime, h.EndTime, h.Clip.Duration))
+            .ToListAsync(cancellationToken);
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Highlight>> GetAllAsync(CancellationToken cancellationToken = default)

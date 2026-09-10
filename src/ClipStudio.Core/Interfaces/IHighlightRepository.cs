@@ -1,4 +1,5 @@
 using ClipStudio.Core.Entities;
+using ClipStudio.Core.Models;
 
 namespace ClipStudio.Core.Interfaces;
 
@@ -24,4 +25,16 @@ public interface IHighlightRepository
 
     /// <summary>Removes a highlight by its identifier.</summary>
     Task DeleteAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns every live highlight's range next to its clip's duration.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>One snapshot per highlight of a live clip.</returns>
+    /// <remarks>
+    /// A projection rather than <see cref="GetAllAsync"/>, which loads each highlight's tags and
+    /// its clip's tags and players. Deciding whether a range still fits its clip needs neither.
+    /// </remarks>
+    Task<IReadOnlyList<HighlightRangeSnapshot>> GetRangeSnapshotsAsync(
+        CancellationToken cancellationToken = default);
 }

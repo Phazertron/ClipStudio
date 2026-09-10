@@ -427,6 +427,12 @@ public partial class App : AvaloniaApp
                 // regeneration it used to do silently happens on demand through IMediaAssetProvider.
                 var health = Services.GetRequiredService<ILibraryHealthCheckService>();
                 await health.CheckAsync();
+
+                // Build the attention list from that report now rather than when the user happens
+                // to open Settings, so the badge is right from the first frame they can see it.
+                var settingsForAttention = Services.GetRequiredService<SettingsViewModel>();
+                await Dispatcher.UIThread.InvokeAsync(
+                    async () => await settingsForAttention.AttentionSection.RebuildAsync());
             }
             catch
             {

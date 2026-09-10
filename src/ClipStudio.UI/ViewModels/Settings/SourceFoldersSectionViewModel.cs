@@ -340,6 +340,23 @@ public sealed partial class SourceFoldersSectionViewModel : SettingsSectionViewM
         }
     }
 
+    /// <summary>
+    /// Scans one source folder by identifier.
+    /// </summary>
+    /// <param name="folderId">The folder to scan.</param>
+    /// <remarks>
+    /// Offered so the attention list can act on "these files have not been imported" without
+    /// duplicating any of the scan, its progress reporting or its duplicate resolution. A folder
+    /// that is no longer in the list is silently ignored - the list may have moved on.
+    /// </remarks>
+    public async Task ScanFolderAsync(int folderId)
+    {
+        var row = SourceFolders.FirstOrDefault(r => r.FolderId == folderId);
+        if (row is null) return;
+
+        await ScanFolderAsync(row);
+    }
+
     private async Task ScanAllAsync()
     {
         foreach (var row in SourceFolders.ToList())

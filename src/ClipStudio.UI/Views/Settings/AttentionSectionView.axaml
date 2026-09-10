@@ -1,0 +1,100 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels.Settings"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="700"
+             x:Class="ClipStudio.UI.Views.Settings.AttentionSectionView"
+             x:DataType="vm:AttentionSectionViewModel"
+             x:CompileBindings="True">
+
+    <ScrollViewer>
+        <StackPanel Margin="24,16" Spacing="16" MaxWidth="700" HorizontalAlignment="Left">
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="Attention required"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+
+                <TextBlock Text="Everything the library needs you to decide about. Nothing here is resolved automatically - each entry offers the action that fixes it, and taking it is up to you."
+                           FontSize="12"
+                           Opacity="0.7"
+                           TextWrapping="Wrap"/>
+
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button Command="{Binding RecheckCommand}"
+                            IsEnabled="{Binding !IsChecking}"
+                            FontSize="12">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="Refresh" Width="16" Height="16"/>
+                            <TextBlock Text="Re-check"/>
+                        </StackPanel>
+                    </Button>
+
+                    <TextBlock Text="{Binding LastCheckedDisplay}"
+                               FontSize="11"
+                               Opacity="0.5"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Nothing wrong -->
+            <Border IsVisible="{Binding IsEverythingFine}"
+                    Padding="16"
+                    CornerRadius="6"
+                    Background="{DynamicResource SystemChromeLowColor}">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <icons:MaterialIcon Kind="CheckCircleOutline"
+                                        Width="18" Height="18"
+                                        Foreground="#27AE60"
+                                        VerticalAlignment="Center"/>
+                    <TextBlock Text="Nothing needs your attention."
+                               FontSize="12"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Entries}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:AttentionEntryViewModel">
+                        <Border Margin="0,0,0,8"
+                                Padding="12"
+                                CornerRadius="6"
+                                Background="{DynamicResource SystemChromeLowColor}">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <icons:MaterialIcon Grid.Column="0"
+                                                    Kind="{Binding Icon}"
+                                                    Width="18" Height="18"
+                                                    Foreground="#E67E22"
+                                                    VerticalAlignment="Top"
+                                                    Margin="0,2,10,0"/>
+
+                                <StackPanel Grid.Column="1" Spacing="3">
+                                    <TextBlock Text="{Binding Title}"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding Detail}"
+                                               FontSize="11"
+                                               Opacity="0.7"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Button Grid.Column="2"
+                                        Content="{Binding ActionLabel}"
+                                        Command="{Binding ActionCommand}"
+                                        IsVisible="{Binding HasAction}"
+                                        FontSize="11"
+                                        Margin="12,0,0,0"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>

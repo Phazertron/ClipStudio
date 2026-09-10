@@ -22,6 +22,8 @@ public sealed class SettingsViewModelTests
     private readonly Mock<IImportService>          _importMock   = new();
     private readonly Mock<ISoundService>           _soundMock    = new();
     private readonly Mock<IClipRepository>         _clipsMock    = new();
+    private readonly Mock<IHighlightRepository>    _highlightsMock = new();
+    private readonly Mock<ILibraryHealthCheckService> _healthMock = new();
     private readonly AppSettings                   _settings     = new();
     private readonly SettingsViewModel             _vm;
 
@@ -35,6 +37,7 @@ public sealed class SettingsViewModelTests
 
         var services = new ServiceCollection();
         services.AddScoped(_ => _clipsMock.Object);
+        services.AddScoped(_ => _highlightsMock.Object);
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         _vm = new SettingsViewModel(
@@ -43,13 +46,14 @@ public sealed class SettingsViewModelTests
             _watcherMock.Object,
             _importMock.Object,
             scopeFactory,
-            _soundMock.Object);
+            _soundMock.Object,
+            _healthMock.Object);
     }
 
     [Fact]
     public void ExposesEverySectionAndSelectsTheFirstOne()
     {
-        Assert.Equal(6, _vm.Sections.Count);
+        Assert.Equal(7, _vm.Sections.Count);
         Assert.Same(_vm.SourceFoldersSection, _vm.Sections[0]);
         Assert.Same(_vm.SourceFoldersSection, _vm.SelectedSection);
         Assert.All(_vm.Sections, s => Assert.IsAssignableFrom<SettingsSectionViewModel>(s));

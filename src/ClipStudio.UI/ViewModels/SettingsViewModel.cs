@@ -24,7 +24,7 @@ namespace ClipStudio.UI.ViewModels;
 /// Registered as a singleton so that an in-progress import scan is not interrupted when the user
 /// navigates away from the Settings tab and returns.
 /// </remarks>
-public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionHost
+public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionHost, IAttentionActionHost
 {
     private readonly ISettingsService _settings;
 
@@ -55,6 +55,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
 
     /// <summary>Gets the OBS Integration section.</summary>
     public ObsIntegrationSectionViewModel ObsIntegrationSection { get; }
+
+    /// <summary>Gets the Attention Required section.</summary>
+    public AttentionSectionViewModel AttentionSection { get; }
 
     /// <summary>Gets the Library Maintenance section.</summary>
     public MaintenanceSectionViewModel MaintenanceSection { get; }
@@ -97,13 +100,15 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
     /// <param name="importService">The import service used to scan folders for existing clips.</param>
     /// <param name="scopeFactory">The service scope factory used to resolve scoped services such as <see cref="ILibrarySanitizerService"/>.</param>
     /// <param name="soundService">The service that plays UI sound cues.</param>
+    /// <param name="health">The library health check whose last report feeds the attention list.</param>
     public SettingsViewModel(
         ISettingsService settings,
         ISourceFolderRepository folders,
         ILibraryWatcherService watcher,
         IImportService importService,
         IServiceScopeFactory scopeFactory,
-        ClipStudio.UI.Services.ISoundService soundService)
+        ClipStudio.UI.Services.ISoundService soundService,
+        ILibraryHealthCheckService health)
     {
         _settings = settings;
 
@@ -112,12 +117,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
         TranscriptionSection  = new TranscriptionSectionViewModel(this, settings);
         ObsIntegrationSection = new ObsIntegrationSectionViewModel(this);
         MaintenanceSection    = new MaintenanceSectionViewModel(this, scopeFactory);
+        AttentionSection      = new AttentionSectionViewModel(this, scopeFactory, health, this);
         AboutSection          = new AboutSectionViewModel(this);
 
         Sections.Add(SourceFoldersSection);
         Sections.Add(PreferencesSection);
         Sections.Add(TranscriptionSection);
         Sections.Add(ObsIntegrationSection);
+        Sections.Add(AttentionSection);
         Sections.Add(MaintenanceSection);
         Sections.Add(AboutSection);
 
@@ -219,5 +226,30 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
     void ISettingsSectionHost.RequestUnreviewedCountRefresh() => UnreviewedCountRefreshRequested?.Invoke();
 
     /// <inheritdoc/>
-    Task ISettingsSectionHost.NotifyLibraryRepairedAsync() => PreferencesSection.RefreshUnhashedClipCountAsync();
+    async Task ISettingsSectionHost.NotifyLibraryRepairedAsync()
+    {
+        await PreferencesSection.RefreshUnhashedClipCountAsync();
+
+        // A repair is the only thing that hashes, relocates or clears findings, so the attention
+        // list is stale the moment one finishes.
+        await AttentionSection.RebuildAsync();
+    }
+
+    // ---- IAttentionActionHost ----
+
+    /// <summary>
+    /// Optional callback invoked when an attention entry asks for a clip to be opened. Set by the
+    /// main window, which owns navigation; left null in tests, where the request is a no-op.
+    /// </summary>
+    public Func<int, bool>? ClipOpenRequested { get; set; }
+
+    /// <inheritdoc/>
+    Task IAttentionActionHost.ScanSourceFolderAsync(int sourceFolderId)
+        => SourceFoldersSection.ScanFolderAsync(sourceFolderId);
+
+    /// <inheritdoc/>
+    void IAttentionActionHost.ShowSourceFolders() => SelectedSection = SourceFoldersSection;
+
+    /// <inheritdoc/>
+    bool IAttentionActionHost.OpenClip(int clipId) => ClipOpenRequested?.Invoke(clipId) ?? false;
 }

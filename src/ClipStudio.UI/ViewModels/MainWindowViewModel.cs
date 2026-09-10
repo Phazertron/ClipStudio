@@ -34,6 +34,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     // References to specific nav items for badge and scanning state updates
     private NavigationItemViewModel? _libraryNavItem;
     private NavigationItemViewModel? _unreviewedNavItem;
+    private NavigationItemViewModel? _settingsNavItem;
 
     /// <summary>
     /// Gets the sidebar navigation items. Each item pairs a label and icon with a page view model.
@@ -122,8 +123,24 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         settings.UnreviewedCountRefreshRequested      = () => _ = RefreshUnreviewedCountAsync();
         unreviewedQueue.UnreviewedCountRefreshRequested = () => _ = RefreshUnreviewedCountAsync();
 
+        // The attention list lives inside Settings, so its count is badged on the Settings nav
+        // item - otherwise a library that needs something says so on a page nobody is looking at.
+        settings.AttentionSection.EntryCountChanged = count =>
+        {
+            if (_settingsNavItem is not null)
+                _settingsNavItem.BadgeCount = count;
+        };
+
+        // An attention entry can send the user to the clip it is about.
+        settings.ClipOpenRequested = clipId =>
+        {
+            OpenClipDetail(clipId);
+            return true;
+        };
+
         _libraryNavItem    = new NavigationItemViewModel("Library",    MaterialIconKind.LibraryMovie,    library);
         _unreviewedNavItem = new NavigationItemViewModel("Unreviewed", MaterialIconKind.InboxArrowDown,  unreviewedQueue);
+        _settingsNavItem   = new NavigationItemViewModel("Settings",   MaterialIconKind.CogBox,          settings);
 
         NavigationItems = new ObservableCollection<NavigationItemViewModel>
         {
@@ -136,7 +153,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             new NavigationItemViewModel("Export",     MaterialIconKind.FileExport,       exportQueue),
             new NavigationItemViewModel("Trash",      MaterialIconKind.TrashCan,         trash),
             new NavigationItemViewModel("Statistics", MaterialIconKind.ChartBar,         stats),
-            new NavigationItemViewModel("Settings",   MaterialIconKind.CogBox,           settings),
+            _settingsNavItem,
         };
 
         SelectedNavigationItem = NavigationItems[0];
