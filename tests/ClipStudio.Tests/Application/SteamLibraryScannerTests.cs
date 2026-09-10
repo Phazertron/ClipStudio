@@ -10,15 +10,34 @@ namespace ClipStudio.Tests.Application;
 /// a real Steam install.
 /// </summary>
 /// <remarks>
-/// The scanner resolves its own Steam root from platform-specific locations, so these tests use the
-/// Windows default path that <see cref="SteamLibraryScanner"/> looks in first. That keeps them
-/// honest about the path handling instead of injecting a root the real code would never see.
+/// The scanner resolves its own Steam root from platform-specific locations, so these tests plant
+/// their fixture at whichever path <see cref="SteamLibraryScanner"/> looks in first on the platform
+/// the run is hosted on. That keeps them honest about the path handling instead of injecting a root
+/// the real code would never see, while still passing on all three release runners.
 /// </remarks>
 public sealed class SteamLibraryScannerTests
 {
-    private const string SteamRoot = @"C:\Program Files (x86)\Steam";
-    private const string PrimaryApps = SteamRoot + @"\steamapps";
-    private const string SecondApps = @"G:\SteamLibrary\steamapps";
+    /// <summary>
+    /// The Steam root the fixture is planted in: the first location the scanner probes on the
+    /// platform hosting the test run.
+    /// </summary>
+    /// <remarks>
+    /// Taken from the scanner's own candidate list rather than restated here, because the scanner
+    /// finds its own root and never accepts an injected one. A hardcoded Windows path made every
+    /// scan return nothing on the Linux and macOS release runners, where no candidate root is under
+    /// <c>C:\</c>; reading the list from the scanner means it cannot drift again.
+    /// </remarks>
+    private static readonly string SteamRoot = SteamLibraryScanner.CandidateRoots.First();
+
+    private static readonly string PrimaryApps = Path.Combine(SteamRoot, "steamapps");
+
+    /// <summary>A second library folder, on a different volume from the Steam install.</summary>
+    private static readonly string SecondRoot = Path.Combine(OtherVolume, "SteamLibrary");
+
+    private static readonly string SecondApps = Path.Combine(SecondRoot, "steamapps");
+
+    /// <summary>A volume that is not the one Steam itself is installed on.</summary>
+    private static string OtherVolume => OperatingSystem.IsWindows() ? @"G:\" : "/mnt/games";
 
     private readonly FakeFileSystem _fs = new();
 
@@ -31,14 +50,28 @@ public sealed class SteamLibraryScannerTests
         var entries = string.Join("\n", roots.Select((r, i) =>
             $"\t\"{i}\"\n\t{{\n\t\t\"path\"\t\t\"{r.Replace("\\", "\\\\")}\"\n\t}}"));
 
-        _fs.AddFile($@"{PrimaryApps}\libraryfolders.vdf", $"\"libraryfolders\"\n{{\n{entries}\n}}\n");
+        _fs.AddFile(
+            Path.Combine(PrimaryApps, "libraryfolders.vdf"),
+            $"\"libraryfolders\"\n{{\n{entries}\n}}\n");
     }
 
     /// <summary>Writes one app manifest into a steamapps folder.</summary>
     private void WithGame(string steamApps, string appId, string name)
         => _fs.AddFile(
-            $@"{steamApps}\appmanifest_{appId}.acf",
+            Path.Combine(steamApps, $"appmanifest_{appId}.acf"),
             $"\"AppState\"\n{{\n\t\"appid\"\t\t\"{appId}\"\n\t\"name\"\t\t\"{name}\"\n}}\n");
+
+    [Fact]
+    public void ProbesAtLeastOneAbsoluteRootOnThisPlatform()
+    {
+        // Guards the fixture itself. Every other test here plants its files under the first
+        // candidate root, so if this platform offered none - or offered a relative one - they
+        // would all fail with an empty result and say nothing about why.
+        var roots = SteamLibraryScanner.CandidateRoots.ToList();
+
+        Assert.NotEmpty(roots);
+        Assert.All(roots, root => Assert.True(Path.IsPathRooted(root), $"Not an absolute path: {root}"));
+    }
 
     [Fact]
     public void ReportsUnavailableWhenSteamIsNotInstalled()
@@ -72,7 +105,7 @@ public sealed class SteamLibraryScannerTests
     public async Task ReadsGamesFromEverySecondaryLibrary()
     {
         // The machine this was built against has two libraries, one of them on another drive.
-        WithLibraries(SteamRoot, @"G:\SteamLibrary");
+        WithLibraries(SteamRoot, SecondRoot);
         WithGame(PrimaryApps, "228980", "Steamworks Common Redistributables");
         WithGame(SecondApps, "251570", "7 Days to Die");
 
@@ -85,7 +118,7 @@ public sealed class SteamLibraryScannerTests
     [Fact]
     public async Task ATitleInTwoLibrariesIsOneGame()
     {
-        WithLibraries(SteamRoot, @"G:\SteamLibrary");
+        WithLibraries(SteamRoot, SecondRoot);
         WithGame(PrimaryApps, "251570", "7 Days to Die");
         WithGame(SecondApps, "251570", "7 Days to Die");
 
@@ -140,7 +173,9 @@ public sealed class SteamLibraryScannerTests
     public async Task AManifestWithNoNameIsSkipped()
     {
         WithLibraries(SteamRoot);
-        _fs.AddFile($@"{PrimaryApps}\appmanifest_1.acf", "\"AppState\"\n{\n\t\"appid\"\t\t\"1\"\n}\n");
+        _fs.AddFile(
+            Path.Combine(PrimaryApps, "appmanifest_1.acf"),
+            "\"AppState\"\n{\n\t\"appid\"\t\t\"1\"\n}\n");
         WithGame(PrimaryApps, "2", "Satisfactory");
 
         var game = Assert.Single(await BuildScanner().ScanAsync());
@@ -151,7 +186,7 @@ public sealed class SteamLibraryScannerTests
     public async Task ALibraryFolderThatNoLongerExistsIsSkipped()
     {
         // An unplugged drive should cost its own games, not the scan.
-        WithLibraries(SteamRoot, @"E:\GoneLibrary");
+        WithLibraries(SteamRoot, Path.Combine(OtherVolume, "GoneLibrary"));
         WithGame(PrimaryApps, "526870", "Satisfactory");
 
         var game = Assert.Single(await BuildScanner().ScanAsync());
@@ -162,7 +197,7 @@ public sealed class SteamLibraryScannerTests
     public async Task AnUnreadableLibraryListStillYieldsThePrimaryLibrary()
     {
         // The file exists but is not KeyValues at all; the folder holding it is still a library.
-        _fs.AddFile($@"{PrimaryApps}\libraryfolders.vdf", "this is not a vdf file");
+        _fs.AddFile(Path.Combine(PrimaryApps, "libraryfolders.vdf"), "this is not a vdf file");
         WithGame(PrimaryApps, "526870", "Satisfactory");
 
         var game = Assert.Single(await BuildScanner().ScanAsync());

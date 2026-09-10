@@ -45,6 +45,18 @@ public sealed class SteamLibraryScanner : IInstalledGameScanner
     /// <inheritdoc/>
     public bool IsAvailable => FindLibraryFoldersFile() is not null;
 
+    /// <summary>
+    /// Gets the directories this scanner probes for a Steam installation, most likely first.
+    /// </summary>
+    /// <remarks>
+    /// Exposed so these paths are stated in exactly one place: diagnostics can report where a
+    /// failed scan looked, and tests can plant their fixture where the scanner will actually find
+    /// it instead of keeping a second copy of the list that silently drifts out of step. A
+    /// hardcoded Windows path in the tests is precisely how the Linux and macOS runs came to fail
+    /// while Windows passed.
+    /// </remarks>
+    public static IEnumerable<string> CandidateRoots => CandidateSteamRoots();
+
     /// <summary>Initialises a new <see cref="SteamLibraryScanner"/>.</summary>
     /// <param name="fileSystem">The file system abstraction, so the scan is testable without Steam.</param>
     /// <param name="logger">The logger.</param>

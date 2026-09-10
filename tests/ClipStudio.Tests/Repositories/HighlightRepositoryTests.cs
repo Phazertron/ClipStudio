@@ -68,7 +68,7 @@ public sealed class HighlightRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task Duration_ComputedCorrectly()
+    public void Duration_ComputedCorrectly()
     {
         var highlight = new Highlight
         {
