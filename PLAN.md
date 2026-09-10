@@ -6,24 +6,22 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-10): 0 warnings, 703 tests passing, working tree clean.
-**Phase 0, Phase 1.5, Phase 1.6, and F-R, F-A and F-F (Steam) are complete**, all
-verified in the running app under `--profile smoke`.
+Status (2026-09-10): 0 warnings, 738 tests passing, working tree clean.
+**Phase 0, Phase 1, Phase 1.5 and Phase 1.6 are all complete.** F-R, F-A, F-F
+(Steam) and F-I have landed and been verified in the running app under
+`--profile smoke`.
 
-**Start here next:**
+**Start here next.** Phase 2 is the next body of work - `F-S` tag and game
+import/export, and `F-P` removable drive auto-archive, whose detection half
+already landed in 1.5.2. Before or alongside it, five things are open and each
+needs a decision, a measurement or a machine rather than effort:
 
-1. `F-I` Grouped search results flyout - the last unstarted Phase 1 feature. The
-   backend is largely there (`ClipService.SearchAsync` already does text and
-   captions); the risk is the flyout's keyboard navigation, which is the class of
-   bug that needed three fixes in the tag picker. Copy `TagPickerStateMachine`:
-   testable logic, thin Avalonia glue, and budget a hands-on pass
-2. `F-F` Epic and GOG scanners - need a machine with those launchers to verify
-3. `1.5.5` The short-clip fallback quality/speed tension - needs the user's call
-4. `1.5.5` Parallel imports - re-measure first; the 1.6x predates the keyframe change
-5. `1.6.2` Shortcut remapping, and a graphical keyboard map
-
-The bug and polish backlog below also has a transcription cluster worth one pass,
-and the master-volume defect, which is blocked on a diagnosis rather than effort.
+1. `F-F` Epic and GOG scanners - need a machine with those launchers to verify
+2. `1.5.5` The short-clip fallback quality/speed tension - needs the user's call
+3. `1.5.5` Parallel imports - re-measure first; the 1.6x predates the keyframe change
+4. `1.6.2` Shortcut remapping, and a graphical keyboard map
+5. The bug and polish backlog below: a transcription cluster worth one pass, and
+   the master-volume defect, which is blocked on a diagnosis rather than effort
 
 Commit style from 2026-09-09 onwards follows the conventional-commit skill
 (`type(scope): subject` plus a bullet body), maintained in the `claude-skills`
@@ -151,7 +149,7 @@ the test suite do not catch those. The recipe used:
 
 ---
 
-## Phase 1 - Round 15 remaining features
+## Phase 1 - Round 15 remaining features - COMPLETE (2026-09-10)
 
 Order chosen so that each feature builds on the previous one: duplicates need a
 hash, links need duplicates as their first use case, the Games page import is
@@ -541,12 +539,47 @@ The same is true of games already in the library, matched by name.
 preview is the feature: a one-click import would flood the tag list with games the user has no
 clips of.
 
-### F-I - Grouped search results flyout
+### F-I - Grouped search results flyout - DONE (2026-09-10)
 
-- [ ] `ISearchService` / `SearchService` - single query returns `SearchResultGroup[]` (Clips, Highlights, Tags, Players, Notes)
-- [ ] Debounced flyout under the Library search bar; keyboard navigation; Enter on a clip opens editor, Enter on a tag applies it as filter
-- [ ] Reuse `SearchCaptions` flag to add a Captions group (also closes the missing filter-panel toggle)
-- [ ] Tests: group population, empty query returns nothing
+- [x] `ISearchService` / `SearchService` - one term across Clips, Highlights, Tags, Games, Players
+  and Captions, each group capped at five and carrying its full count
+- [x] Debounced flyout under the Library search bar; keyboard navigation; Enter on a clip opens it,
+  Enter on a tag or game applies it as a filter
+- [x] `SearchCaptions` reused for the Captions group
+- [x] Tests: group population, capping, resilience, and every keyboard path. 703 -> 738 passing.
+
+**The keyboard handling was the risk, and it was treated as such.** All of it lives on
+`SearchFlyoutViewModel`, which has no Avalonia types, and the code-behind only translates key
+presses into calls. Each method reports whether it *used* the press, and only then is the event
+marked handled - so a key the flyout does not want still reaches the text box. That is what keeps
+typing, caret movement and Enter-to-filter working.
+
+Three decisions came out of building it:
+
+- **Nothing is preselected.** Enter with no choice made falls through to the ordinary filter rather
+  than opening whatever happened to be first.
+- **Arrow keys move over a flattened list**, so they step from the last clip to the first highlight
+  without stopping on a group heading.
+- **The highlight is carried on the row**, not derived from the index. The results are nested lists
+  and a row cannot ask whether it is the nth item overall - without this, pressing Down changed
+  nothing the user could see. **Found by running the app, not by a test.**
+
+It is an overlay rather than a real `Flyout`: a Flyout takes focus, which would pull the caret out
+of the search box the moment results appeared.
+
+**A pre-existing bug fixed on the way:** `OnSearchTextChanged` called `LoadCommand` directly, so
+typing a word reloaded the whole library once per letter. Both the reload and the search are
+debounced now, and a pending search is cancelled when another letter arrives, so an older term's
+results can never overwrite a newer one's.
+
+**Two targeted repository queries** were added rather than filtering whole tables, since search runs
+as you type: `IHighlightRepository.SearchByLabelAsync` and
+`ITranscriptionRepository.SearchSegmentsAsync`. The existing caption query returns clip identifiers
+only, which is enough to filter the library but cannot show what was said or seek to it.
+
+**Verified by driving the keyboard** under `--profile smoke`: typing groups the results, Down moves
+the visible highlight, Enter opens exactly the highlighted clip, Enter with nothing selected stays
+on the library, and Escape closes the flyout while keeping the filter.
 
 ---
 
