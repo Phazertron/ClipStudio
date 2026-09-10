@@ -42,6 +42,7 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILibraryHealthCheckService _health;
+    private readonly IDuplicateClipFinder _duplicates;
     private readonly IAttentionActionHost _actions;
 
     /// <inheritdoc/>
@@ -80,16 +81,19 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     /// <param name="host">The settings page hosting this section.</param>
     /// <param name="scopeFactory">The scope factory used to read the library.</param>
     /// <param name="health">The health check whose last report supplies the folder findings.</param>
+    /// <param name="duplicates">The finder whose last run supplies the duplicate groups.</param>
     /// <param name="actions">The seam through which an entry's action reaches the rest of the app.</param>
     public AttentionSectionViewModel(
         ISettingsSectionHost host,
         IServiceScopeFactory scopeFactory,
         ILibraryHealthCheckService health,
+        IDuplicateClipFinder duplicates,
         IAttentionActionHost actions)
         : base(host)
     {
         _scopeFactory = scopeFactory;
         _health       = health;
+        _duplicates   = duplicates;
         _actions      = actions;
 
         RecheckCommand = new AsyncRelayCommand(RecheckAsync);
@@ -133,6 +137,7 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
         try
         {
             AddFolderEntries(entries, _health.LastReport);
+            AddDuplicateEntries(entries);
             await AddLibraryEntriesAsync(entries);
         }
         catch (Exception ex)
@@ -194,6 +199,31 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
                 folderId is null
                     ? null
                     : () => ScanAndRebuildAsync(folderId.Value)));
+        }
+    }
+
+    /// <summary>
+    /// Adds one entry per group of clips that are the same recording.
+    /// </summary>
+    /// <param name="entries">The list being built.</param>
+    /// <remarks>
+    /// Read from the finder's last run rather than searched for here. Confirming a duplicate means
+    /// reading both files end to end, so it belongs to Repair Library; until one has run, this
+    /// contributes nothing and the section says so by simply not listing any.
+    /// </remarks>
+    private void AddDuplicateEntries(List<AttentionEntryViewModel> entries)
+    {
+        foreach (var group in _duplicates.LastGroups)
+        {
+            var count = group.ClipIds.Count;
+            entries.Add(new AttentionEntryViewModel(
+                AttentionEntryKind.DuplicateClips,
+                count == 2
+                    ? "2 clips are the same recording"
+                    : $"{count} clips are the same recording",
+                "Their files hold identical contents. Only the ClipStudio metadata - tags, "
+                + "players, highlights, rating and notes - differs between them.",
+                MaterialIconKind.ContentDuplicate));
         }
     }
 

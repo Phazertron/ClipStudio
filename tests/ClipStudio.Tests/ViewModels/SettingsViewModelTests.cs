@@ -24,6 +24,7 @@ public sealed class SettingsViewModelTests
     private readonly Mock<IClipRepository>         _clipsMock    = new();
     private readonly Mock<IHighlightRepository>    _highlightsMock = new();
     private readonly Mock<ILibraryHealthCheckService> _healthMock = new();
+    private readonly Mock<IDuplicateClipFinder> _duplicatesMock = new();
     private readonly AppSettings                   _settings     = new();
     private readonly SettingsViewModel             _vm;
 
@@ -34,6 +35,7 @@ public sealed class SettingsViewModelTests
                     .ReturnsAsync(new List<SourceFolder>());
         _clipsMock.Setup(x => x.CountWithoutFileHashAsync(It.IsAny<CancellationToken>()))
                   .ReturnsAsync(0);
+        _duplicatesMock.Setup(x => x.LastGroups).Returns(new List<DuplicateClipGroup>());
 
         var services = new ServiceCollection();
         services.AddScoped(_ => _clipsMock.Object);
@@ -47,7 +49,8 @@ public sealed class SettingsViewModelTests
             _importMock.Object,
             scopeFactory,
             _soundMock.Object,
-            _healthMock.Object);
+            _healthMock.Object,
+            _duplicatesMock.Object);
     }
 
     [Fact]

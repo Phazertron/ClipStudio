@@ -25,6 +25,7 @@ public sealed class AttentionSectionViewModelTests
     private readonly Mock<IClipRepository> _clips = new();
     private readonly Mock<IHighlightRepository> _highlights = new();
     private readonly Mock<ILibraryHealthCheckService> _health = new();
+    private readonly Mock<IDuplicateClipFinder> _duplicateFinder = new();
 
     public AttentionSectionViewModelTests()
     {
@@ -32,6 +33,7 @@ public sealed class AttentionSectionViewModelTests
               .ReturnsAsync(new List<ClipFileSnapshot>());
         _highlights.Setup(x => x.GetRangeSnapshotsAsync(It.IsAny<CancellationToken>()))
                    .ReturnsAsync(new List<HighlightRangeSnapshot>());
+        _duplicateFinder.Setup(x => x.LastGroups).Returns(new List<DuplicateClipGroup>());
     }
 
     private AttentionSectionViewModel BuildSection()
@@ -41,7 +43,8 @@ public sealed class AttentionSectionViewModelTests
         services.AddScoped(_ => _highlights.Object);
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
-        return new AttentionSectionViewModel(_host, scopeFactory, _health.Object, _actions);
+        return new AttentionSectionViewModel(
+            _host, scopeFactory, _health.Object, _duplicateFinder.Object, _actions);
     }
 
     private void ReportWith(params LibraryHealthFinding[] findings) =>
@@ -223,6 +226,41 @@ public sealed class AttentionSectionViewModelTests
         await vm.RefreshAsync();
 
         Assert.True(vm.IsEverythingFine);
+    }
+
+    // ---- Duplicates ----
+
+    [Fact]
+    public async Task ListsWhatTheLastDuplicateScanFound()
+    {
+        // Detection used to run only at import, so two copies already in the library were never
+        // compared again. This is where that finally shows up.
+        _duplicateFinder.Setup(x => x.LastGroups)
+                        .Returns([new DuplicateClipGroup("hash", [1, 2])]);
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+
+        var entry = Assert.Single(vm.Entries);
+        Assert.Equal(AttentionEntryKind.DuplicateClips, entry.Kind);
+        Assert.Equal("2 clips are the same recording", entry.Title);
+    }
+
+    [Fact]
+    public async Task NeverHashesWhileBuildingTheList()
+    {
+        // Confirming a duplicate reads both files end to end, so it belongs to Repair Library. The
+        // list only shows what that last run found.
+        _duplicateFinder.Setup(x => x.LastGroups)
+                        .Returns([new DuplicateClipGroup("hash", [1, 2, 3])]);
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+
+        _duplicateFinder.Verify(
+            x => x.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        Assert.Equal("3 clips are the same recording", Assert.Single(vm.Entries).Title);
     }
 
     // ---- Counting ----

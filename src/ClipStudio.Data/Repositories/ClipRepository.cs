@@ -200,7 +200,7 @@ internal sealed class ClipRepository : IClipRepository
         => await _context.Clips
             .Where(c => !c.IsDeleted)
             .AsNoTracking()
-            .Select(c => new ClipFileSnapshot(c.Id, c.SourceFolderId, c.FilePath, c.FileName, c.IsBroken))
+            .Select(c => new ClipFileSnapshot(c.Id, c.SourceFolderId, c.FilePath, c.FileName, c.IsBroken, c.FileHash))
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc/>

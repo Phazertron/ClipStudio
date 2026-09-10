@@ -101,6 +101,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
     /// <param name="scopeFactory">The service scope factory used to resolve scoped services such as <see cref="ILibrarySanitizerService"/>.</param>
     /// <param name="soundService">The service that plays UI sound cues.</param>
     /// <param name="health">The library health check whose last report feeds the attention list.</param>
+    /// <param name="duplicates">The duplicate finder whose last run feeds the attention list.</param>
     public SettingsViewModel(
         ISettingsService settings,
         ISourceFolderRepository folders,
@@ -108,7 +109,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
         IImportService importService,
         IServiceScopeFactory scopeFactory,
         ClipStudio.UI.Services.ISoundService soundService,
-        ILibraryHealthCheckService health)
+        ILibraryHealthCheckService health,
+        IDuplicateClipFinder duplicates)
     {
         _settings = settings;
 
@@ -117,7 +119,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
         TranscriptionSection  = new TranscriptionSectionViewModel(this, settings);
         ObsIntegrationSection = new ObsIntegrationSectionViewModel(this);
         MaintenanceSection    = new MaintenanceSectionViewModel(this, scopeFactory);
-        AttentionSection      = new AttentionSectionViewModel(this, scopeFactory, health, this);
+        AttentionSection      = new AttentionSectionViewModel(this, scopeFactory, health, duplicates, this);
         AboutSection          = new AboutSectionViewModel(this);
 
         Sections.Add(SourceFoldersSection);

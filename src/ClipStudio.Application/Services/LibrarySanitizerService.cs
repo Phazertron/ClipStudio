@@ -22,6 +22,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
     private readonly IFileSystem _fileSystem;
     private readonly AppDataPaths _paths;
     private readonly IFileHashService _fileHashes;
+    private readonly IDuplicateClipFinder _duplicates;
     private readonly ILogger<LibrarySanitizerService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="LibrarySanitizerService"/>.</summary>
@@ -36,6 +37,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         IFileSystem fileSystem,
         AppDataPaths paths,
         IFileHashService fileHashes,
+        IDuplicateClipFinder duplicates,
         ILogger<LibrarySanitizerService> logger)
     {
         _clips          = clips;
@@ -48,6 +50,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         _fileSystem     = fileSystem;
         _paths          = paths;
         _fileHashes     = fileHashes;
+        _duplicates     = duplicates;
         _logger         = logger;
     }
 
@@ -587,6 +590,27 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             }
         }
 
+        // Duplicates last, and only now: the hash backfill above is what makes the comparison
+        // right, so running this before it would miss exactly the clips that were never hashed -
+        // which are the usual way a duplicate gets into the library unnoticed in the first place.
+        var duplicateGroups = 0;
+        var duplicateClips  = 0;
+        try
+        {
+            progress?.Report("Looking for duplicate clips...");
+            var groups      = await _duplicates.FindAsync(progress, ct);
+            duplicateGroups = groups.Count;
+            duplicateClips  = groups.Sum(g => g.ClipIds.Count);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "The duplicate scan encountered an error.");
+        }
+
         var summary = $"Sanitize complete: {repaired} repair(s), {deleted} orphan(s) removed, "
                     + $"{audioCleaned} orphan audio cache file(s) removed, "
                     + $"{srtCleaned} orphan SRT file(s) removed, "
@@ -599,6 +623,10 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
         if (outOfBounds > 0)
             summary += $" {outOfBounds} highlight(s) start past the end of their clip and need a "
                      + "new range chosen by hand.";
+
+        if (duplicateGroups > 0)
+            summary += $" {duplicateClips} clip(s) in {duplicateGroups} group(s) are the same "
+                     + "recording imported more than once.";
 
         progress?.Report(summary);
         _logger.LogInformation("{Summary}", summary);

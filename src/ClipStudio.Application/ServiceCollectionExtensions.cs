@@ -65,6 +65,7 @@ public static class ServiceCollectionExtensions
         // twenty cards asking for one thumbnail must wait on a single FFmpeg run.
         services.AddSingleton<ILibraryHealthCheckService, LibraryHealthCheckService>();
         services.AddSingleton<IMediaAssetProvider, MediaAssetProvider>();
+        services.AddSingleton<IDuplicateClipFinder, DuplicateClipFinder>();
 
         // Steam game search: credential-free, uses a named HttpClient.
         services.AddHttpClient<IGameSearchService, SteamSearchService>(client =>

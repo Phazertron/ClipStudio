@@ -30,6 +30,7 @@ public sealed class LibrarySanitizerServiceTests
     private readonly Mock<ITranscriptionRepository> _transcriptionRepo = new();
     private readonly Mock<ISourceFolderRepository> _folderRepo = new();
     private readonly Mock<IRecycleBinService> _recycleBin = new();
+    private readonly Mock<IDuplicateClipFinder> _duplicates = new();
     private readonly FakeFileSystem _fileSystem = new();
     private readonly AppSettings _appSettings = new();
     private readonly LibrarySanitizerService _service;
@@ -60,6 +61,10 @@ public sealed class LibrarySanitizerServiceTests
 
         _recycleBin.Setup(r => r.TryMoveToRecycleBin(It.IsAny<string>())).Returns(true);
 
+        _duplicates
+            .Setup(d => d.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
         _service = new LibrarySanitizerService(
             _clipRepo.Object,
             _highlightRepo.Object,
@@ -71,6 +76,7 @@ public sealed class LibrarySanitizerServiceTests
             _fileSystem,
             new AppDataPaths(DataRoot),
             new FileHashService(_fileSystem),
+            _duplicates.Object,
             NullLogger<LibrarySanitizerService>.Instance);
     }
 
@@ -427,6 +433,61 @@ public sealed class LibrarySanitizerServiceTests
         await _service.SanitizeAsync(new Progress<string>(reports.Add));
 
         // Progress<T> posts asynchronously; drain the callbacks before asserting.
+        await Task.Delay(50);
+
+        Assert.Contains(reports, r => r.StartsWith("Sanitize complete:"));
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_ReportsTheDuplicateGroupsItFound()
+    {
+        // The smallest useful step of the duplicate work: Repair Library answers "did it find
+        // anything?" without any new screens.
+        _duplicates
+            .Setup(d => d.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new DuplicateClipGroup("hash", [1, 2])]);
+
+        var reports = new List<string>();
+        await _service.SanitizeAsync(new Progress<string>(reports.Add));
+        await Task.Delay(50);
+
+        Assert.Contains(reports, r => r.Contains("2 clip(s) in 1 group(s) are the same recording"));
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_LooksForDuplicatesAfterBackfillingHashes()
+    {
+        // Order matters: the backfill is what makes the comparison right, so searching first would
+        // miss exactly the clips that were never hashed - the usual way a duplicate gets in.
+        _appSettings.ContentHashingEnabled = true;
+        SetUpLibrary(HealthyClip());
+
+        var sequence = new List<string>();
+        _clipRepo
+            .Setup(r => r.UpdateAsync(It.IsAny<Clip>(), It.IsAny<CancellationToken>()))
+            .Callback(() => sequence.Add("update"))
+            .Returns(Task.CompletedTask);
+        _duplicates
+            .Setup(d => d.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+            .Callback(() => sequence.Add("find"))
+            .ReturnsAsync([]);
+
+        await _service.SanitizeAsync();
+
+        Assert.Equal("find", sequence[^1]);
+        Assert.Contains("update", sequence);
+    }
+
+    [Fact]
+    public async Task SanitizeAsync_SurvivesAFailingDuplicateScan()
+    {
+        // The scan reads whole files. A locked one must not abandon the rest of the repair.
+        _duplicates
+            .Setup(d => d.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("in use"));
+
+        var reports = new List<string>();
+        await _service.SanitizeAsync(new Progress<string>(reports.Add));
         await Task.Delay(50);
 
         Assert.Contains(reports, r => r.StartsWith("Sanitize complete:"));
