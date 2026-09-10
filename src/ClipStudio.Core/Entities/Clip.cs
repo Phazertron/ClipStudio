@@ -76,6 +76,23 @@ public class Clip
     /// </remarks>
     public string? FileHash { get; set; }
 
+    /// <summary>
+    /// Gets or sets the confirmed full-content hash, written once a duplicate scan has read the
+    /// whole file.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="FileHash"/>, which only screens: two clips sharing a quick hash may
+    /// still be different recordings, whereas two sharing this are the same bytes. Storing it is
+    /// what lets duplicate groups be re-derived at startup with one indexed query instead of by
+    /// reading every candidate file again.
+    /// <para>
+    /// Null until a scan has confirmed the clip. Deriving the groups from a live query rather than
+    /// saving the groups themselves means a clip that has since been trashed or deleted simply
+    /// stops appearing, so a stored finding can never go stale.
+    /// </para>
+    /// </remarks>
+    public string? ContentHash { get; set; }
+
     /// <summary>Gets the collection of tags applied directly to this clip.</summary>
     public ICollection<ClipTag> ClipTags { get; set; } = new List<ClipTag>();
 

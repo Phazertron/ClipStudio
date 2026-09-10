@@ -200,8 +200,28 @@ internal sealed class ClipRepository : IClipRepository
         => await _context.Clips
             .Where(c => !c.IsDeleted)
             .AsNoTracking()
-            .Select(c => new ClipFileSnapshot(c.Id, c.SourceFolderId, c.FilePath, c.FileName, c.IsBroken, c.FileHash))
+            .Select(c => new ClipFileSnapshot(
+                c.Id, c.SourceFolderId, c.FilePath, c.FileName, c.IsBroken, c.FileHash, c.ContentHash))
             .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task SetContentHashesAsync(
+        IReadOnlyDictionary<int, string> hashesByClipId, CancellationToken cancellationToken = default)
+    {
+        if (hashesByClipId.Count == 0)
+            return;
+
+        var ids = hashesByClipId.Keys.ToList();
+
+        var clips = await _context.Clips
+            .Where(c => ids.Contains(c.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var clip in clips)
+            clip.ContentHash = hashesByClipId[clip.Id];
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 
     /// <inheritdoc/>
     public async Task SetBrokenAsync(int clipId, bool isBroken, CancellationToken cancellationToken = default)

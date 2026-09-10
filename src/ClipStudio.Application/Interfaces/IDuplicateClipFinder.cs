@@ -25,6 +25,23 @@ public interface IDuplicateClipFinder
     DateTime? LastRunUtc { get; }
 
     /// <summary>
+    /// Rebuilds the known groups from the confirmed hashes already stored on the clips.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The groups still standing.</returns>
+    /// <remarks>
+    /// Reads no files: a scan writes each confirmed full hash onto its clip, so the groups are one
+    /// indexed query away afterwards. Called at startup, which is what stops a finished scan being
+    /// forgotten the moment the application closes.
+    /// <para>
+    /// Deriving the groups rather than storing them is deliberate. A clip that has since been
+    /// trashed, deleted or left with one surviving member simply stops appearing, so a group can
+    /// never outlive the situation that produced it.
+    /// </para>
+    /// </remarks>
+    Task<IReadOnlyList<DuplicateClipGroup>> LoadKnownGroupsAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Compares every hashed clip in the library against every other, and returns the groups whose
     /// contents are identical.
     /// </summary>

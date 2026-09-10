@@ -206,4 +206,102 @@ public sealed class DuplicateClipFinderTests
 
         Assert.Empty(finder.LastGroups);
     }
+
+    private static ClipFileSnapshot Confirmed(int id, string path, string contentHash)
+        => new(id, 1, path, System.IO.Path.GetFileName(path), IsBroken: false,
+               FileHash: "quick", ContentHash: contentHash);
+
+    // ---- Surviving a restart ----
+
+    [Fact]
+    public async Task AScanStoresTheConfirmedHashesItPaidToCompute()
+    {
+        Library(
+            Clip(1, "/clips/a.mp4", "quick"),
+            Clip(2, "/clips/b.mp4", "quick"));
+        FullHash("/clips/a.mp4", "same");
+        FullHash("/clips/b.mp4", "same");
+
+        await BuildFinder().FindAsync();
+
+        // Without this the whole-file reads are thrown away when the app closes.
+        _clips.Verify(x => x.SetContentHashesAsync(
+            It.Is<IReadOnlyDictionary<int, string>>(d =>
+                d.Count == 2 && d[1] == "same" && d[2] == "same"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RestoresKnownGroupsWithoutReadingAnyFile()
+    {
+        Library(
+            Confirmed(1, "/clips/a.mp4", "same"),
+            Confirmed(2, "/clips/b.mp4", "same"));
+
+        var groups = await BuildFinder().LoadKnownGroupsAsync();
+
+        var group = Assert.Single(groups);
+        Assert.Equal(new[] { 1, 2 }, group.ClipIds.OrderBy(i => i));
+
+        // The point of storing the hash: no file is read to get this back.
+        _hashes.Verify(
+            x => x.ComputeFullHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ARestoredGroupIsExposedThroughLastGroups()
+    {
+        Library(
+            Confirmed(1, "/clips/a.mp4", "same"),
+            Confirmed(2, "/clips/b.mp4", "same"));
+
+        var finder = BuildFinder();
+        await finder.LoadKnownGroupsAsync();
+
+        // This is what the attention list reads, so "nothing requires your attention" after a
+        // restart was exactly this being empty.
+        Assert.Single(finder.LastGroups);
+    }
+
+    [Fact]
+    public async Task DoesNotRestoreAGroupWhoseOtherCopyIsGone()
+    {
+        // One of the pair was trashed or deleted, so the row no longer comes back. A stored group
+        // would still claim a duplicate; a derived one simply stops existing.
+        Library(Confirmed(1, "/clips/a.mp4", "same"));
+
+        Assert.Empty(await BuildFinder().LoadKnownGroupsAsync());
+    }
+
+    [Fact]
+    public async Task DoesNotRestoreAGroupWhoseFileHasSinceDisappeared()
+    {
+        _clips.Setup(x => x.GetFileSnapshotsAsync(It.IsAny<CancellationToken>()))
+              .ReturnsAsync([
+                  Confirmed(1, "/clips/a.mp4", "same"),
+                  Confirmed(2, "/clips/gone.mp4", "same")]);
+
+        // Only one of the two files is actually on disk.
+        _fs.AddFile("/clips/a.mp4");
+
+        Assert.Empty(await BuildFinder().LoadKnownGroupsAsync());
+    }
+
+    [Fact]
+    public async Task RestoringReplacesWhateverWasHeldBefore()
+    {
+        Library(
+            Confirmed(1, "/clips/a.mp4", "same"),
+            Confirmed(2, "/clips/b.mp4", "same"));
+
+        var finder = BuildFinder();
+        await finder.LoadKnownGroupsAsync();
+        Assert.Single(finder.LastGroups);
+
+        Library(Confirmed(1, "/clips/a.mp4", "same"));
+        await finder.LoadKnownGroupsAsync();
+
+        Assert.Empty(finder.LastGroups);
+    }
 }

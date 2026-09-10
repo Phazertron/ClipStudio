@@ -77,6 +77,12 @@ internal sealed class ClipConfiguration : IEntityTypeConfiguration<Clip>
         // Indexed because every import looks a candidate hash up against the whole library.
         builder.HasIndex(c => c.FileHash);
 
+        builder.Property(c => c.ContentHash)
+            .HasMaxLength(64);
+
+        // Indexed because the duplicate groups are re-derived at startup by grouping on it.
+        builder.HasIndex(c => c.ContentHash);
+
         builder.HasOne(c => c.SourceFolder)
             .WithMany(sf => sf.Clips)
             .HasForeignKey(c => c.SourceFolderId)

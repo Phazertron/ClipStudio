@@ -9,6 +9,9 @@ namespace ClipStudio.Core.Models;
 /// <param name="FileName">The clip's file name, for messages.</param>
 /// <param name="IsBroken">Whether the clip is currently flagged as broken.</param>
 /// <param name="FileHash">The clip's stored quick hash, or null when it has never been hashed.</param>
+/// <param name="ContentHash">
+/// The clip's confirmed full-content hash, or null when no duplicate scan has read it whole.
+/// </param>
 /// <remarks>
 /// Loading whole clips to answer "is the file still there" or "do any two of these share a hash"
 /// pulls every tag, player and highlight with them, which is one of the two costs that made the
@@ -20,4 +23,5 @@ public sealed record ClipFileSnapshot(
     string FilePath,
     string FileName,
     bool IsBroken,
-    string? FileHash = null);
+    string? FileHash = null,
+    string? ContentHash = null);

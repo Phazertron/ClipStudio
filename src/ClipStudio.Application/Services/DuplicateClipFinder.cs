@@ -67,7 +67,8 @@ public sealed class DuplicateClipFinder : IDuplicateClipFinder
             .Where(g => g.Count() > 1)
             .ToList();
 
-        var found = new List<DuplicateClipGroup>();
+        var found           = new List<DuplicateClipGroup>();
+        var confirmedHashes = new Dictionary<int, string>();
 
         foreach (var bucket in candidateBuckets)
         {
@@ -81,8 +82,18 @@ public sealed class DuplicateClipFinder : IDuplicateClipFinder
             }
 
             progress?.Report($"Confirming {members.Count} possible duplicates...");
-            found.AddRange(await ConfirmAsync(members, ct));
+
+            var (groups, hashes) = await ConfirmAsync(members, ct);
+            found.AddRange(groups);
+
+            foreach (var (clipId, fullHash) in hashes)
+                confirmedHashes[clipId] = fullHash;
         }
+
+        // Store what the whole-file reads established, so the next launch can rebuild these groups
+        // from a query instead of reading every candidate file again.
+        if (confirmedHashes.Count > 0)
+            await clips.SetContentHashesAsync(confirmedHashes, ct);
 
         _groups.Clear();
         foreach (var group in found)
@@ -98,6 +109,38 @@ public sealed class DuplicateClipFinder : IDuplicateClipFinder
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<DuplicateClipGroup>> LoadKnownGroupsAsync(CancellationToken ct = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var clips = scope.ServiceProvider.GetRequiredService<IClipRepository>();
+
+        var all = await clips.GetFileSnapshotsAsync(ct);
+
+        // A group is any confirmed hash still shared by two or more live clips. Members whose file
+        // has since gone are left out, exactly as a fresh scan would leave them out.
+        var groups = all
+            .Where(c => !string.IsNullOrEmpty(c.ContentHash))
+            .Where(c => _fileSystem.FileExists(c.FilePath))
+            .GroupBy(c => c.ContentHash!, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => new DuplicateClipGroup(g.Key, g.Select(c => c.Id).ToList()))
+            .ToList();
+
+        _groups.Clear();
+        foreach (var group in groups)
+            _groups[group.FullHash] = group;
+
+        if (groups.Count > 0)
+        {
+            _logger.LogInformation(
+                "Restored {Groups} known duplicate group(s) covering {Clips} clip(s) without reading any files.",
+                groups.Count, groups.Sum(g => g.ClipIds.Count));
+        }
+
+        return groups;
+    }
+
+    /// <inheritdoc/>
     public void Forget(string fullHash) => _groups.TryRemove(fullHash, out _);
 
     /// <summary>
@@ -105,9 +148,13 @@ public sealed class DuplicateClipFinder : IDuplicateClipFinder
     /// </summary>
     /// <param name="members">The bucket's clips, all of whose files exist.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>The confirmed groups within the bucket, which may be none.</returns>
-    private async Task<IReadOnlyList<DuplicateClipGroup>> ConfirmAsync(
-        IReadOnlyList<ClipFileSnapshot> members, CancellationToken ct)
+    /// <returns>
+    /// The confirmed groups within the bucket, which may be none, and every full hash computed
+    /// along the way keyed by clip id - including those that turned out not to match anything, so
+    /// a later run does not have to read those files again either.
+    /// </returns>
+    private async Task<(IReadOnlyList<DuplicateClipGroup> Groups, IReadOnlyDictionary<int, string> Hashes)>
+        ConfirmAsync(IReadOnlyList<ClipFileSnapshot> members, CancellationToken ct)
     {
         var byFullHash = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
 
@@ -151,6 +198,10 @@ public sealed class DuplicateClipFinder : IDuplicateClipFinder
             confirmed.Add(new DuplicateClipGroup(fullHash, ids));
         }
 
-        return confirmed;
+        var hashes = byFullHash
+            .SelectMany(pair => pair.Value.Select(id => (Id: id, Hash: pair.Key)))
+            .ToDictionary(x => x.Id, x => x.Hash);
+
+        return (confirmed, hashes);
     }
 }

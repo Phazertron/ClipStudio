@@ -443,6 +443,13 @@ public partial class App : AvaloniaApp
                 var health = Services.GetRequiredService<ILibraryHealthCheckService>();
                 await health.CheckAsync();
 
+                // Duplicate groups are the one attention finding that cannot be re-derived from a
+                // cheap pass - confirming one reads whole files. Restoring them from the hashes a
+                // previous scan already stored means a finished scan is not forgotten just because
+                // the application was closed, and costs one indexed query.
+                var duplicates = Services.GetRequiredService<IDuplicateClipFinder>();
+                await duplicates.LoadKnownGroupsAsync();
+
                 // Build the attention list from that report now rather than when the user happens
                 // to open Settings, so the badge is right from the first frame they can see it.
                 var settingsForAttention = Services.GetRequiredService<SettingsViewModel>();

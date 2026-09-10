@@ -136,4 +136,16 @@ public interface IClipRepository
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <remarks>No-ops silently if the clip does not exist.</remarks>
     Task SetBrokenAsync(int clipId, bool isBroken, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stores the confirmed full-content hash for each of the given clips.
+    /// </summary>
+    /// <param name="hashesByClipId">The hash to store, keyed by clip id.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <remarks>
+    /// Written once a duplicate scan has read the files whole, so the groups it found can be
+    /// re-derived later without reading them again. Clips that no longer exist are skipped.
+    /// </remarks>
+    Task SetContentHashesAsync(
+        IReadOnlyDictionary<int, string> hashesByClipId, CancellationToken cancellationToken = default);
 }
