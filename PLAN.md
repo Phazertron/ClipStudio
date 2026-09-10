@@ -6,23 +6,23 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-10): 0 warnings, 493 tests passing, working tree clean, 19 commits
+Status (2026-09-10): 0 warnings, 579 tests passing, working tree clean, 25 commits
 ahead of origin/master and unpushed. **Phase 0 is complete and verified at a
 keyboard. F-R is complete** apart from "import and link", which waits on F-A.
-Import performance work is done and measured.
+**Phase 1.5 is complete**: the Settings restructure, the startup/repair split,
+the attention list, duplicate detection with merge, and the measured import
+work all landed and were verified in the running app under `--profile smoke`.
 
-**Start here next: Phase 1.5 below.** It is written to be picked up cold, in five
-parts, ordered so each gives the next one somewhere to live:
+**Start here next.** Two things are left open inside 1.5.5 and are written up
+there; neither is a defect, and both need a decision or a measurement rather
+than effort:
 
-1. `1.5.1` Settings restructure - the view is 731 lines and the view model 869
-2. `1.5.2` Split the startup sanitize from the repair
-3. `1.5.3` "Attention required" section - the home every finding below needs
-4. `1.5.4` Duplicate resolution with merge
-5. `1.5.5` Import performance - the measured wins are done; what remains is listed
+1. The short-clip fallback quality/speed tension - needs the user's call
+2. Parallel imports - the measurement that justified it predates the keyframe
+   change and has to be redone before the work is worth starting
 
-The two findings most worth reading first are in `1.5.2` and `1.5.4`: the full
-sanitize runs unannounced on every startup, and duplicates already in the library
-are never surfaced because detection only runs at import.
+After that, `F-A` (link clips) is the next feature, and it also unblocks the
+one part of F-R still missing, "import and link".
 
 Commit style from 2026-09-09 onwards follows the conventional-commit skill
 (`type(scope): subject` plus a bullet body), maintained in the `claude-skills`
@@ -136,6 +136,17 @@ the test suite do not catch those. The recipe used:
    session peak meter does NOT observe LibVLC's output; it reads zero even when
    audio is fine, so it cannot be used to prove silence. When in doubt, build the
    previous commit and compare against it rather than assuming a regression.
+5. **The app can be driven without a keyboard, which is how Phase 1.5 was verified.**
+   Avalonia exposes UI Automation, so PowerShell can navigate and click:
+   `Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes`, find the window by
+   process id, then find `ControlType.ListItem` for nav items (`SelectionItemPattern`
+   to select) and `ControlType.Button` (`InvokePattern` to click). A screenshot of the
+   window's `BoundingRectangle` via `Graphics.CopyFromScreen` shows the result.
+   **One gotcha that cost time:** a nav item's first Text descendant is the badge
+   count, not the label, so match against *every* Text descendant of the item rather
+   than `FindFirst`. Buttons whose content is a StackPanel have an empty `Name` for the
+   same reason - match their inner Text too.
+   Remember to stop the process before rebuilding, or the copy step fails on locked DLLs.
 
 ---
 
@@ -153,13 +164,11 @@ independent, and grouped search is UI-only and can slot in anywhere.
   length plus the first and last 8 MB, full hash confirms. Files below two chunks are hashed whole,
   which makes the quick hash conclusive for short files.
 - [x] Backfill hashes for existing clips in `LibrarySanitizerService`, reported in the summary.
-  **Correction to an earlier note here:** the backfill is not confined to an explicit Repair
-  Library. `App.InitializeServicesAsync` runs `SanitizeAsync()` on every startup, so the backfill
-  runs there too. Confirmed working end to end - a startup run hashed all 19 demo clips and
-  reported the out-of-range highlight. The cost is one-off per clip, but on the 885-clip library it
-  is roughly 49 seconds of disk work on the first launch after upgrading (and would have been
-  8.4 minutes before the chunk size was reduced). Worth deciding whether unbounded startup work
-  should be bounded, deferred, or announced.
+  **Settled in 1.5.2 (2026-09-10).** This note used to record that the backfill was not confined
+  to an explicit Repair Library, because `App.InitializeServicesAsync` ran `SanitizeAsync()` on
+  every startup - roughly 49 seconds of disk work on the 885-clip library on the first launch
+  after upgrading, unannounced. That is no longer true: startup runs the cheap health check and
+  the backfill belongs to Repair Library alone.
 - [x] `ImportService` - hashes before the expensive work, confirms every quick-hash match with a
   full hash, and returns `ImportResult.Duplicate` with both clips without importing. An
   `allowDuplicate` flag covers "import anyway".
@@ -176,10 +185,12 @@ independent, and grouped search is UI-only and can slot in anywhere.
 and a different clip does not collide. The dialog itself has not been driven at a
 keyboard yet.
 
-**One wrinkle worth knowing:** detection compares against stored hashes, and clips
-imported before this feature have none. Until Repair Library backfills them, a
-duplicate of an older clip imports without a word. Whether that is acceptable, or
-the backfill should run once automatically after an upgrade, is an open decision.
+**The wrinkle this left, and how 1.5.4 closed it:** detection compares against stored
+hashes, and clips imported before this feature have none, so a duplicate of an older
+clip imported without a word. It still does until Repair Library backfills them - but
+the library is no longer blind to the result. `IDuplicateClipFinder` compares the
+library against itself after the backfill, and what it finds is listed under Attention
+required with a merge screen behind it.
 
 ### Found while building F-R
 
@@ -193,174 +204,192 @@ the backfill should run once automatically after an upgrade, is an open decision
   The fix is to gate that first load behind migrations rather than to move migrations earlier,
   which would undo the deliberately fast window.
 
-## Phase 1.5 - Settings overhaul and library health
+## Phase 1.5 - Settings overhaul and library health - DONE (2026-09-10)
 
-Agreed 2026-09-09. Self-contained: a fresh session can start here without reading
-the rest of this file. Points 1-4 of that review are already done (duplicate name
-detection is always on, the toggle now governs content hashing itself, the wizard
-offers it, Settings warns when clips are unhashed).
+Agreed 2026-09-09, delivered 2026-09-10. Everything below landed and was verified
+in the running app under `--profile smoke`. Tests 493 -> 579, still 0 warnings.
 
-**Why this is a phase rather than two tickets.** Sanitize already finds things the
-user must act on - broken clips, highlights whose range falls outside their clip,
-and now duplicates - and none of them have anywhere to live. They are logged, or
-counted in a summary line that scrolls away, or marked on one page only. Settings
-also needs a structural pass in its own right: `SettingsView.axaml` is 731 lines of
-one flat scroll and `SettingsViewModel.cs` is 869, mixing folder management,
-preferences, transcription, repair and now duplicate resolution.
+**Why this was a phase rather than two tickets.** Sanitize already found things
+the user had to act on - broken clips, highlights whose range falls outside their
+clip, and duplicates - and none of them had anywhere to live. They were logged, or
+counted in a summary line that scrolled away, or marked on one page only. Settings
+also needed a structural pass in its own right. Both are now done, and the second
+is what gave the first somewhere to go.
 
-### 1.5.1 Settings restructure
+### 1.5.1 Settings restructure - done
 
-- [ ] Split `SettingsView` into sections that can be navigated rather than scrolled.
-- [ ] Split `SettingsViewModel` along the same seams, using the `I...Host` child view model
-  pattern established in Phase 0.2 - see the `BulkEditViewModel` / `IBulkEditHost` pair for the
-  shape to copy, and keep each child testable behind a fake host.
-- [ ] `SettingsView.axaml.cs` already owns two dialogs; keep dialog ownership in the view and
-  child view models free of windows.
+- [x] `SettingsView` split into navigable sections. The 731-line flat scroll is now
+  a 98-line shell: a section list on the left, the selected section, and one Save bar.
+- [x] `SettingsViewModel` split along the same seams: 869 lines down to a shell over
+  seven `SettingsSectionViewModel` children - Source Folders, Preferences,
+  Transcription, OBS Integration, Attention Required, Maintenance, About. Each reaches
+  the page only through `ISettingsSectionHost`, following the
+  `BulkEditViewModel` / `IBulkEditHost` pattern from Phase 0.2, and each is tested
+  against `FakeSettingsSectionHost`.
+- [x] Dialog ownership stayed in the views: the folder pickers, removal dialog,
+  duplicate prompt and model manager each moved into the code-behind of the section
+  they belong to, leaving `SettingsView.axaml.cs` with only the initial load.
 
-### 1.5.2 Split the startup sanitize from the repair
+**The shape, for whoever adds a section.** A section maps onto `AppSettings` through
+`LoadFrom`/`ApplyTo` and reads anything else through `RefreshAsync`; both are no-ops
+on the base class, so a section implements only the half it has. Views resolve through
+`ViewLocator` via the `ViewModels.Settings` / `Views.Settings` namespace pair, so a new
+section needs no registration - just the matching names.
 
-Today `App.InitializeServicesAsync` calls the full `SanitizeAsync()` on every launch.
-That is a repair pass doing regeneration, hashing and cache sweeps, run unannounced,
-uncancellable, with no progress, on every start.
+One thing worth knowing: the repair pass used to disable its own button through the
+page-wide `IsLoading`, which a section can no longer see. It now owns
+`IsRepairRunning` instead.
 
-**Measured before proposing anything.** Steady state on a 23-clip library is ~220 ms,
-so roughly 10 ms per clip - about 9 seconds for an 885-clip library, every launch,
-and it grows linearly. The first run after enabling hashing adds ~49 seconds of
-hashing on that library, and any missing thumbnail or strip adds seconds more each.
+### 1.5.2 Split the startup sanitize from the repair - done
 
-The surprise is where the cost is *not*: checking the disk is nearly free. One
-directory enumeration of 885 files measured at under a millisecond, and 885
-individual existence checks at ~11 ms. What costs is the regeneration work and
-loading every clip with its highlights and tags.
+`App.InitializeServicesAsync` called the full `SanitizeAsync()` on every launch - a
+repair pass doing regeneration, hashing and cache sweeps, unannounced, uncancellable,
+with no progress. Roughly 9 seconds on an 885-clip library, growing linearly, plus
+about 49 seconds of hashing on the first run after enabling it.
 
-So the split is cheap to make:
+- [x] **Startup is a health check now.** `ILibraryHealthCheckService`: one directory
+  listing per source folder compared against a projection of the clip rows.
+  **Measured at 16-20 ms on the 23-clip smoke profile**; a listing of the real
+  library's 885 files is 0.7 ms cold.
+- [x] **An unreachable source folder leaves its clips completely alone** rather than
+  marking every one of them broken, so a library on an unplugged drive comes back
+  intact. It is reported instead. This is the part of F-P that belonged here; the rest
+  of F-P (the removable-drive schema and the drive monitor) is still Phase 2.
+- [x] **Findings are typed** (`LibraryHealthFinding`) and the last report is kept on
+  the service, so the attention list renders them instead of a log line.
+- [x] **Repair Library keeps the rest** - hash backfill, thumbnail and strip
+  regeneration, highlight thumbnails, orphan sweeps, the G5 timestamp heuristic.
+- [x] **The trap was cleared.** The startup pass was quietly regenerating missing
+  thumbnails and strips, so removing it would have traded a slow start for visibly
+  broken tiles. `IMediaAssetProvider` now makes a missing thumbnail, strip or highlight
+  thumbnail the first time something asks for one, persists it, and dedupes concurrent
+  requests so twenty cards of one clip start one FFmpeg run. Verified by deleting a
+  cached thumbnail and watching the grid put it back.
 
-- [ ] **Startup: a health check, not a repair.** Per source folder, one directory listing
-  compared against the clip paths in the database. That single pass answers everything worth
-  knowing at launch:
-  - the folder root is unreachable, so the drive is disconnected - archive its clips (this is
-    F-P in Phase 2, and it belongs here)
-  - database paths with no file on disk - mark broken
-  - files on disk with no database row - "a scan is recommended"
-- [ ] **Repair Library keeps the rest**: hash backfill, thumbnail and strip regeneration, highlight
-  thumbnails, orphan cache sweeps, the G5 timestamp heuristic.
-- [ ] **Findings go to the attention list** below rather than into a log line, which is what makes
-  the split safe to do.
-- [ ] **Watch for the thing the startup pass is quietly providing today:** it regenerates missing
-  thumbnails and strips, so a user who never runs Repair Library currently never notices they went
-  missing. Removing that needs lazy regeneration on demand - the grid asking for a thumbnail that
-  is not there should create it - or the split trades a slow start for visibly broken tiles.
+Also here: `IClipRepository.GetFileSnapshotsAsync` reads six columns instead of pulling
+every clip's tags, players and highlights, which was the other half of what made the old
+pass slow. `SetBrokenAsync` flips the flag without loading the row.
 
-### 1.5.3 "Attention required" section
+### 1.5.3 "Attention required" section - done
 
-A single list of everything the library needs a human to resolve. This is the home
-the existing findings never had.
+One list of everything the library needs a human to resolve. It lives as a Settings
+section, and its count badges the Settings nav item so a library that needs something
+says so from the first frame rather than on a page nobody is looking at.
 
-- [ ] Sources: duplicate clips **already in the library** (see below), broken clips
-  (`Clip.IsBroken`), disconnected source drives, "a scan is recommended", highlights whose range
-  falls outside their clip (`WatchWindow.Clamp(...).IsUsable` is the existing definition - reuse it,
-  do not restate it).
-- [ ] Populated by a sanitize run; each entry names the problem and offers the action that fixes it.
-- [ ] This subsumes an item already in the backlog: an out-of-range highlight can currently be
-  found but not repaired in place, and its fix-it entry belongs here.
-- [ ] The user's rule for the whole section: **never guess.** Every entry prompts; nothing is
-  auto-resolved. This is why the sanitizer was changed to report rather than move an
-  out-of-range highlight, and the same standard applies to everything listed here.
+- [x] Sources: unreachable source folders and un-imported files from the startup health
+  report; broken clips and out-of-range highlights read straight from the library;
+  duplicate clips from the last duplicate scan.
+- [x] Out-of-range reuses `WatchWindow.Clamp(...).IsUsable` rather than restating it, so
+  the list and watch mode cannot drift apart - and it is the drift that locks the player up.
+- [x] Each entry names the problem and offers the action that fixes it.
+- [x] **Never guess, and this is where it bites.** No entry resolves anything: an
+  unreachable folder opens Source Folders rather than choosing between reconnect,
+  archive and remove. A test asserts the section never writes to the library at all.
+- [x] The backlog item about an out-of-range highlight being findable but not repairable
+  is half-closed: the entry now takes you to the clip. A range picker that opens on the
+  offending row is still missing - see the backlog.
 
-### 1.5.4 Duplicate resolution with merge
+Two details worth keeping. The report's missing-file findings are deliberately unused:
+the clip's broken flag is the same fact and is always current, so a clip relocated since
+the check is not still listed. And past eight entries of a kind they collapse into one
+counted row, so a library that lost a whole folder does not bury everything else.
 
-- [ ] Sanitize hashes first, then presents what it found - hashing has to complete before the
-  duplicate list can be right.
-- [ ] **Duplicates already in the library are currently invisible**, which is the gap testing hit
-  on 2026-09-09. Detection only runs at import, so once two copies are in the library nothing ever
-  compares them again. Proven on the test profile: two pairs shared a hash
-  (a Warframe clip and its copy, and a fixture pair) and nothing reported either. A clip that
-  imported while hashing was off is the common way in.
-- [ ] Smallest useful step, separable from the merge UI: have the sanitize summary report the
-  duplicate groups its hashing found, exactly as it already reports out-of-range highlights.
-  No new screens, and it makes Repair Library answer "did it find anything?".
-- [ ] List each duplicate group showing the ClipStudio metadata on both sides: tags, players,
-  highlights, rating, notes. The file is the same; the metadata is what differs and what the user
-  is actually choosing between.
-- [ ] The user picks which clip survives.
-- [ ] **Tags and players: reuse the bulk edit promote/demote chips.** `BulkEditViewModel` already
-  models exactly this - Shared, Partial and New across a set of clips, with promote to spread a
-  partial one - so the merge screen should reuse that rather than invent a second way to reconcile
-  tags. The resulting set is applied to the surviving clip.
-- [ ] **Highlights: list all of them from every copy and let the user choose which to keep.** They
-  are time ranges over identical content, so all of them are valid against the survivor; this is a
-  selection, not a merge.
-- [ ] Removing the copies is destructive and comes last, after the survivor has its merged metadata.
+### 1.5.4 Duplicate resolution with merge - done
+
+**The gap this closed.** Detection only ran at import, so once two copies were both in
+the library nothing ever compared them again. Proven on the smoke profile: two pairs
+shared a hash - a Warframe clip and its copy, and a fixture pair - and nothing reported
+either.
+
+- [x] `IDuplicateClipFinder` applies the two hashes the import path already uses to the
+  library instead of to an incoming file. The stored quick hash screens; every candidate
+  group is confirmed by hashing its members in full, so a quick-hash collision between
+  different recordings is rejected rather than reported.
+- [x] **Repair Library runs it last, after the hash backfill.** Searching first would miss
+  exactly the clips that were never hashed, which is the usual way a duplicate gets in
+  unnoticed.
+- [x] The sanitize summary names what it found, so a repair answers "did it find anything?"
+  with no new screens. That was the smallest useful step, and it shipped separately from
+  the merge UI.
+- [x] The merge screen shows every copy side by side with its path, import time, tags,
+  players, highlights and rating, and the user picks the survivor.
+- [x] **Tags and players reuse the bulk-edit chips** rather than a second way of
+  reconciling them: shared purple, partial red, promoted yellow, and only promoted chips
+  are written. Because that model drops an unpromoted chip, the screen counts what is at
+  stake and offers "Keep them all" - explicit, but one click from the common intent.
+- [x] **Highlights are a selection, not a merge.** Every range is valid against the
+  survivor, so they start ticked. Identical range-and-label pairs across copies collapse
+  into one row, so the merge cannot create a duplicate range on the survivor.
+- [x] Removal is destructive and comes last - metadata is written first, so a failed
+  removal still leaves the survivor complete. Trash, not delete, and the confirmation
+  says it is restorable for 30 days.
+
+**One decision made while building this.** The finder's groups live in memory, so after a
+restart nothing is listed until something looks again. Making the user run a full repair
+for that would be a poor trade, so the attention section has its own "Look for duplicates"
+button. It is deliberately separate from "Re-check": the re-check is directory listings,
+this reads every candidate file end to end.
 
 ### 1.5.5 Import performance
 
-Measured, not assumed. On a 303 MB clip the quick hash costs ~633 ms cold and ~15 ms
-warm, while SHA-256 over the same 16 MB already in RAM takes 8 ms. **The hashing is
-not the cost - the file reading is.**
-
-**Correction to an earlier suggestion in this file:** "read the clip once into RAM
-and serve every step from it" does not work. FFMpegCore runs `ffmpeg`/`ffprobe` as
-external processes that open the file by path; they cannot be handed a buffer, and
-piping a 300 MB video through stdin would be worse and would break the seeking that
-thumbnails and strips need. The saving has to come from fewer and better-overlapped
-passes, not from a shared buffer.
-
-What one import currently costs, counted in `MediaService`:
-
-1. `GetMetadataAsync` - one `FFProbe` process
-2. `GenerateThumbnailAsync` - one `ffmpeg` process
-3. `GeneratePreviewStripAsync` - **a second `FFProbe`** for the duration, then one `ffmpeg`
-4. The quick hash - our own read
-
-That is four external process launches plus our own read, and the second probe is
-pure waste.
+Measured, not assumed, throughout. **Correction to an earlier suggestion in this file:**
+"read the clip once into RAM and serve every step from it" does not work. FFMpegCore runs
+`ffmpeg`/`ffprobe` as external processes that open the file by path; they cannot be handed
+a buffer, and piping a 300 MB video through stdin would be worse and would break the
+seeking that thumbnails and strips need.
 
 - [x] Drop the redundant probe: the duration is passed in from the metadata already read.
 - [x] **The strip was the whole cost, and it is fixed.** It decoded every frame of the clip -
-  ~10,800 for a 180s recording - to keep 20 of them, because the `fps` filter drops frames only
-  after the decoder has produced them. Decoding keyframes at the demuxer instead
-  (`-discard nokey`) took it from 6,114 ms to 280 ms on the same file. A guard falls back to a
-  full decode when the file has fewer keyframes than the strip has tiles.
+  ~10,800 for a 180s recording - to keep 20 of them, because the `fps` filter drops frames
+  only after the decoder has produced them. Decoding keyframes at the demuxer instead
+  (`-discard nokey`) took it from 6,114 ms to 280 ms on the same file. A guard falls back to
+  a full decode when the file has fewer keyframes than the strip has tiles.
   End to end, cold, on real 300 MB clips: **9,538 ms -> 2,141 ms per clip, 4.5x**.
+  On the real library (`E:\Clip stream\#LastAdded`, 885 clips, 409 GB - read only, never
+  modified): **21,699 ms -> 2,773 ms per clip, 7.8x**. Its clips are 170 Mbps HEVC
+  2560x1080 at 60fps, so a 24-second clip is half a gigabyte.
+  Keyframe density there is about one every two seconds, so the guard only rejects clips
+  under roughly 40 seconds - **8% of a 78-clip duration sample**. On the rejected ones,
+  `-hwaccel auto` cuts the full decode from 17.4s to 10.2s and `-threads 4` makes it
+  *worse* (22.8s), so neither is a substitute for keyframe-only decoding.
+- [x] **Hashing was a separate cost and is fixed too.** The keyframe change did nothing for
+  it: hashing read 8 MB from each end of every clip, costing 570 ms on a spinning drive.
+  Reduced to 1 MB, measured at 55 ms - tenfold, and it applies to Repair Library's backfill
+  as much as to import. Safe by construction: identical bytes always hash identically, so a
+  smaller chunk can only produce false positives, which the full hash rejects. Zero
+  collisions across 124 clips of the real library at 1 MB, and none at 256 KB either.
+- [x] **The keyframe guard asks the right question now (2026-09-10).** It needs one bit -
+  are there at least as many keyframes as tiles - but was counting every keyframe in the
+  file to get it. `HasAtLeastKeyframesAsync` stops reading the moment it has seen enough.
+  Measured cold against cold on the real library, two disjoint interleaved sets so the size
+  distribution matches: **2,194 ms -> 847 ms per clip, 2.6x, about 1.35 s saved on every
+  import.** The saving grows with keyframe density - on a 186 MB clip with 375 keyframes,
+  8,030 ms -> 537 ms, 15x. Clips too sparse to take the fast path read the whole index
+  either way and still fall back correctly.
+- [x] Combining the thumbnail and strip into one `ffmpeg` pass is **not** worth it. The
+  thumbnail costs ~360 ms because `-ss` seeks straight to the frame, while a combined pass
+  has to reach that timestamp through the filter graph. Measured slower than the two
+  separate passes. Closing this rather than leaving it open: it was tried and rejected.
 
-  **Verified against the real library** (`E:\Clip stream\#LastAdded`, 885 clips, 409 GB - read
-  only, never modified). Its clips are far heavier than the showcase set: high-bitrate HEVC,
-  2560x1080 at 60fps, around 170 Mbps, so a 24-second clip is half a gigabyte and used to take
-  17.7 seconds to decode for its strip. Averaged over three cold clips:
-  **21,699 ms -> 2,773 ms per clip, 7.8x. Across all 885 clips that is 5h 20m -> 41 min.**
+**What is left, and why neither is just effort:**
 
-  Keyframe density there is about one every two seconds, so the guard only rejects clips shorter
-  than roughly 40 seconds - **8% of a 78-clip duration sample**. The other 92% take the fast path.
-  On the rejected ones, `-hwaccel auto` cuts the full decode from 17.4s to 10.2s and `-threads 4`
-  makes it *worse* (22.8s), so neither is a substitute for keyframe-only decoding.
-- [ ] Combining the thumbnail and strip into one `ffmpeg` pass is no longer worth it. The
-  thumbnail costs ~360 ms because `-ss` seeks straight to the frame, while a combined pass has to
-  reach that timestamp through the filter graph. Measured slower than the two separate passes.
-- [ ] **Parallelism across files is worth doing, and the spinning disk does not rule it out.**
-  Measured on eight untouched clips, run in both directions to cancel out cache warmth:
-  sequential 1,136 ms and 1,132 ms, four-way parallel 723 ms and 700 ms - consistently ~1.6x.
-  Keyframe-only decoding turned this step from streaming-bound into seek-and-CPU-bound, which is
-  why overlapping now helps where it would not have before.
-  **The blocker is not I/O, it is EF Core:** `DbContext` is not thread-safe and `ImportService`
-  takes a scoped repository, so parallel imports need a scope per file and a rethink of how
-  progress and results are collected. That is the actual work, and it is not small.
-- [x] **Hashing was a separate cost and is now fixed too.** The keyframe change did nothing for it:
-  hashing read 8 MB from each end of every clip, costing 570 ms on a spinning drive. Reduced to
-  1 MB, measured at 55 ms - tenfold, and it applies to Repair Library's backfill as much as to
-  import. Safe by construction: identical bytes always hash identically, so a smaller chunk can
-  only produce false positives, which the full hash rejects. Zero collisions across 124 clips of
-  the real library at 1 MB, and none at 256 KB either.
-
-  **Combined per clip on the real library: about 22.3s -> 2.8s. Across 885 clips, 5h 28m -> 42 min.**
-
-- [ ] The short-clip fallback is the remaining quality/speed tension. A 24s clip with 13 keyframes
-  currently takes the 17.7s full decode to guarantee 20 distinct tiles. Two ways out, neither yet
-  chosen: relax the guard and accept 13 distinct tiles out of 20 (silent quality loss, which is
-  why it was not just done), or store the actual tile count per clip so a shorter strip can be
-  rendered honestly - that needs a schema change and the hover-scrub mapping updated.
-- [ ] Remaining smaller win: the keyframe count is a second `ffprobe` launch (~150 ms warm, 1,330
-  ms on a cold spinning-disk read). It could be folded into the metadata probe by replacing
-  `FFProbe.AnalyseAsync` with one call that requests format, streams and keyframe times together.
+- [ ] **The short-clip fallback is a quality/speed tension that needs a decision, not code.**
+  A 24s clip with 13 keyframes takes the full decode to guarantee 20 distinct tiles. Two ways
+  out, neither chosen: relax the guard and accept 13 distinct tiles out of 20 (a silent
+  quality loss, which is why it was not just done), or store the actual tile count per clip so
+  a shorter strip can be rendered honestly - that needs a schema change and the hover-scrub
+  mapping updated. **This is the user's call.**
+- [ ] **Parallel imports need re-measuring before the work starts.** Four-way parallel strips
+  measured ~1.6x faster than sequential (1,136 ms vs 723 ms, reproducible with roles swapped),
+  but that was taken when the keyframe probe still cost about 2.2 s per clip. Roughly 1.35 s
+  of that is now gone, so the shape of the remaining per-clip time has changed and the 1.6x
+  no longer describes what would be gained. Re-measure first.
+  **The blocker was never I/O, it is EF Core:** `DbContext` is not thread-safe and
+  `ImportService` takes a scoped repository, so parallel imports need a scope per file and a
+  rethink of how progress and results are collected. There is also a correctness hazard worth
+  naming before anyone starts: `ImportService` creates tags and players as a side effect of
+  import (GameTagAlias, auto-applied "Me" player), so two files carrying the same new game
+  name could race and create it twice. That needs solving, not just parallelising.
 
 ### F-A - Link clips
 
@@ -402,6 +431,12 @@ pure waste.
 - [ ] Tests: round trip, merge with existing names, unknown schema version rejected
 
 ### F-P - Removable drive auto-archive
+
+**Partly landed in 1.5.2.** The startup health check already detects an unreachable
+source folder and reports it under Attention required, and - importantly - leaves its
+clips alone rather than marking every one of them broken. What is left here is the
+schema that tells a removable drive from a missing folder, and the monitor that reacts
+while the app is running.
 
 - [ ] `SourceFolder.IsRemovableDrive` + `VolumeSerialNumber` + migration
 - [ ] `IDriveMonitor` abstraction; Windows implementation via WMI `Win32_VolumeChangeEvent`; Linux/macOS polling fallback
@@ -503,10 +538,11 @@ playback fixes all behaved correctly apart from the entries below.
 - [x] The clip's tag pickers no longer offer tags the clip already has (`ClipGeneralTagOptions` /
   `ClipGameTagOptions`). Highlight rows keep the full list on purpose - highlight tags propagate
   to the clip, so filtering the shared list would hide clip tags from every row.
-- [ ] **An out-of-range highlight can be seen but not repaired in place.** It is now marked in the
-  list, refused for watching and skipped by the queue, and the sanitize summary counts it - so it
-  can be found. What is still missing is a way to fix it: an editor that opens the row with its
-  range ready to re-pick. Until then the only route is deleting and recreating it.
+- [ ] **An out-of-range highlight can be seen but not repaired in place.** Half-closed by 1.5.3:
+  it is marked in the list, refused for watching, skipped by the queue, counted in the sanitize
+  summary, and now listed under Attention required with an entry that opens its clip. What is
+  still missing is the last step - an editor that opens the row with its range ready to re-pick.
+  Until then the only route is deleting and recreating it.
 - [ ] **Highlight tag pickers still offer tags that highlight already has.** The clip-level
   exclusion did not extend to them: `HighlightViewModel.AvailableTags` is a shared reference to
   the full list, so a per-highlight exclusion needs its own filtered collection per row.
