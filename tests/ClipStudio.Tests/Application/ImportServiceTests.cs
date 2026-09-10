@@ -403,14 +403,11 @@ public sealed class ImportServiceTests
         _fileSystem.AddFile($"{SourcePath}/a.mp4").AddFile($"{SourcePath}/b.mp4");
         CaptureAddedClip();
 
-        var reports = new List<ImportProgressReport>();
-        await _service.ScanFolderAsync(1, new Progress<ImportProgressReport>(reports.Add));
+        var progress = new RecordingProgress<ImportProgressReport>();
+        await _service.ScanFolderAsync(1, progress);
 
-        // Progress<T> posts asynchronously; drain the callbacks before asserting.
-        await Task.Delay(50);
-
-        Assert.All(reports, r => Assert.Equal(2, r.TotalFiles));
-        Assert.Equal(2, reports.Count(r => r.CurrentFileIndex is 1 or 2));
+        Assert.All(progress.Reports, r => Assert.Equal(2, r.TotalFiles));
+        Assert.Equal(2, progress.Reports.Count(r => r.CurrentFileIndex is 1 or 2));
     }
 
     [Fact]

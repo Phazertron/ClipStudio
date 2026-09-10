@@ -428,14 +428,11 @@ public sealed class LibrarySanitizerServiceTests
     [Fact]
     public async Task SanitizeAsync_ReportsASummary()
     {
-        var reports = new List<string>();
+        var progress = new RecordingProgress<string>();
 
-        await _service.SanitizeAsync(new Progress<string>(reports.Add));
+        await _service.SanitizeAsync(progress);
 
-        // Progress<T> posts asynchronously; drain the callbacks before asserting.
-        await Task.Delay(50);
-
-        Assert.Contains(reports, r => r.StartsWith("Sanitize complete:"));
+        Assert.Contains(progress.Reports, r => r.StartsWith("Sanitize complete:"));
     }
 
     [Fact]
@@ -447,11 +444,10 @@ public sealed class LibrarySanitizerServiceTests
             .Setup(d => d.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([new DuplicateClipGroup("hash", [1, 2])]);
 
-        var reports = new List<string>();
-        await _service.SanitizeAsync(new Progress<string>(reports.Add));
-        await Task.Delay(50);
+        var progress = new RecordingProgress<string>();
+        await _service.SanitizeAsync(progress);
 
-        Assert.Contains(reports, r => r.Contains("2 clip(s) in 1 group(s) are the same recording"));
+        Assert.Contains(progress.Reports, r => r.Contains("2 clip(s) in 1 group(s) are the same recording"));
     }
 
     [Fact]
@@ -486,11 +482,10 @@ public sealed class LibrarySanitizerServiceTests
             .Setup(d => d.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new IOException("in use"));
 
-        var reports = new List<string>();
-        await _service.SanitizeAsync(new Progress<string>(reports.Add));
-        await Task.Delay(50);
+        var progress = new RecordingProgress<string>();
+        await _service.SanitizeAsync(progress);
 
-        Assert.Contains(reports, r => r.StartsWith("Sanitize complete:"));
+        Assert.Contains(progress.Reports, r => r.StartsWith("Sanitize complete:"));
     }
 
     [Fact]
@@ -561,8 +556,7 @@ public sealed class LibrarySanitizerServiceTests
         var highlight = AddHighlight(clip, TimeSpan.FromSeconds(180), TimeSpan.FromSeconds(210));
         SetUpLibrary(clip);
 
-        var messages = new List<string>();
-        await _service.SanitizeAsync(new Progress<string>(messages.Add));
+        await _service.SanitizeAsync(new RecordingProgress<string>());
 
         Assert.Equal(TimeSpan.FromSeconds(180), highlight.StartTime);
         Assert.Equal(TimeSpan.FromSeconds(210), highlight.EndTime);

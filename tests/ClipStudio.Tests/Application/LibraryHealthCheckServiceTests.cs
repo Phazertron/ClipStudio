@@ -180,12 +180,10 @@ public sealed class LibraryHealthCheckServiceTests
             [new SourceFolder { Id = 1, Path = "/one" }, new SourceFolder { Id = 2, Path = "/two" }],
             [ClipAt(1, 1, "/one/a.mp4"), ClipAt(2, 2, "/two/b.mp4")]);
 
-        var messages = new List<string>();
-        await BuildService().CheckAsync(new Progress<string>(messages.Add));
+        var progress = new RecordingProgress<string>();
+        await BuildService().CheckAsync(progress);
 
-        // Progress is posted synchronously here because there is no synchronisation context in a
-        // test, so the messages are already in the list.
-        Assert.Contains(messages, m => m.Contains("/one"));
-        Assert.Contains(messages, m => m.Contains("/two"));
+        Assert.Contains(progress.Reports, m => m.Contains("/one"));
+        Assert.Contains(progress.Reports, m => m.Contains("/two"));
     }
 }
