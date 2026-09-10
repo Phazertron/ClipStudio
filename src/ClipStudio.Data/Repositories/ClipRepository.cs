@@ -195,6 +195,29 @@ internal sealed class ClipRepository : IClipRepository
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<ClipFileSnapshot>> GetFileSnapshotsAsync(
+        CancellationToken cancellationToken = default)
+        => await _context.Clips
+            .Where(c => !c.IsDeleted)
+            .AsNoTracking()
+            .Select(c => new ClipFileSnapshot(c.Id, c.SourceFolderId, c.FilePath, c.FileName, c.IsBroken))
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task SetBrokenAsync(int clipId, bool isBroken, CancellationToken cancellationToken = default)
+    {
+        var clip = await _context.Clips.FindAsync([clipId], cancellationToken);
+        if (clip is null)
+            return;
+
+        if (clip.IsBroken == isBroken)
+            return;
+
+        clip.IsBroken = isBroken;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task AddAsync(Clip clip, CancellationToken cancellationToken = default)
     {
         await _context.Clips.AddAsync(clip, cancellationToken);

@@ -115,4 +115,25 @@ public interface IClipRepository
     /// No-ops silently if the clip does not exist.
     /// </summary>
     Task IncrementPlayCountAsync(int clipId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns only the columns a library health check needs, for every live clip.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>One snapshot per live clip.</returns>
+    /// <remarks>
+    /// A projection rather than <see cref="GetAllAsync"/> because the check asks nothing about a
+    /// clip's tags, players or highlights, and loading those for every clip is one of the costs
+    /// that made the old startup pass slow.
+    /// </remarks>
+    Task<IReadOnlyList<ClipFileSnapshot>> GetFileSnapshotsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets or clears a clip's broken flag without loading the rest of the row.
+    /// </summary>
+    /// <param name="clipId">The clip to update.</param>
+    /// <param name="isBroken">The value to store.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <remarks>No-ops silently if the clip does not exist.</remarks>
+    Task SetBrokenAsync(int clipId, bool isBroken, CancellationToken cancellationToken = default);
 }

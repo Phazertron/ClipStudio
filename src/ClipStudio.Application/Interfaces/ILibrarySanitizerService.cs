@@ -4,6 +4,10 @@ namespace ClipStudio.Application.Interfaces;
 /// Repairs the media-cache by regenerating any missing thumbnail or preview-strip files
 /// and removing orphaned cache files that are no longer referenced by any clip in the database.
 /// </summary>
+/// <remarks>
+/// This is the expensive half of what used to run on every launch. It now runs only when the user
+/// asks for a repair; the cheap per-launch check lives in <see cref="ILibraryHealthCheckService"/>.
+/// </remarks>
 public interface ILibrarySanitizerService
 {
     /// <summary>

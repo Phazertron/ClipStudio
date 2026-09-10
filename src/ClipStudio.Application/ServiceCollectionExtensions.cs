@@ -60,6 +60,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<IRecycleBinService, RecycleBinService>();
 
+        // Both are singletons on purpose. The health check keeps its last report for whatever
+        // presents the findings, and the asset provider's in-flight table is only useful shared -
+        // twenty cards asking for one thumbnail must wait on a single FFmpeg run.
+        services.AddSingleton<ILibraryHealthCheckService, LibraryHealthCheckService>();
+        services.AddSingleton<IMediaAssetProvider, MediaAssetProvider>();
+
         // Steam game search: credential-free, uses a named HttpClient.
         services.AddHttpClient<IGameSearchService, SteamSearchService>(client =>
         {

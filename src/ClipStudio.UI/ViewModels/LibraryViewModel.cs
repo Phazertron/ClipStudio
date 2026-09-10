@@ -31,6 +31,7 @@ public sealed partial class LibraryViewModel : ViewModelBase, IBulkEditHost
     private readonly IFilterPresetService _filterPresetService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISettingsService _settingsService;
+    private readonly IMediaAssetProvider _assets;
 
     // ---- Load cancellation + picker-reload suppression ----
     private CancellationTokenSource _loadCts = new();
@@ -306,7 +307,8 @@ public sealed partial class LibraryViewModel : ViewModelBase, IBulkEditHost
         IPlayerService playerService,
         IFilterPresetService filterPresetService,
         IServiceScopeFactory scopeFactory,
-        ISettingsService settingsService)
+        ISettingsService settingsService,
+        IMediaAssetProvider assets)
     {
         _clipService          = clipService;
         _tagService           = tagService;
@@ -314,6 +316,7 @@ public sealed partial class LibraryViewModel : ViewModelBase, IBulkEditHost
         _filterPresetService  = filterPresetService;
         _scopeFactory         = scopeFactory;
         _settingsService      = settingsService;
+        _assets               = assets;
 
         LoadCommand                = new AsyncRelayCommand(LoadAsync);
         ToggleFilterPanelCommand   = new RelayCommand(() => IsFilterPanelOpen = !IsFilterPanelOpen);
@@ -431,7 +434,7 @@ public sealed partial class LibraryViewModel : ViewModelBase, IBulkEditHost
 
             foreach (var clip in sorted)
             {
-                var card = new ClipCardViewModel(clip);
+                var card = new ClipCardViewModel(clip, assets: _assets);
                 card.DetailsRowHeight = DetailsRowHeight;
                 card.IsLastVisited    = clip.Id == _lastOpenedClipId;
 

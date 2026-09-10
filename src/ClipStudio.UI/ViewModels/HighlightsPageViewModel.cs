@@ -23,6 +23,7 @@ public sealed partial class HighlightsPageViewModel : ViewModelBase
     private readonly IHighlightService _highlightService;
     private readonly ITagService _tagService;
     private readonly IPlayerService _playerService;
+    private readonly IMediaAssetProvider _assets;
 
     private IReadOnlyList<HighlightRowViewModel> _allRows = Array.Empty<HighlightRowViewModel>();
     private CancellationTokenSource _loadCts = new();
@@ -151,9 +152,11 @@ public sealed partial class HighlightsPageViewModel : ViewModelBase
     public HighlightsPageViewModel(
         IHighlightService highlightService,
         ITagService tagService,
-        IPlayerService playerService)
+        IPlayerService playerService,
+        IMediaAssetProvider assets)
     {
         _highlightService = highlightService;
+        _assets           = assets;
         _tagService       = tagService;
         _playerService    = playerService;
 
@@ -185,7 +188,7 @@ public sealed partial class HighlightsPageViewModel : ViewModelBase
             var (highlights, tags, gameTags, players) = await LoadDataAsync(ct);
             if (ct.IsCancellationRequested) return;
 
-            _allRows = highlights.Select(h => new HighlightRowViewModel(h, OpenHighlightWatch)).ToList();
+            _allRows = highlights.Select(h => new HighlightRowViewModel(h, OpenHighlightWatch, _assets)).ToList();
 
             RefreshPickers(tags, gameTags, players);
             ApplyFilterAndSort();

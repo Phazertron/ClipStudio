@@ -213,9 +213,9 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
             // hash and are invisible to duplicate detection. Skipped entirely when hashing is off -
             // a sanitize must not do work the setting forbids.
             //
-            // Note that this is NOT confined to an explicit Repair Library: App.InitializeServicesAsync
-            // calls SanitizeAsync on every startup, so a library that has never been hashed pays for
-            // it there, unannounced and uncancellable. See the startup sanitize entry in PLAN.
+            // This is now confined to an explicit Repair Library. Startup runs the cheap health
+            // check instead, so a library that has never been hashed no longer pays for it on a
+            // launch the user did not ask anything of.
             if (string.IsNullOrEmpty(clip.FileHash) && _settings.Current.ContentHashingEnabled)
             {
                 try

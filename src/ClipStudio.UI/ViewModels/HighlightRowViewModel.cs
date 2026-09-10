@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
+using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -89,7 +90,17 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
     /// <summary>
     /// Gets the absolute path to the highlight thumbnail image, or null if not yet generated.
     /// </summary>
-    public string? ThumbnailPath { get; }
+    /// <remarks>
+    /// Settable because the image can now be produced after the row was built: the startup pass
+    /// no longer regenerates missing images, so the first request for one makes it.
+    /// </remarks>
+    public string? ThumbnailPath { get; private set; }
+
+    /// <summary>
+    /// Produces a missing thumbnail on demand. Null in contexts without one, where a missing
+    /// image simply stays missing.
+    /// </summary>
+    private readonly IMediaAssetProvider? _assets;
 
     /// <summary>
     /// Gets a value indicating whether this highlight's range falls outside its clip, leaving
@@ -164,9 +175,13 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
     /// Action invoked when the row is tapped by the user.
     /// Receives this row so the caller can locate its position in the sequence for prev/next navigation.
     /// </param>
-    public HighlightRowViewModel(Highlight highlight, Action<HighlightRowViewModel>? onWatch = null)
+    public HighlightRowViewModel(
+        Highlight highlight,
+        Action<HighlightRowViewModel>? onWatch = null,
+        IMediaAssetProvider? assets = null)
     {
         _onWatch = onWatch;
+        _assets  = assets;
 
         HighlightId    = highlight.Id;
         ClipId         = highlight.ClipId;
@@ -238,7 +253,14 @@ public sealed partial class HighlightRowViewModel : ViewModelBase
     public async Task LoadThumbnailAsync()
     {
         if (string.IsNullOrEmpty(ThumbnailPath) || !File.Exists(ThumbnailPath))
-            return;
+        {
+            // The image is not there. Ask for it to be made rather than leaving the row blank -
+            // the startup pass that used to regenerate it silently is gone.
+            if (_assets is null) return;
+
+            ThumbnailPath = await _assets.EnsureHighlightThumbnailAsync(HighlightId);
+            if (string.IsNullOrEmpty(ThumbnailPath)) return;
+        }
 
         try
         {

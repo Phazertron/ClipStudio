@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media.Imaging;
+using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Enums;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -30,10 +31,20 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     [ObservableProperty] private string _fileName = string.Empty;
 
     /// <summary>Gets the absolute path to the generated thumbnail image, or null if not yet generated.</summary>
-    public string? ThumbnailPath { get; }
+    /// <remarks>
+    /// Settable because the image can now be produced after the card was built: the startup pass
+    /// no longer regenerates missing images, so the first request for one makes it.
+    /// </remarks>
+    public string? ThumbnailPath { get; private set; }
 
     /// <summary>Gets the absolute path to the preview sprite-sheet image, or null if not generated.</summary>
-    public string? StripPath { get; }
+    public string? StripPath { get; private set; }
+
+    /// <summary>
+    /// Produces a missing thumbnail or strip on demand. Null in contexts without one, where a
+    /// missing image simply stays missing.
+    /// </summary>
+    private readonly IMediaAssetProvider? _assets;
 
     /// <summary>
     /// Gets or sets the decoded thumbnail bitmap loaded asynchronously.
@@ -339,8 +350,9 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     /// <param name="stripFrameCount">
     /// The number of frames in the preview strip sprite-sheet, from <c>AppSettings.PreviewStripFrameCount</c>.
     /// </param>
-    public ClipCardViewModel(Clip clip, int stripFrameCount = 20)
+    public ClipCardViewModel(Clip clip, int stripFrameCount = 20, IMediaAssetProvider? assets = null)
     {
+        _assets           = assets;
         ClipId            = clip.Id;
         FilePath          = clip.FilePath;
         _fileName         = clip.FileName;
@@ -391,7 +403,14 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     public async Task LoadThumbnailAsync()
     {
         if (string.IsNullOrEmpty(ThumbnailPath) || !File.Exists(ThumbnailPath))
-            return;
+        {
+            // The image is not there. Ask for it to be made rather than showing "No Preview"
+            // forever - the startup pass that used to regenerate it silently is gone.
+            if (_assets is null) return;
+
+            ThumbnailPath = await _assets.EnsureClipThumbnailAsync(ClipId);
+            if (string.IsNullOrEmpty(ThumbnailPath)) return;
+        }
 
         try
         {
@@ -411,7 +430,12 @@ public sealed partial class ClipCardViewModel : ViewModelBase
     public async Task LoadStripAsync()
     {
         if (string.IsNullOrEmpty(StripPath) || !File.Exists(StripPath))
-            return;
+        {
+            if (_assets is null) return;
+
+            StripPath = await _assets.EnsureClipPreviewStripAsync(ClipId);
+            if (string.IsNullOrEmpty(StripPath)) return;
+        }
 
         try
         {

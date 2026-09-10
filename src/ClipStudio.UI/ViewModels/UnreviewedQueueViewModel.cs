@@ -16,6 +16,7 @@ namespace ClipStudio.UI.ViewModels;
 public sealed partial class UnreviewedQueueViewModel : ViewModelBase
 {
     private readonly IClipService _clipService;
+    private readonly IMediaAssetProvider _assets;
 
     /// <summary>Gets the observable collection of unreviewed clip cards.</summary>
     public ObservableCollection<ClipCardViewModel> Clips { get; } = new();
@@ -50,9 +51,10 @@ public sealed partial class UnreviewedQueueViewModel : ViewModelBase
     /// Initialises a new <see cref="UnreviewedQueueViewModel"/>.
     /// </summary>
     /// <param name="clipService">Application service used to retrieve unreviewed clips.</param>
-    public UnreviewedQueueViewModel(IClipService clipService)
+    public UnreviewedQueueViewModel(IClipService clipService, IMediaAssetProvider assets)
     {
         _clipService = clipService;
+        _assets      = assets;
         LoadCommand  = new AsyncRelayCommand(LoadAsync);
         Clips.CollectionChanged += (_, _) => OnPropertyChanged(nameof(UnreviewedCount));
     }
@@ -82,7 +84,7 @@ public sealed partial class UnreviewedQueueViewModel : ViewModelBase
             var results = await _clipService.GetUnreviewedAsync();
 
             foreach (var clip in results)
-                Clips.Add(new ClipCardViewModel(clip));
+                Clips.Add(new ClipCardViewModel(clip, assets: _assets));
 
             // Load thumbnails asynchronously so the list appears immediately and images fade in.
             _ = Task.WhenAll(Clips.Select(c => c.LoadThumbnailAsync()));

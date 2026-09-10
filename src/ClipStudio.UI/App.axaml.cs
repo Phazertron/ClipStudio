@@ -419,9 +419,14 @@ public partial class App : AvaloniaApp
                 var gamesVm = Services.GetRequiredService<GamesViewModel>();
                 await gamesVm.PreloadCoversAsync();
 
-                // Regenerate any missing thumbnails/strips and remove orphaned cache files.
-                var sanitizer = scope.ServiceProvider.GetRequiredService<ILibrarySanitizerService>();
-                await sanitizer.SanitizeAsync();
+                // A health check, not a repair. This used to be the full SanitizeAsync pass -
+                // hashing, regeneration and cache sweeps - run unannounced and uncancellable on
+                // every launch, about 9 seconds on an 885-clip library and growing with it. What
+                // is left here is one directory listing per source folder, which measures under a
+                // millisecond. The repair itself now runs only when the user asks for it, and the
+                // regeneration it used to do silently happens on demand through IMediaAssetProvider.
+                var health = Services.GetRequiredService<ILibraryHealthCheckService>();
+                await health.CheckAsync();
             }
             catch
             {
