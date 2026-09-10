@@ -74,8 +74,33 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     /// <summary>Gets the command that re-runs the health check and rebuilds the list.</summary>
     public IAsyncRelayCommand RecheckCommand { get; }
 
+    /// <summary>Gets the command that searches the library for duplicate clips.</summary>
+    /// <remarks>
+    /// Separate from <see cref="RecheckCommand"/> because it is a different kind of work: the
+    /// re-check is directory listings, while this reads every candidate file end to end to confirm
+    /// a match. It is also offered here rather than only inside Repair Library because the result
+    /// lives in memory - after a restart the groups are gone until something looks again, and
+    /// making the user run a full repair for that would be a poor trade.
+    /// </remarks>
+    public IAsyncRelayCommand ScanForDuplicatesCommand { get; }
+
+    /// <summary>Gets or sets whether a duplicate scan is running.</summary>
+    [ObservableProperty]
+    private bool _isScanningForDuplicates;
+
+    /// <summary>Gets or sets the outcome of the last duplicate scan, for display.</summary>
+    [ObservableProperty]
+    private string? _duplicateScanResult;
+
     /// <summary>Raised whenever <see cref="EntryCount"/> changes, so a badge can follow it.</summary>
     public Action<int>? EntryCountChanged { get; set; }
+
+    /// <summary>
+    /// Opens the merge screen for one duplicate group and reports whether it was applied. Set by
+    /// the section view's code-behind, which owns the window a dialog needs; left null in tests,
+    /// where a merge simply cannot be started.
+    /// </summary>
+    public Func<DuplicateClipGroup, Task<bool>>? MergeRequested { get; set; }
 
     /// <summary>Initialises a new <see cref="AttentionSectionViewModel"/>.</summary>
     /// <param name="host">The settings page hosting this section.</param>
@@ -96,7 +121,8 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
         _duplicates   = duplicates;
         _actions      = actions;
 
-        RecheckCommand = new AsyncRelayCommand(RecheckAsync);
+        RecheckCommand           = new AsyncRelayCommand(RecheckAsync);
+        ScanForDuplicatesCommand = new AsyncRelayCommand(ScanForDuplicatesAsync);
     }
 
     /// <inheritdoc/>
@@ -124,6 +150,33 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
         finally
         {
             IsChecking = false;
+        }
+    }
+
+    /// <summary>
+    /// Searches the library for clips that are the same recording, then rebuilds the list.
+    /// </summary>
+    private async Task ScanForDuplicatesAsync()
+    {
+        IsScanningForDuplicates = true;
+        DuplicateScanResult     = null;
+        try
+        {
+            var groups = await _duplicates.FindAsync();
+            DuplicateScanResult = groups.Count == 0
+                ? "No duplicate clips found."
+                : $"Found {groups.Sum(g => g.ClipIds.Count)} clips in {groups.Count} group(s).";
+
+            await RebuildAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "The duplicate scan failed.");
+            DuplicateScanResult = "The duplicate scan could not be completed.";
+        }
+        finally
+        {
+            IsScanningForDuplicates = false;
         }
     }
 
@@ -215,7 +268,9 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     {
         foreach (var group in _duplicates.LastGroups)
         {
-            var count = group.ClipIds.Count;
+            var count    = group.ClipIds.Count;
+            var captured = group;
+
             entries.Add(new AttentionEntryViewModel(
                 AttentionEntryKind.DuplicateClips,
                 count == 2
@@ -223,7 +278,9 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
                     : $"{count} clips are the same recording",
                 "Their files hold identical contents. Only the ClipStudio metadata - tags, "
                 + "players, highlights, rating and notes - differs between them.",
-                MaterialIconKind.ContentDuplicate));
+                MaterialIconKind.ContentDuplicate,
+                "Merge...",
+                MergeRequested is null ? null : () => MergeAndRebuildAsync(captured)));
         }
     }
 
@@ -318,6 +375,18 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     }
 
     // ---- Actions ----
+
+    /// <summary>
+    /// Opens the merge screen for one group and rebuilds the list if anything was applied.
+    /// </summary>
+    /// <param name="group">The group to resolve.</param>
+    private async Task MergeAndRebuildAsync(DuplicateClipGroup group)
+    {
+        if (MergeRequested is null) return;
+
+        if (await MergeRequested(group))
+            await RebuildAsync();
+    }
 
     private async Task ScanAndRebuildAsync(int sourceFolderId)
     {

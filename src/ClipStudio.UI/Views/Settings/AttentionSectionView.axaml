@@ -32,11 +32,27 @@
                         </StackPanel>
                     </Button>
 
+                    <Button Command="{Binding ScanForDuplicatesCommand}"
+                            IsEnabled="{Binding !IsScanningForDuplicates}"
+                            FontSize="12"
+                            ToolTip.Tip="Reads every candidate file end to end to confirm a match, so this is slower than a re-check.">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="ContentDuplicate" Width="16" Height="16"/>
+                            <TextBlock Text="Look for duplicates"/>
+                        </StackPanel>
+                    </Button>
+
                     <TextBlock Text="{Binding LastCheckedDisplay}"
                                FontSize="11"
                                Opacity="0.5"
                                VerticalAlignment="Center"/>
                 </StackPanel>
+
+                <TextBlock Text="{Binding DuplicateScanResult}"
+                           FontSize="11"
+                           Opacity="0.7"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding DuplicateScanResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
             </StackPanel>
 
             <!-- Nothing wrong -->

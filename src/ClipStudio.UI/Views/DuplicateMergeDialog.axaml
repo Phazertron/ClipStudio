@@ -1,0 +1,352 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ClipStudio.UI.ViewModels"
+        xmlns:icons="using:Material.Icons.Avalonia"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="880" d:DesignHeight="700"
+        x:Class="ClipStudio.UI.Views.DuplicateMergeDialog"
+        x:DataType="vm:DuplicateMergeViewModel"
+        x:CompileBindings="True"
+        Title="Merge duplicate clips"
+        Width="880" Height="700"
+        WindowStartupLocation="CenterOwner">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Padding="20,14"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Spacing="4">
+                <TextBlock Text="These clips are the same recording"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+                <TextBlock Text="The files hold identical contents, so nothing about the video is at stake. Choose which copy survives, then decide what metadata it keeps."
+                           FontSize="12"
+                           Opacity="0.7"
+                           TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding LoadError}"
+                           FontSize="12"
+                           Foreground="#E74C3C"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding LoadError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Margin="20,16" Spacing="20">
+
+                <!-- ===== Which copy survives ===== -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Which copy survives"
+                               FontSize="13"
+                               FontWeight="SemiBold"/>
+
+                    <ItemsControl ItemsSource="{Binding Candidates}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:DuplicateMergeCandidateViewModel">
+                                <Border Margin="0,0,0,8"
+                                        Padding="12"
+                                        CornerRadius="6"
+                                        Background="{DynamicResource SystemChromeLowColor}">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <RadioButton Grid.Column="0"
+                                                     GroupName="Survivor"
+                                                     IsChecked="{Binding IsSurvivor}"
+                                                     VerticalAlignment="Top"
+                                                     Margin="0,0,10,0"/>
+
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock Text="{Binding FileName}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding FilePath}"
+                                                       FontSize="11"
+                                                       Opacity="0.5"
+                                                       TextWrapping="Wrap"/>
+
+                                            <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Imported"  FontSize="11" Opacity="0.6"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ImportedAtDisplay}" FontSize="11"/>
+
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Tags"      FontSize="11" Opacity="0.6"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding TagsDisplay}" FontSize="11" TextWrapping="Wrap"/>
+
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Players"   FontSize="11" Opacity="0.6"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PlayersDisplay}" FontSize="11" TextWrapping="Wrap"/>
+
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Highlights" FontSize="11" Opacity="0.6"/>
+                                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding HighlightsDisplay}" FontSize="11"/>
+
+                                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Rating"    FontSize="11" Opacity="0.6"/>
+                                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding RatingDisplay}" FontSize="11"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{Binding Notes}"
+                                                       FontSize="11"
+                                                       Opacity="0.7"
+                                                       TextWrapping="Wrap"
+                                                       IsVisible="{Binding HasNotes}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- ===== Tags and players ===== -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Tags and players"
+                               FontSize="13"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="Purple is on every copy and stays. Red is on only some of them - click it to keep it on the survivor. Yellow will be applied."
+                               FontSize="11"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"/>
+
+                    <Border IsVisible="{Binding HasAtRisk}"
+                            Padding="10"
+                            CornerRadius="4"
+                            Background="#33E67E22">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding AtRiskWarning}"
+                                       FontSize="11"
+                                       Foreground="#E67E22"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Command="{Binding KeepEverythingCommand}"
+                                    Content="Keep them all"
+                                    FontSize="11"
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding TagChips}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:BulkTagChipViewModel">
+                                <Panel Margin="2">
+                                    <!-- Shared: purple. On every copy, so it survives either way. -->
+                                    <Border IsVisible="{Binding IsShared}"
+                                            Background="{DynamicResource SystemAccentColor}"
+                                            CornerRadius="12"
+                                            Padding="8,3"
+                                            ToolTip.Tip="On every copy">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                            <Button Command="{Binding RemoveCommand}"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Drop this from the merge">
+                                                <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                    <!-- Partial: red. On only some copies, so it is lost unless kept. -->
+                                    <Border IsVisible="{Binding IsPartial}"
+                                            Background="#C0E74C3C"
+                                            CornerRadius="12"
+                                            Padding="8,3"
+                                            ToolTip.Tip="On only some of these copies">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                            <Button Command="{Binding PromoteCommand}"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Keep this on the surviving clip">
+                                                <icons:MaterialIcon Kind="ArrowUpCircle" Width="10" Height="10" Foreground="White"/>
+                                            </Button>
+                                            <Button Command="{Binding RemoveCommand}"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Drop this from the merge">
+                                                <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                    <!-- New: yellow. Will be written onto the survivor. -->
+                                    <Border IsVisible="{Binding IsNew}"
+                                            Background="#C0F39C12"
+                                            CornerRadius="12"
+                                            Padding="8,3"
+                                            ToolTip.Tip="Will be applied to the surviving clip">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                            <Button Command="{Binding RemoveCommand}"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Drop this from the merge">
+                                                <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </Panel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ItemsControl ItemsSource="{Binding PlayerChips}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:BulkTagChipViewModel">
+                                <Panel Margin="2">
+                                    <!-- Shared: purple. On every copy, so it survives either way. -->
+                                    <Border IsVisible="{Binding IsShared}"
+                                            Background="{DynamicResource SystemAccentColor}"
+                                            CornerRadius="12"
+                                            Padding="8,3"
+                                            ToolTip.Tip="On every copy">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                            <Button Command="{Binding RemoveCommand}"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Drop this from the merge">
+                                                <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                    <!-- Partial: red. On only some copies, so it is lost unless kept. -->
+                                    <Border IsVisible="{Binding IsPartial}"
+                                            Background="#C0E74C3C"
+                                            CornerRadius="12"
+                                            Padding="8,3"
+                                            ToolTip.Tip="On only some of these copies">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                            <Button Command="{Binding PromoteCommand}"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Keep this on the surviving clip">
+                                                <icons:MaterialIcon Kind="ArrowUpCircle" Width="10" Height="10" Foreground="White"/>
+                                            </Button>
+                                            <Button Command="{Binding RemoveCommand}"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Drop this from the merge">
+                                                <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                    <!-- New: yellow. Will be written onto the survivor. -->
+                                    <Border IsVisible="{Binding IsNew}"
+                                            Background="#C0F39C12"
+                                            CornerRadius="12"
+                                            Padding="8,3"
+                                            ToolTip.Tip="Will be applied to the surviving clip">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding Name}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                            <Button Command="{Binding RemoveCommand}"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Drop this from the merge">
+                                                <icons:MaterialIcon Kind="Close" Width="10" Height="10" Foreground="White"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </Panel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- ===== Highlights ===== -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Highlights"
+                               FontSize="13"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="Every highlight from every copy is a valid range against the survivor, so this is a choice of what to keep. Unticking one that is already on the surviving clip deletes it."
+                               FontSize="11"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"/>
+
+                    <ItemsControl ItemsSource="{Binding Highlights}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:MergeHighlightViewModel">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{Binding IsSelected}"
+                                              Margin="0,0,8,0"
+                                              VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="{Binding Label}" FontSize="12" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding TagsDisplay}"
+                                                   FontSize="11"
+                                                   Opacity="0.6"
+                                                   TextWrapping="Wrap"
+                                                   IsVisible="{Binding TagsDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Right">
+                                        <TextBlock Text="{Binding RangeDisplay}" FontSize="11" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{Binding OriginDisplay}" FontSize="10" Opacity="0.5" HorizontalAlignment="Right"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer: the destructive step, last -->
+        <Border Grid.Row="2"
+                Padding="20,14"
+                BorderBrush="{DynamicResource SystemChromeHighColor}"
+                BorderThickness="0,1,0,0">
+            <StackPanel Spacing="10">
+                <CheckBox IsChecked="{Binding RemovalConfirmed}"
+                          FontSize="12">
+                    <TextBlock Text="{Binding RemovalSummary}" TextWrapping="Wrap" FontSize="12"/>
+                </CheckBox>
+
+                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                    <Button Command="{Binding CancelCommand}"
+                            Content="Cancel"
+                            FontSize="12"/>
+                    <Button Command="{Binding ApplyCommand}"
+                            FontSize="12"
+                            Background="#C0392B"
+                            Foreground="White">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="Merge" Width="16" Height="16"/>
+                            <TextBlock Text="Merge and trash the copies"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+    </Grid>
+</Window>

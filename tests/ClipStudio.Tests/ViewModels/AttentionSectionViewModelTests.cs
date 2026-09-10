@@ -263,6 +263,58 @@ public sealed class AttentionSectionViewModelTests
         Assert.Equal("3 clips are the same recording", Assert.Single(vm.Entries).Title);
     }
 
+    [Fact]
+    public async Task ScansForDuplicatesOnDemandAndSaysWhatItFound()
+    {
+        // The groups live in memory, so after a restart nothing is listed until something looks
+        // again. Making the user run a full repair for that would be a poor trade.
+        _duplicateFinder.Setup(x => x.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync([new DuplicateClipGroup("hash", [1, 2])])
+                        .Callback(() => _duplicateFinder.Setup(x => x.LastGroups)
+                                                        .Returns([new DuplicateClipGroup("hash", [1, 2])]));
+
+        var vm = BuildSection();
+        await vm.ScanForDuplicatesCommand.ExecuteAsync(null);
+
+        Assert.Equal("Found 2 clips in 1 group(s).", vm.DuplicateScanResult);
+        Assert.Single(vm.Entries, e => e.Kind == AttentionEntryKind.DuplicateClips);
+        Assert.False(vm.IsScanningForDuplicates);
+    }
+
+    [Fact]
+    public async Task SaysSoWhenADuplicateScanFindsNothing()
+    {
+        _duplicateFinder.Setup(x => x.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync([]);
+
+        var vm = BuildSection();
+        await vm.ScanForDuplicatesCommand.ExecuteAsync(null);
+
+        Assert.Equal("No duplicate clips found.", vm.DuplicateScanResult);
+        Assert.True(vm.IsEverythingFine);
+    }
+
+    [Fact]
+    public async Task ADuplicateEntryOffersAMergeOnlyWhenThereIsSomewhereToShowIt()
+    {
+        _duplicateFinder.Setup(x => x.LastGroups)
+                        .Returns([new DuplicateClipGroup("hash", [1, 2])]);
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+        Assert.False(Assert.Single(vm.Entries).HasAction);
+
+        // With a window to show the dialog over, the same entry offers the merge.
+        DuplicateClipGroup? merged = null;
+        vm.MergeRequested = g => { merged = g; return Task.FromResult(true); };
+        await vm.RefreshAsync();
+
+        var entry = Assert.Single(vm.Entries);
+        Assert.Equal("Merge...", entry.ActionLabel);
+        await entry.ActionCommand!.ExecuteAsync(null);
+        Assert.Equal("hash", merged?.FullHash);
+    }
+
     // ---- Counting ----
 
     [Fact]
