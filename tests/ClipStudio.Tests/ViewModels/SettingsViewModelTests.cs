@@ -59,7 +59,7 @@ public sealed class SettingsViewModelTests
     [Fact]
     public void ExposesEverySectionAndSelectsTheFirstOne()
     {
-        Assert.Equal(7, _vm.Sections.Count);
+        Assert.Equal(8, _vm.Sections.Count);
         Assert.Same(_vm.SourceFoldersSection, _vm.Sections[0]);
         Assert.Same(_vm.SourceFoldersSection, _vm.SelectedSection);
         Assert.All(_vm.Sections, s => Assert.IsAssignableFrom<SettingsSectionViewModel>(s));

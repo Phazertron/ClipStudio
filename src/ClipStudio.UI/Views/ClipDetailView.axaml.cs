@@ -13,6 +13,8 @@ using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using ClipStudio.Core.Entities;
 using ClipStudio.UI.Behaviors;
+using ClipStudio.UI.Input;
+using System.Globalization;
 using ClipStudio.UI.ViewModels;
 
 namespace ClipStudio.UI.Views;
@@ -235,29 +237,90 @@ public partial class ClipDetailView : UserControl
 
         if (DataContext is not ClipDetailViewModel vm) return;
 
-        switch (e.Key)
+        var shortcut = KeyboardShortcuts.Find(e.Key, e.KeyModifiers);
+        if (shortcut is null) return;
+
+        // Driven from the registry rather than a switch over keys, so the help list and the
+        // handler cannot disagree about what a key does.
+        e.Handled = Invoke(vm, shortcut);
+    }
+
+    /// <summary>
+    /// Runs whatever the given shortcut does on this clip.
+    /// </summary>
+    /// <param name="vm">The clip being viewed.</param>
+    /// <param name="shortcut">The shortcut that was pressed.</param>
+    /// <returns>
+    /// <see langword="true"/> when the press was acted on, so it should not travel any further.
+    /// </returns>
+    private static bool Invoke(ClipDetailViewModel vm, KeyboardShortcut shortcut)
+    {
+        foreach (var (rating, value) in KeyboardShortcuts.RatingShortcuts)
         {
-            case Key.Space:
-                vm.Playback.PlayPauseCommand.Execute(null);
-                e.Handled = true;
-                break;
-            case Key.Left:
-                vm.Playback.SkipBackCommand.Execute(null);
-                e.Handled = true;
-                break;
-            case Key.Right:
-                vm.Playback.SkipForwardCommand.Execute(null);
-                e.Handled = true;
-                break;
-            case Key.OemComma:
-                vm.Playback.FrameBackCommand.Execute(null);
-                e.Handled = true;
-                break;
-            case Key.OemPeriod:
-                vm.Playback.FrameForwardCommand.Execute(null);
-                e.Handled = true;
-                break;
+            if (shortcut.Id != rating.Id) continue;
+
+            vm.SetRatingCommand.Execute(value.ToString(CultureInfo.InvariantCulture));
+            return true;
         }
+
+        if (shortcut.Id == KeyboardShortcuts.PlayPause.Id)
+        {
+            vm.Playback.PlayPauseCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.SkipBack.Id)
+        {
+            vm.Playback.SkipBackCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.SkipForward.Id)
+        {
+            vm.Playback.SkipForwardCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.FrameBack.Id)
+        {
+            vm.Playback.FrameBackCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.FrameForward.Id)
+        {
+            vm.Playback.FrameForwardCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.ToggleSubtitles.Id)
+        {
+            vm.ToggleSubtitlesCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.Back.Id)
+        {
+            vm.BackCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.PreviousClip.Id)
+        {
+            vm.PreviousCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.NextClip.Id)
+        {
+            vm.NextCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.ToggleFavourite.Id)
+        {
+            vm.ToggleFavouriteCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.MarkReviewed.Id)
+        {
+            vm.MarkAsReviewedCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.PreviousHighlight.Id)
+        {
+            vm.NavigatePreviousHighlightCommand.Execute(null);
+        }
+        else if (shortcut.Id == KeyboardShortcuts.NextHighlight.Id)
+        {
+            vm.NavigateNextHighlightCommand.Execute(null);
+        }
+        else
+        {
+            return false;
+        }
+
+        return true;
     }
 
     // ---- Video click-to-play ----

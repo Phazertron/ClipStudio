@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels.Settings"
+             xmlns:input="using:ClipStudio.UI.Input"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="700"
+             x:Class="ClipStudio.UI.Views.Settings.ShortcutsSectionView"
+             x:DataType="vm:ShortcutsSectionViewModel"
+             x:CompileBindings="True">
+
+    <ScrollViewer>
+        <StackPanel Margin="24,16" Spacing="20" MaxWidth="700" HorizontalAlignment="Left">
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Keyboard shortcuts"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+                <TextBlock Text="These work in the clip editor, unless a text box has focus - typing always wins over a shortcut."
+                           FontSize="12"
+                           Opacity="0.7"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <ItemsControl ItemsSource="{Binding Groups}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:ShortcutGroupViewModel">
+                        <StackPanel Spacing="6" Margin="0,0,0,18">
+                            <TextBlock Text="{Binding Title}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"/>
+
+                            <ItemsControl ItemsSource="{Binding Shortcuts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="input:KeyboardShortcut">
+                                        <Grid ColumnDefinitions="140,*" Margin="0,0,0,4">
+                                            <Border Grid.Column="0"
+                                                    Padding="8,3"
+                                                    CornerRadius="4"
+                                                    HorizontalAlignment="Left"
+                                                    Background="{DynamicResource SystemChromeLowColor}"
+                                                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                                                    BorderThickness="1">
+                                                <TextBlock Text="{Binding GestureDisplay}"
+                                                           FontSize="11"
+                                                           FontFamily="Consolas,Menlo,monospace"/>
+                                            </Border>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Description}"
+                                                       FontSize="12"
+                                                       Margin="12,0,0,0"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>

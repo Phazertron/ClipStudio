@@ -56,6 +56,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
     /// <summary>Gets the OBS Integration section.</summary>
     public ObsIntegrationSectionViewModel ObsIntegrationSection { get; }
 
+    /// <summary>Gets the Keyboard Shortcuts section.</summary>
+    public ShortcutsSectionViewModel ShortcutsSection { get; }
+
     /// <summary>Gets the Attention Required section.</summary>
     public AttentionSectionViewModel AttentionSection { get; }
 
@@ -121,6 +124,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
         TranscriptionSection  = new TranscriptionSectionViewModel(this, settings);
         ObsIntegrationSection = new ObsIntegrationSectionViewModel(this);
         MaintenanceSection    = new MaintenanceSectionViewModel(this, scopeFactory, tasks);
+        ShortcutsSection      = new ShortcutsSectionViewModel(this);
         AttentionSection      = new AttentionSectionViewModel(this, scopeFactory, health, duplicates, this, tasks);
         AboutSection          = new AboutSectionViewModel(this);
 
@@ -128,6 +132,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
         Sections.Add(PreferencesSection);
         Sections.Add(TranscriptionSection);
         Sections.Add(ObsIntegrationSection);
+        Sections.Add(ShortcutsSection);
         Sections.Add(AttentionSection);
         Sections.Add(MaintenanceSection);
         Sections.Add(AboutSection);
