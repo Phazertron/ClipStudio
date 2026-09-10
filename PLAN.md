@@ -6,26 +6,23 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-10): 0 warnings, 615 tests passing, working tree clean, 30 commits
-ahead of origin/master and unpushed. **Phase 0 is complete and verified at a
-keyboard. F-R is complete** apart from "import and link", which waits on F-A.
-**Phases 1.5 and 1.6 are complete**: the Settings restructure, the startup/repair
-split, the attention list, duplicate detection with merge, the measured import
-work, the background activity registry and the keyboard shortcut registry all
-landed and were verified in the running app under `--profile smoke`.
+Status (2026-09-10): 0 warnings, 662 tests passing, working tree clean, pushed to
+origin/master. **Phase 0, Phase 1 (F-R and F-A), Phase 1.5 and Phase 1.6 are all
+complete** and verified in the running app under `--profile smoke`.
 
-**Start here next.** Three things are left open and are written up where they
-belong; none is a defect, and each needs a decision or a measurement rather than
-effort:
+**Start here next.** What remains in Phase 1 is two independent features, plus
+three things that need a decision or a measurement rather than effort:
 
-1. `1.5.5` The short-clip fallback quality/speed tension - needs the user's call
-2. `1.5.5` Parallel imports - the measurement that justified it predates the
+1. `F-F` Import game titles from installed Steam / Epic / GOG libraries
+2. `F-I` Grouped search results flyout - UI only, slots in anywhere
+3. `1.5.5` The short-clip fallback quality/speed tension - needs the user's call
+4. `1.5.5` Parallel imports - the measurement that justified it predates the
    keyframe change and has to be redone before the work is worth starting
-3. `1.6.2` Shortcut remapping, and a graphical keyboard map now the set is big
+5. `1.6.2` Shortcut remapping, and a graphical keyboard map now the set is big
    enough to be worth drawing
 
-After that, `F-A` (link clips) is the next feature, and it also unblocks the one
-part of F-R still missing, "import and link".
+The bug and polish backlog below also has a transcription cluster worth one pass,
+and the master-volume defect, which is blocked on a diagnosis rather than effort.
 
 Commit style from 2026-09-09 onwards follows the conventional-commit skill
 (`type(scope): subject` plus a bullet body), maintained in the `claude-skills`
@@ -175,18 +172,18 @@ independent, and grouped search is UI-only and can slot in anywhere.
 - [x] `ImportService` - hashes before the expensive work, confirms every quick-hash match with a
   full hash, and returns `ImportResult.Duplicate` with both clips without importing. An
   `allowDuplicate` flag covers "import anyway".
-- [x] `DuplicateClipDialog` - Skip / Import anyway, plus "do the same for the other N", since a
-  scan can turn up dozens. **"Import and link" is deliberately left out until F-A lands**, rather
-  than holding F-R back to build both together.
+- [x] `DuplicateClipDialog` - Skip / Import anyway / Import and link, plus "do the same for the
+  other N", since a scan can turn up dozens. "Import and link" was deliberately left out until F-A
+  landed rather than holding F-R back to build both together; it landed 2026-09-10.
 - [x] Setting `DuplicateDetectionEnabled` (default on), exposed in Settings.
 - [x] Tests: hash stability, the head/tail/length sensitivities, a real quick-hash collision,
   a missing candidate file, backfill, and the dialog's result routing through
   `DuplicateImportResolver`.
 
-**F-R is feature-complete apart from linking.** Verified against real files: a
-303 MB clip copied under a different name produces an identical quick hash in 15 ms,
-and a different clip does not collide. The dialog itself has not been driven at a
-keyboard yet.
+**F-R is complete as of 2026-09-10.** Verified against real files: a 303 MB clip copied under a
+different name produces an identical quick hash in 15 ms, and a different clip does not collide.
+The last missing piece, "import and link", landed with F-A - the dialog now offers Skip, Import
+anyway and Import and link.
 
 **The wrinkle this left, and how 1.5.4 closed it:** detection compares against stored
 hashes, and clips imported before this feature have none, so a duplicate of an older
@@ -470,16 +467,45 @@ more frequent, so it keeps the unmodified key.
 
 ---
 
-### F-A - Link clips
+### F-A - Link clips - DONE (2026-09-10)
 
-- [ ] `ClipLink` entity (SourceClipId, TargetClipId, LinkType, Note, CreatedAt) + `ClipLinkType` enum (SameMoment, Sequel, Reaction, Variant)
-- [ ] Migration `Round15ClipLinks`, unique index on (Source, Target, Type)
-- [ ] `IClipLinkRepository` / `ClipLinkRepository`
-- [ ] `IClipLinkService` / `ClipLinkService` - create, remove, list for clip (both directions), type inverse handling (Sequel <-> Prequel display)
-- [ ] `RelatedClipsPanelView` in clip detail - card list, link type badge, click to navigate
-- [ ] Link picker: search by name from detail view, pre-filled when coming from F-R dialog
-- [ ] Trash: deleting a clip removes its links; restore does not recreate them (log decision)
-- [ ] Tests: bidirectional listing, cascade on delete
+- [x] `ClipLink` entity (SourceClipId, TargetClipId, LinkType, Note, CreatedAt) + `ClipLinkType`
+  enum (SameMoment, Sequel, Reaction, Variant)
+- [x] Migration `Round15ClipLinks`, unique index on (Source, Target, Type), plus an index on the
+  target end because links are read from both sides
+- [x] `IClipLinkRepository` / `ClipLinkRepository`
+- [x] `IClipLinkService` / `ClipLinkService` - create, remove, list for clip (both directions),
+  inverse wording for the directional types
+- [x] Related clips panel in clip detail - card list with a relationship badge, click to navigate
+- [x] Link picker: search by name from the detail view, and `OpenPickerForAsync` pre-fills it with
+  a known clip
+- [x] Trash and delete handling, logged as DEC-049
+- [x] Tests: bidirectional listing, cascade on delete, the trash round trip, the inverse wording of
+  every type, and the picker's exclusions. 615 -> 662 passing.
+
+**Two decisions worth knowing (DEC-048, DEC-049).**
+
+A link is stored **once**, in the direction it was created, and read from both ends. `TagRelation`
+stores both directions; links deliberately do not, because two of the four types are directional
+and storing both ways would leave no way to tell which clip is the sequel. The service resolves the
+label from the side being asked - the clip you marked as a Sequel shows its origin as a Prequel -
+so no view has to know that rule. The duplicate check looks both ways, because the unique index
+only covers the stored direction.
+
+**Trashing a clip hides its links; restoring brings them back.** This is a deliberate departure
+from the line in this plan, which said "restore does not recreate them". That conflated the two
+deletions the application has. Trash is reversible for 30 days, so discarding the link would
+silently lose relationships with no way to know what they were. Permanent deletion still cascades:
+a link to a clip that no longer exists is a dangling row, not a relationship.
+
+**"Import and link" closed F-R.** The duplicate dialog has a third button beside Skip and Import
+anyway. Duplicates are linked as `Variant`, since the user has deliberately kept two entries for
+one recording. The link is a second, separate write: failing to draw it is logged but never undoes
+an import the user already got.
+
+**Verified in the running app** under `--profile smoke`: the migration applied cleanly, a link made
+through the picker landed in the database, and it renders and navigates from both ends - the target
+clip shows the link back with the source clip's thumbnail and game tag.
 
 ### F-F - Import game titles from installed libraries
 
