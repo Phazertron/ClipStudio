@@ -119,6 +119,23 @@ public sealed class MediaServicePreviewStripTests : IDisposable
     }
 
     [Fact]
+    public async Task ExactlyEnoughKeyframes_TakeTheFastPath()
+    {
+        if (!FFmpegAvailable()) return;
+
+        // The guard now stops reading the moment it has seen enough rather than counting them all,
+        // so the boundary is worth pinning: 20 seconds at one keyframe a second is exactly the 20
+        // the strip needs, and must not be treated as one too few.
+        var clip = RenderClip("boundary.mp4", seconds: 20, gopSize: 30);
+
+        var strip = await _service.GeneratePreviewStripAsync(
+            clip, _workDir, frameCount: 20, knownDuration: TimeSpan.FromSeconds(20));
+
+        Assert.Equal(20, CountDistinctTiles(strip, 20));
+        Assert.Contains(_logger.Messages, m => m.Contains("keyframes only"));
+    }
+
+    [Fact]
     public async Task SparseKeyframes_FallBackToAFullDecodeRatherThanRepeatingTiles()
     {
         if (!FFmpegAvailable()) return;

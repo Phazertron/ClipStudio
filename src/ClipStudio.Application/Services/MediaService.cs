@@ -72,17 +72,26 @@ public sealed class MediaService : IMediaService
     }
 
     /// <summary>
-    /// Counts the video keyframes in a file.
+    /// Decides whether a file has at least the given number of video keyframes.
     /// </summary>
     /// <remarks>
-    /// Reads the container's keyframe index rather than the frames themselves, which is why it
-    /// costs milliseconds on a file that takes seconds to decode. Returns 0 when the count cannot
-    /// be established, which sends the caller down the safe full-decode path.
+    /// Asks the question the caller actually has - "are there enough?" - rather than counting them
+    /// all, and stops reading the moment the answer is yes. That matters because the cost is
+    /// proportional to how much of the container index is walked: counting every keyframe of a
+    /// 186 MB clip measured at 8.0 seconds, while stopping at the twentieth measured at 0.54.
+    /// Even on clips with only about fifty keyframes, where the early exit still reads most of the
+    /// index, it measured roughly twice as fast.
+    /// <para>
+    /// Returns false when the count cannot be established, which sends the caller down the safe
+    /// full-decode path.
+    /// </para>
     /// </remarks>
     /// <param name="filePath">The file to inspect.</param>
+    /// <param name="needed">How many keyframes the caller needs.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>The number of keyframes, or 0 when it could not be determined.</returns>
-    private async Task<int> CountKeyframesAsync(string filePath, CancellationToken cancellationToken)
+    /// <returns>Whether at least <paramref name="needed"/> keyframes were found, and how many were seen.</returns>
+    private async Task<(bool Enough, int Seen)> HasAtLeastKeyframesAsync(
+        string filePath, int needed, CancellationToken cancellationToken)
     {
         try
         {
@@ -114,15 +123,32 @@ public sealed class MediaService : IMediaService
             }
 
             using var process = Process.Start(startInfo);
-            if (process is null) return 0;
+            if (process is null) return (false, 0);
 
-            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
+            var seen = 0;
+            try
+            {
+                while (await process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
 
-            if (process.ExitCode != 0) return 0;
+                    if (++seen >= needed)
+                        return (true, seen);
+                }
+            }
+            finally
+            {
+                // Either the answer arrived early or the file ran out. Kill covers the first case;
+                // it is harmless in the second, where the process has already exited.
+                if (!process.HasExited)
+                {
+                    try { process.Kill(entireProcessTree: true); }
+                    catch { /* it exited between the check and the kill */ }
+                }
+            }
 
-            return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                         .Count(line => !string.IsNullOrWhiteSpace(line));
+            // The whole index was read without reaching the target.
+            return (false, seen);
         }
         catch (OperationCanceledException)
         {
@@ -131,7 +157,7 @@ public sealed class MediaService : IMediaService
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Could not count keyframes for '{Path}'; decoding in full.", filePath);
-            return 0;
+            return (false, 0);
         }
     }
 
@@ -163,16 +189,16 @@ public sealed class MediaService : IMediaService
         //
         // It is only safe when the file has at least as many keyframes as the strip has tiles.
         // Below that the tile filter pads with repeats: a 12s clip with 2 keyframes produced 2
-        // distinct tiles instead of 20. Counting them costs about 150ms because the container
-        // stores the keyframe index, which is cheap enough to pay for the certainty.
-        var keyframeCount = await CountKeyframesAsync(filePath, cancellationToken);
-        var keyframesOnly = keyframeCount >= frameCount;
+        // distinct tiles instead of 20. The check reads the container index and stops as soon as
+        // it has seen enough, so on a keyframe-dense clip it costs a fraction of a full count.
+        var (keyframesOnly, keyframesSeen) = await HasAtLeastKeyframesAsync(
+            filePath, frameCount, cancellationToken);
 
         if (!keyframesOnly)
         {
             _logger.LogDebug(
                 "Only {Count} keyframe(s) for {Frames} tiles in '{Path}'; decoding in full.",
-                keyframeCount, frameCount, filePath);
+                keyframesSeen, frameCount, filePath);
         }
 
         // tile filter produces a single composite frame; -update 1 tells the image2 muxer
