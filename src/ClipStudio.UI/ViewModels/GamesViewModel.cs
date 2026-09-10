@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net.Http;
@@ -26,6 +27,9 @@ public sealed partial class GamesViewModel : ViewModelBase
 
     /// <summary>Gets the full collection of Game tag rows currently displayed.</summary>
     public ObservableCollection<GameRowViewModel> Games { get; } = new();
+
+    /// <summary>Gets the panel that imports game titles from installed launchers.</summary>
+    public InstalledGameImportViewModel LauncherImport { get; }
 
     /// <summary>Gets the list of Steam search results shown in the selection list.</summary>
     public ObservableCollection<GameSearchResultViewModel> GameSearchResults { get; } = new();
@@ -99,9 +103,18 @@ public sealed partial class GamesViewModel : ViewModelBase
     /// <param name="tagService">The application-layer tag service.</param>
     /// <param name="searchService">The game search service backed by the Steam Community API.</param>
     /// <param name="aliasService">The alias service used to load and delete auto-detect mappings.</param>
-    public GamesViewModel(ITagService tagService, IGameSearchService searchService, IGameTagAliasService aliasService)
+    /// <param name="scanners">One scanner per installed-game launcher.</param>
+    public GamesViewModel(
+        ITagService tagService,
+        IGameSearchService searchService,
+        IGameTagAliasService aliasService,
+        IEnumerable<IInstalledGameScanner> scanners)
     {
         _tagService    = tagService;
+        LauncherImport = new InstalledGameImportViewModel(scanners, tagService)
+        {
+            Imported = LoadAsync,
+        };
         _searchService = searchService;
         _aliasService  = aliasService;
 

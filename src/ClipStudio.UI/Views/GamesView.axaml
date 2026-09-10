@@ -16,7 +16,7 @@
                 Padding="16,10"
                 BorderBrush="{DynamicResource SystemChromeHighColor}"
                 BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="*,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
 
                 <!-- Filter box -->
                 <TextBox Grid.Column="0"
@@ -32,8 +32,20 @@
                         Content="Refresh"
                         Margin="8,0,0,0"/>
 
-                <!-- Add game -->
+                <!-- Import from installed launchers -->
                 <Button Grid.Column="2"
+                        Command="{Binding LauncherImport.ScanCommand}"
+                        IsEnabled="{Binding LauncherImport.AnyLauncherAvailable}"
+                        Margin="6,0,0,0"
+                        ToolTip.Tip="Read the games installed by your launchers and choose which to add">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <icons:MaterialIcon Kind="Steam" Width="16" Height="16"/>
+                        <TextBlock Text="Import from launchers" FontSize="12"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- Add game -->
+                <Button Grid.Column="3"
                         Command="{Binding BeginCreateCommand}"
                         ToolTip.Tip="Add game"
                         Margin="6,0,0,0">
@@ -50,6 +62,87 @@
                      VerticalAlignment="Bottom"
                      Height="2"
                      Margin="0"/>
+
+        <!-- ===== Launcher import preview =====
+             An overlay rather than a dialog so the games already in the library stay visible
+             behind it, which is what "already in your library" on a row refers to. -->
+        <Border Grid.Row="1"
+                IsVisible="{Binding LauncherImport.IsOpen}"
+                ZIndex="50"
+                Background="{DynamicResource SystemChromeMediumColor}"
+                Padding="20">
+            <Grid RowDefinitions="Auto,Auto,*,Auto" DataContext="{Binding LauncherImport}" MaxWidth="720">
+
+                <StackPanel Grid.Row="0" Spacing="4">
+                    <TextBlock Text="Games installed on this computer"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="Nothing is added until you import. Servers, soundtracks and anything already in your library start unticked."
+                               FontSize="12"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="11"
+                               Opacity="0.6"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,10">
+                    <Button Command="{Binding SelectAllCommand}" Content="Tick all new" FontSize="11"/>
+                    <Button Command="{Binding SelectNoneCommand}" Content="Untick all" FontSize="11"/>
+                    <ProgressBar IsIndeterminate="True"
+                                 IsVisible="{Binding IsScanning}"
+                                 Width="90" Height="4"
+                                 VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="2">
+                    <ItemsControl ItemsSource="{Binding Games}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:InstalledGameRowViewModel">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,3">
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{Binding IsSelected}"
+                                              IsEnabled="{Binding !AlreadyInLibrary}"
+                                              Margin="0,0,8,0"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Name}"
+                                               FontSize="12"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Reason}"
+                                               FontSize="10"
+                                               Opacity="0.5"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding HasReason}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <StackPanel Grid.Row="3"
+                            Orientation="Horizontal"
+                            Spacing="10"
+                            HorizontalAlignment="Right"
+                            Margin="0,12,0,0">
+                    <TextBlock Text="{Binding AvailableLaunchersDisplay}"
+                               FontSize="10"
+                               Opacity="0.45"
+                               VerticalAlignment="Center"/>
+                    <Button Command="{Binding CancelCommand}" Content="Cancel" FontSize="12"/>
+                    <Button Command="{Binding ImportCommand}"
+                            Content="{Binding ImportLabel}"
+                            IsEnabled="{Binding CanImport}"
+                            FontSize="12"
+                            Background="{DynamicResource SystemAccentColor}"
+                            Foreground="White"/>
+                </StackPanel>
+
+            </Grid>
+        </Border>
 
         <!-- ===== Main content: list + edit panel side by side ===== -->
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
