@@ -471,4 +471,49 @@ public partial class LibraryView : UserControl
                 defs[i + 2].Width = new GridLength(Math.Max(w, ColMinWidth));
         }
     }
+
+    // ---- Search flyout keyboard handling ----
+
+    /// <summary>
+    /// Routes arrow keys, Enter and Escape to the search flyout while it is open.
+    /// </summary>
+    /// <remarks>
+    /// A deliberately thin translation: every decision about what a key means lives on
+    /// <see cref="ViewModels.SearchFlyoutViewModel"/>, which is free of Avalonia and directly
+    /// testable. Each method reports whether it used the press, and only then is the event marked
+    /// handled - so a key the flyout does not want still reaches the text box, and typing, caret
+    /// movement and Enter-to-filter all keep working.
+    /// </remarks>
+    private void OnSearchBoxKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (DataContext is not LibraryViewModel vm) return;
+
+        var flyout = vm.SearchFlyout;
+
+        e.Handled = e.Key switch
+        {
+            Avalonia.Input.Key.Down   => flyout.MoveNext(),
+            Avalonia.Input.Key.Up     => flyout.MovePrevious(),
+            Avalonia.Input.Key.Enter  => flyout.ActivateSelected(),
+            Avalonia.Input.Key.Escape => flyout.HandleEscape(),
+            _                         => false,
+        };
+    }
+
+    /// <summary>
+    /// Closes the flyout when focus leaves the search box.
+    /// </summary>
+    /// <remarks>
+    /// Deferred by a moment: clicking a result moves focus out of the box before the click is
+    /// delivered, so closing immediately would dismiss the flyout out from under the click.
+    /// </remarks>
+    private void OnSearchBoxLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not LibraryViewModel vm) return;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => vm.SearchFlyout.Close(),
+            Avalonia.Threading.DispatcherPriority.Background);
+    }
+
 }

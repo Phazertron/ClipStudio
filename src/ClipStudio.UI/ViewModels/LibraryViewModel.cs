@@ -32,6 +32,7 @@ public sealed partial class LibraryViewModel : ViewModelBase, IBulkEditHost
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISettingsService _settingsService;
     private readonly IMediaAssetProvider _assets;
+    private CancellationTokenSource? _pendingReload;
 
     // ---- Load cancellation + picker-reload suppression ----
     private CancellationTokenSource _loadCts = new();
@@ -79,6 +80,9 @@ public sealed partial class LibraryViewModel : ViewModelBase, IBulkEditHost
 
     /// <summary>Gets or sets the free-text search string used to filter displayed clips.</summary>
     [ObservableProperty] private string _searchText = string.Empty;
+
+    /// <summary>Gets the grouped search results shown under the search box.</summary>
+    public SearchFlyoutViewModel SearchFlyout { get; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the search should also look inside transcription
@@ -308,7 +312,8 @@ public sealed partial class LibraryViewModel : ViewModelBase, IBulkEditHost
         IFilterPresetService filterPresetService,
         IServiceScopeFactory scopeFactory,
         ISettingsService settingsService,
-        IMediaAssetProvider assets)
+        IMediaAssetProvider assets,
+        ISearchService searchService)
     {
         _clipService          = clipService;
         _tagService           = tagService;
@@ -317,6 +322,14 @@ public sealed partial class LibraryViewModel : ViewModelBase, IBulkEditHost
         _scopeFactory         = scopeFactory;
         _settingsService      = settingsService;
         _assets               = assets;
+
+        SearchFlyout = new SearchFlyoutViewModel(searchService, () => SearchCaptions)
+        {
+            ClipRequested         = (id, seek) => ClipOpenRequested?.Invoke(id, [id], 0),
+            TagFilterRequested    = id => ApplyFilterFromSearch(tagId: id),
+            GameFilterRequested   = id => ApplyFilterFromSearch(gameTagId: id),
+            PlayerFilterRequested = id => ApplyFilterFromSearch(playerId: id),
+        };
 
         LoadCommand                = new AsyncRelayCommand(LoadAsync);
         ToggleFilterPanelCommand   = new RelayCommand(() => IsFilterPanelOpen = !IsFilterPanelOpen);
@@ -470,7 +483,57 @@ public sealed partial class LibraryViewModel : ViewModelBase, IBulkEditHost
 
     // ---- Partial property handlers ----
 
-    partial void OnSearchTextChanged(string value) => LoadCommand.Execute(null);
+    /// <summary>
+    /// Reacts to typing in the search box: shows grouped results, and reloads the grid behind them.
+    /// </summary>
+    /// <param name="value">The current search text.</param>
+    /// <remarks>
+    /// The reload used to run on every keystroke, so typing a word reloaded the whole library once
+    /// per letter. Both halves are debounced now, and the pending reload is cancelled when another
+    /// letter arrives.
+    /// </remarks>
+    partial void OnSearchTextChanged(string value)
+    {
+        _ = SearchFlyout.QueueSearchAsync(value);
+        _ = QueueReloadAsync();
+    }
+
+    /// <summary>Reloads the grid once typing has stopped.</summary>
+    private async Task QueueReloadAsync()
+    {
+        _pendingReload?.Cancel();
+        _pendingReload?.Dispose();
+        _pendingReload = new CancellationTokenSource();
+        var token = _pendingReload.Token;
+
+        try
+        {
+            await Task.Delay(SearchFlyoutViewModel.DebounceDelay, token);
+            token.ThrowIfCancellationRequested();
+            await LoadAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer keystroke.
+        }
+    }
+
+    /// <summary>
+    /// Applies a filter chosen from the search results and reloads.
+    /// </summary>
+    /// <param name="gameTagId">The game to filter by, if any.</param>
+    /// <param name="tagId">The tag to filter by, if any.</param>
+    /// <param name="playerId">The player to filter by, if any.</param>
+    /// <remarks>
+    /// The search text is cleared first: the term was how the filter was found, and leaving it in
+    /// place would go on narrowing the results by name as well.
+    /// </remarks>
+    private void ApplyFilterFromSearch(int? gameTagId = null, int? tagId = null, int? playerId = null)
+    {
+        SearchText = string.Empty;
+        PresetFilters(gameTagId, tagId, playerId);
+        LoadCommand.Execute(null);
+    }
     partial void OnSearchCaptionsChanged(bool value) => LoadCommand.Execute(null);
 
     partial void OnSortByChanged(string value) => LoadCommand.Execute(null);

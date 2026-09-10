@@ -37,4 +37,18 @@ public interface IHighlightRepository
     /// </remarks>
     Task<IReadOnlyList<HighlightRangeSnapshot>> GetRangeSnapshotsAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds highlights whose label contains the given text.
+    /// </summary>
+    /// <param name="searchText">The text to look for.</param>
+    /// <param name="limit">The most results to return.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The matching highlights, oldest first.</returns>
+    /// <remarks>
+    /// A targeted query rather than a filter over <see cref="GetRangeSnapshotsAsync"/>, because
+    /// search runs as the user types and reading every highlight per keystroke would not scale.
+    /// </remarks>
+    Task<IReadOnlyList<HighlightRangeSnapshot>> SearchByLabelAsync(
+        string searchText, int limit, CancellationToken cancellationToken = default);
 }

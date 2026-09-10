@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ClipStudio.UI.ViewModels"
+             xmlns:models="using:ClipStudio.Application.Models"
              xmlns:icons="using:Material.Icons.Avalonia"
              xmlns:conv="using:ClipStudio.UI.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -22,10 +23,13 @@
 
                 <!-- Search box + captions toggle -->
                 <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="2" HorizontalAlignment="Left">
-                    <TextBox Text="{Binding SearchText}"
+                    <TextBox x:Name="SearchBox"
+                             Text="{Binding SearchText}"
                              Watermark="Search clips..."
                              MaxWidth="360"
-                             CornerRadius="6"/>
+                             CornerRadius="6"
+                             KeyDown="OnSearchBoxKeyDown"
+                             LostFocus="OnSearchBoxLostFocus"/>
                     <CheckBox Content="Search captions"
                               IsChecked="{Binding SearchCaptions}"
                               FontSize="10"
@@ -97,6 +101,90 @@
                         Margin="4,0,0,0">
                     <icons:MaterialIcon Kind="Refresh" Width="16" Height="16"/>
                 </Button>
+
+
+            <!-- ===== Grouped search results =====
+                 An overlay rather than a real Flyout: a Flyout takes focus, which would pull the
+                 caret out of the search box the moment results appeared. -->
+            <Border IsVisible="{Binding SearchFlyout.IsOpen}"
+                    ZIndex="100"
+                    Width="420"
+                    MaxHeight="460"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="0,58,0,0"
+                    CornerRadius="6"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource SystemChromeHighColor}"
+                    Background="{DynamicResource SystemChromeMediumColor}"
+                    BoxShadow="0 6 20 0 #60000000">
+                <ScrollViewer>
+                    <StackPanel Margin="6" Spacing="2" DataContext="{Binding SearchFlyout}">
+
+                        <TextBlock Text="Nothing matched."
+                                   FontSize="11"
+                                   Opacity="0.6"
+                                   Margin="8,10"
+                                   IsVisible="{Binding IsEmpty}"/>
+
+                        <ItemsControl ItemsSource="{Binding Groups}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:SearchResultGroupViewModel">
+                                    <StackPanel Spacing="1" Margin="0,0,0,6">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="8,6,8,2">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding Title}"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Opacity="0.55"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding MoreCount, StringFormat='+{0} more'}"
+                                                       FontSize="10"
+                                                       Opacity="0.4"
+                                                       IsVisible="{Binding HasMore}"/>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="vm:SearchResultRowViewModel">
+                                                    <Button Command="{Binding $parent[ItemsControl].((vm:SearchFlyoutViewModel)DataContext).ActivateCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            HorizontalAlignment="Stretch"
+                                                            HorizontalContentAlignment="Left"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            Padding="0"
+                                                            CornerRadius="4">
+                                                        <Panel>
+                                                            <!-- The keyboard highlight. Without it, pressing
+                                                                 Down changes nothing the user can see. -->
+                                                            <Border IsVisible="{Binding IsSelected}"
+                                                                    Background="{DynamicResource SystemAccentColor}"
+                                                                    Opacity="0.35"
+                                                                    CornerRadius="4"/>
+                                                            <StackPanel Spacing="1" Margin="8,5">
+                                                                <TextBlock Text="{Binding Title}"
+                                                                           FontSize="12"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Text="{Binding Subtitle}"
+                                                                           FontSize="10"
+                                                                           Opacity="0.5"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                            </StackPanel>
+                                                        </Panel>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
 
             </Grid>
 

@@ -37,6 +37,20 @@ internal sealed class HighlightRepository : IHighlightRepository
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<HighlightRangeSnapshot>> SearchByLabelAsync(
+        string searchText, int limit, CancellationToken cancellationToken = default)
+        => await _context.Highlights
+            .AsNoTracking()
+            .Where(h => !h.Clip.IsDeleted)
+            .Where(h => h.Label != null && EF.Functions.Like(h.Label, $"%{searchText}%"))
+            .OrderBy(h => h.CreatedAt)
+            .Take(limit)
+            .Select(h => new HighlightRangeSnapshot(
+                h.Id, h.ClipId, h.Label, h.Clip.FileName,
+                h.StartTime, h.EndTime, h.Clip.Duration))
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<Highlight>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.Highlights
             .AsNoTracking()

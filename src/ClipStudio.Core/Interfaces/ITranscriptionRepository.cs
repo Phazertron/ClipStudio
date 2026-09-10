@@ -1,4 +1,5 @@
 using ClipStudio.Core.Entities;
+using ClipStudio.Core.Models;
 
 namespace ClipStudio.Core.Interfaces;
 
@@ -37,6 +38,21 @@ public interface ITranscriptionRepository
     /// (case-insensitive substring match).  Used for caption-inclusive search.
     /// </summary>
     Task<IReadOnlyList<int>> SearchClipIdsBySegmentTextAsync(string searchText, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds transcript lines containing the given text, with enough context to display and seek to.
+    /// </summary>
+    /// <param name="searchText">The text to look for.</param>
+    /// <param name="limit">The most results to return.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The matching lines, earliest first.</returns>
+    /// <remarks>
+    /// <see cref="SearchClipIdsBySegmentTextAsync"/> answers "which clips mention this", which is
+    /// enough to filter the library. This answers "where, and what was said", which is what a
+    /// search result has to show.
+    /// </remarks>
+    Task<IReadOnlyList<CaptionMatch>> SearchSegmentsAsync(
+        string searchText, int limit, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates the text of a single <see cref="TranscriptionSegment"/> identified by its primary key.

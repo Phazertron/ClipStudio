@@ -1,5 +1,6 @@
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Interfaces;
+using ClipStudio.Core.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClipStudio.Data.Repositories;
@@ -70,6 +71,33 @@ internal sealed class TranscriptionRepository : ITranscriptionRepository
             .Select(s => s.Transcription.ClipId)
             .Distinct()
             .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<CaptionMatch>> SearchSegmentsAsync(
+        string searchText, int limit, CancellationToken cancellationToken = default)
+    {
+        // Milliseconds are projected raw and converted after materialising: TimeSpan.FromMilliseconds
+        // carries an optional parameter, which an expression tree cannot contain.
+        var rows = await _context.TranscriptionSegments
+            .AsNoTracking()
+            .Where(s => EF.Functions.Like(s.Text, $"%{searchText}%"))
+            .Where(s => !s.Transcription.Clip.IsDeleted)
+            .OrderBy(s => s.StartMs)
+            .Take(limit)
+            .Select(s => new
+            {
+                s.Transcription.ClipId,
+                s.Transcription.Clip.FileName,
+                s.StartMs,
+                s.Text,
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(r => new CaptionMatch(
+                r.ClipId, r.FileName, TimeSpan.FromMilliseconds(r.StartMs), r.Text))
+            .ToList();
+    }
 
     /// <inheritdoc/>
     public async Task UpdateSegmentAsync(int segmentId, string newText, CancellationToken cancellationToken = default)

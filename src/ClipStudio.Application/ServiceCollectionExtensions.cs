@@ -58,6 +58,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<ITagSuggestionService, TagSuggestionService>();
         services.AddScoped<IFilterPresetService, FilterPresetService>();
+        services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<IRecycleBinService, RecycleBinService>();
 
