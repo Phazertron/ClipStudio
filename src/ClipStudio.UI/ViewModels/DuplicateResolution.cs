@@ -15,4 +15,7 @@ public sealed record DuplicateResolution(DuplicateClipDecision Decision, bool Ap
 
     /// <summary>A resolution that imports this file only.</summary>
     public static DuplicateResolution ImportAnyway { get; } = new(DuplicateClipDecision.ImportAnyway);
+
+    /// <summary>A resolution that imports this file and links it to the clip it duplicates.</summary>
+    public static DuplicateResolution ImportAndLink { get; } = new(DuplicateClipDecision.ImportAndLink);
 }

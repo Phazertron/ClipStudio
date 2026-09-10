@@ -71,6 +71,10 @@
 
         <!-- Actions -->
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Import and link"
+                    Command="{Binding ImportAndLinkCommand}"
+                    Padding="14,6"
+                    ToolTip.Tip="Import it and link the two clips as variants, so each is findable from the other."/>
             <Button Content="Import anyway"
                     Command="{Binding ImportAnywayCommand}"
                     Padding="14,6"/>

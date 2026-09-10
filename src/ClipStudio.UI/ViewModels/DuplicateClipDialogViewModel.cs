@@ -66,6 +66,16 @@ public sealed partial class DuplicateClipDialogViewModel : ViewModelBase
     /// <summary>Gets the command that imports the file despite the duplicate.</summary>
     public IRelayCommand ImportAnywayCommand { get; }
 
+    /// <summary>
+    /// Gets the command that imports the file and links it to the clip it duplicates.
+    /// </summary>
+    /// <remarks>
+    /// The option F-R was held open for. Keeping two entries for one recording is a legitimate
+    /// choice, but leaving them unrelated in the library is not - this makes each findable from
+    /// the other.
+    /// </remarks>
+    public IRelayCommand ImportAndLinkCommand { get; }
+
     /// <summary>Initialises a new <see cref="DuplicateClipDialogViewModel"/>.</summary>
     /// <param name="prompt">The duplicate being asked about.</param>
     public DuplicateClipDialogViewModel(DuplicateClipPrompt prompt)
@@ -103,5 +113,8 @@ public sealed partial class DuplicateClipDialogViewModel : ViewModelBase
 
         ImportAnywayCommand = new RelayCommand(() => CloseRequested?.Invoke(
             new DuplicateResolution(DuplicateClipDecision.ImportAnyway, ApplyToRemaining)));
+
+        ImportAndLinkCommand = new RelayCommand(() => CloseRequested?.Invoke(
+            new DuplicateResolution(DuplicateClipDecision.ImportAndLink, ApplyToRemaining)));
     }
 }

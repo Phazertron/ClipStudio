@@ -12,6 +12,7 @@ public class DuplicateImportResolverTests
 {
     private readonly List<DuplicateClipPrompt> _asked = [];
     private readonly List<string> _imported = [];
+    private readonly List<(int NewClipId, int ExistingClipId)> _linked = [];
 
     /// <summary>Builds a duplicate result for a file that matches an existing clip.</summary>
     private static ImportResult Duplicate(string path, int existingId = 1)
@@ -41,7 +42,12 @@ public class DuplicateImportResolverTests
             path =>
             {
                 _imported.Add(path);
-                return Task.FromResult(true);
+                return Task.FromResult<int?>(_imported.Count);
+            },
+            (newClipId, existingClipId) =>
+            {
+                _linked.Add((newClipId, existingClipId));
+                return Task.CompletedTask;
             });
 
     [Fact]
@@ -155,13 +161,74 @@ public class DuplicateImportResolverTests
     }
 
     [Fact]
+    public async Task ImportAndLinkImportsTheFileAndLinksItToWhatItDuplicates()
+    {
+        // The option F-R was held open for: keeping two entries for one recording is a legitimate
+        // choice, but leaving them unrelated in the library is not.
+        var summary = await Resolve([Duplicate("/clips/a.mp4")], DuplicateResolution.ImportAndLink);
+
+        Assert.Equal(1, summary.Imported);
+        Assert.Equal(1, summary.Linked);
+        Assert.Equal(0, summary.Skipped);
+        Assert.Single(_linked);
+    }
+
+    [Fact]
+    public async Task ImportAnywayDoesNotLink()
+    {
+        var summary = await Resolve([Duplicate("/clips/a.mp4")], DuplicateResolution.ImportAnyway);
+
+        Assert.Equal(1, summary.Imported);
+        Assert.Equal(0, summary.Linked);
+        Assert.Empty(_linked);
+    }
+
+    [Fact]
+    public async Task LinkedIsASubsetOfImportedNotAnAdditionToIt()
+    {
+        var summary = await Resolve([Duplicate("/clips/a.mp4")], DuplicateResolution.ImportAndLink);
+
+        Assert.Equal(1, summary.Total);
+    }
+
+    [Fact]
+    public async Task ImportAndLinkStillImportsWhenLinkingIsUnavailable()
+    {
+        // Degrades to a plain import rather than failing, since the import is the part the user
+        // actually asked for.
+        var summary = await DuplicateImportResolver.ResolveAsync(
+            [Duplicate("/clips/a.mp4")],
+            _ => Task.FromResult(DuplicateResolution.ImportAndLink),
+            _ => Task.FromResult<int?>(42),
+            link: null);
+
+        Assert.Equal(1, summary.Imported);
+        Assert.Equal(0, summary.Linked);
+    }
+
+    [Fact]
+    public async Task AFailedImportIsNeverLinked()
+    {
+        // There would be nothing to link to.
+        var summary = await DuplicateImportResolver.ResolveAsync(
+            [Duplicate("/clips/a.mp4")],
+            _ => Task.FromResult(DuplicateResolution.ImportAndLink),
+            _ => Task.FromResult<int?>(null),
+            (_, _) => throw new InvalidOperationException("must not be reached"));
+
+        Assert.Equal(0, summary.Imported);
+        Assert.Equal(0, summary.Linked);
+        Assert.Equal(1, summary.Skipped);
+    }
+
+    [Fact]
     public async Task AFailedImportCountsAsSkippedRatherThanImported()
     {
         // The summary has to reflect what is actually in the library.
         var summary = await DuplicateImportResolver.ResolveAsync(
             [Duplicate("/clips/a.mp4")],
             _ => Task.FromResult(DuplicateResolution.ImportAnyway),
-            _ => Task.FromResult(false));
+            _ => Task.FromResult<int?>(null));
 
         Assert.Equal(0, summary.Imported);
         Assert.Equal(1, summary.Skipped);
@@ -198,8 +265,9 @@ public class DuplicateImportResolverTests
                     cts.Cancel();
                     return Task.FromResult(DuplicateResolution.Skip);
                 },
-                _ => Task.FromResult(true),
-                cts.Token));
+                _ => Task.FromResult<int?>(1),
+                link: null,
+                cancellationToken: cts.Token));
 
         Assert.Single(_asked);
     }

@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Application.Models;
 using ClipStudio.Core.Entities;
+using ClipStudio.Core.Enums;
 using ClipStudio.Core.Interfaces;
 using ClipStudio.UI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -277,7 +278,27 @@ public sealed partial class SourceFoldersSectionViewModel : SettingsSectionViewM
                 var result = await _importService.ImportFileAsync(path, folderId, allowDuplicate: true);
                 if (result.Clip is null)
                     Log.Warning("Importing duplicate {Path} failed: {Message}", path, result.Message);
-                return result.Clip is not null;
+                return result.Clip?.Id;
+            },
+            async (newClipId, existingClipId) =>
+            {
+                // Variant rather than SameMoment: the user has deliberately kept two library
+                // entries for one recording, which is what "another cut of the same footage"
+                // describes. They can change it in the clip's own link picker.
+                using var scope = _scopeFactory.CreateScope();
+                var links = scope.ServiceProvider.GetRequiredService<IClipLinkService>();
+
+                try
+                {
+                    await links.LinkAsync(newClipId, existingClipId, ClipLinkType.Variant);
+                }
+                catch (Exception ex)
+                {
+                    // The import already succeeded. Failing to draw the link is worth a log line,
+                    // not worth losing the clip the user asked for.
+                    Log.Warning(ex, "Could not link duplicate clip {New} to {Existing}.",
+                        newClipId, existingClipId);
+                }
             });
     }
 
@@ -336,6 +357,7 @@ public sealed partial class SourceFoldersSectionViewModel : SettingsSectionViewM
 
             row.LastScanSummary = $"{imported} imported, {skipped} already in library"
                 + (duplicates.Skipped > 0 ? $", {duplicates.Skipped} duplicate(s) skipped" : string.Empty)
+                + (duplicates.Linked > 0 ? $", {duplicates.Linked} linked to their original" : string.Empty)
                 + (failed > 0 ? $", {failed} failed" : string.Empty);
 
             if (imported > 0)

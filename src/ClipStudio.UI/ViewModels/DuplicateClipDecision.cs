@@ -10,4 +10,10 @@ public enum DuplicateClipDecision
 
     /// <summary>Import the file anyway, accepting a second copy of the same recording.</summary>
     ImportAnyway,
+
+    /// <summary>
+    /// Import the file anyway and link it to the clip it duplicates, so the two are findable from
+    /// each other rather than sitting in the library as unrelated near-identical entries.
+    /// </summary>
+    ImportAndLink,
 }

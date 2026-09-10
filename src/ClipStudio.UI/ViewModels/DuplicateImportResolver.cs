@@ -28,14 +28,20 @@ public static class DuplicateImportResolver
     /// same decision to the rest.
     /// </param>
     /// <param name="importAnyway">
-    /// Imports a file despite the duplicate, returning whether it succeeded.
+    /// Imports a file despite the duplicate, returning the new clip's identifier, or null when the
+    /// import failed.
+    /// </param>
+    /// <param name="link">
+    /// Links the newly imported clip to the one it duplicates. Null when linking is unavailable,
+    /// in which case "import and link" degrades to a plain import rather than failing.
     /// </param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>How many were imported and how many were skipped.</returns>
     public static async Task<DuplicateResolutionSummary> ResolveAsync(
         IReadOnlyList<ImportResult> results,
         Func<DuplicateClipPrompt, Task<DuplicateResolution>> ask,
-        Func<string, Task<bool>> importAnyway,
+        Func<string, Task<int?>> importAnyway,
+        Func<int, int, Task>? link = null,
         CancellationToken cancellationToken = default)
     {
         var duplicates = results
@@ -46,6 +52,7 @@ public static class DuplicateImportResolver
 
         var imported = 0;
         var skipped  = 0;
+        var linked   = 0;
 
         // Set once the user answers "do this for the rest", after which nothing more is asked.
         DuplicateClipDecision? standingDecision = null;
@@ -71,17 +78,33 @@ public static class DuplicateImportResolver
                     standingDecision = answer.Decision;
             }
 
-            if (decision == DuplicateClipDecision.ImportAnyway
-                && await importAnyway(duplicate.DuplicateFilePath!))
-            {
-                imported++;
-            }
-            else
+            if (decision is not (DuplicateClipDecision.ImportAnyway or DuplicateClipDecision.ImportAndLink))
             {
                 skipped++;
+                continue;
+            }
+
+            var newClipId = await importAnyway(duplicate.DuplicateFilePath!);
+            if (newClipId is null)
+            {
+                skipped++;
+                continue;
+            }
+
+            imported++;
+
+            // The link is a second, separate write. A failure to draw it must not undo an import
+            // the user asked for and already got, so it is reported by omission rather than by
+            // turning the whole resolution into a skip.
+            if (decision == DuplicateClipDecision.ImportAndLink
+                && link is not null
+                && duplicate.DuplicateOf is not null)
+            {
+                await link(newClipId.Value, duplicate.DuplicateOf.Id);
+                linked++;
             }
         }
 
-        return new DuplicateResolutionSummary(imported, skipped);
+        return new DuplicateResolutionSummary(imported, skipped, linked);
     }
 }
