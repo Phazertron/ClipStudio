@@ -61,6 +61,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<IRecycleBinService, RecycleBinService>();
 
+        // One scanner per launcher. A launcher that is not installed, or not supported on this
+        // platform, reports itself unavailable rather than every caller having to know which is
+        // which. Epic and GOG are not implemented yet - see F-F in PLAN.
+        services.AddSingleton<IInstalledGameScanner, SteamLibraryScanner>();
+
         // Both are singletons on purpose. The health check keeps its last report for whatever
         // presents the findings, and the asset provider's in-flight table is only useful shared -
         // twenty cards asking for one thumbnail must wait on a single FFmpeg run.

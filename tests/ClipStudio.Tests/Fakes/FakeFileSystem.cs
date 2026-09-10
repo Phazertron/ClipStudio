@@ -199,20 +199,33 @@ public sealed class FakeFileSystem : IFileSystem
     }
 
     /// <summary>
-    /// Matches a file name against the subset of wildcard syntax the services actually use:
-    /// <c>*</c> alone, or a <c>*.ext</c> suffix pattern.
+    /// Matches a file name against the subset of wildcard syntax the services actually use: an
+    /// exact name, or a single <c>*</c> anywhere in the pattern.
     /// </summary>
     /// <param name="name">The file name to test.</param>
     /// <param name="pattern">The search pattern.</param>
     /// <returns><see langword="true"/> when the name matches.</returns>
+    /// <remarks>
+    /// A single wildcard covers everything the services ask for, from <c>*.srt</c> to
+    /// <c>appmanifest_*.acf</c>. Multiple wildcards are deliberately not supported: nothing needs
+    /// them, and a fake that silently accepts patterns the real file system treats differently is
+    /// worse than one that is honest about its scope.
+    /// </remarks>
     private static bool MatchesPattern(string name, string pattern)
     {
         if (pattern == "*")
             return true;
 
-        if (pattern.StartsWith('*'))
-            return name.EndsWith(pattern[1..], StringComparison.OrdinalIgnoreCase);
+        var star = pattern.IndexOf('*');
+        if (star < 0)
+            return string.Equals(name, pattern, StringComparison.OrdinalIgnoreCase);
 
-        return string.Equals(name, pattern, StringComparison.OrdinalIgnoreCase);
+        var prefix = pattern[..star];
+        var suffix = pattern[(star + 1)..];
+
+        // The halves must not overlap, or "ab*ba" would match "aba" by reading "b" twice.
+        return name.Length >= prefix.Length + suffix.Length
+               && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+               && name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase);
     }
 }
