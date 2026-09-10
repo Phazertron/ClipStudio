@@ -6,20 +6,21 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-10): 0 warnings, 662 tests passing, working tree clean, pushed to
-origin/master. **Phase 0, Phase 1 (F-R and F-A), Phase 1.5 and Phase 1.6 are all
-complete** and verified in the running app under `--profile smoke`.
+Status (2026-09-10): 0 warnings, 703 tests passing, working tree clean.
+**Phase 0, Phase 1.5, Phase 1.6, and F-R, F-A and F-F (Steam) are complete**, all
+verified in the running app under `--profile smoke`.
 
-**Start here next.** What remains in Phase 1 is two independent features, plus
-three things that need a decision or a measurement rather than effort:
+**Start here next:**
 
-1. `F-F` Import game titles from installed Steam / Epic / GOG libraries
-2. `F-I` Grouped search results flyout - UI only, slots in anywhere
+1. `F-I` Grouped search results flyout - the last unstarted Phase 1 feature. The
+   backend is largely there (`ClipService.SearchAsync` already does text and
+   captions); the risk is the flyout's keyboard navigation, which is the class of
+   bug that needed three fixes in the tag picker. Copy `TagPickerStateMachine`:
+   testable logic, thin Avalonia glue, and budget a hands-on pass
+2. `F-F` Epic and GOG scanners - need a machine with those launchers to verify
 3. `1.5.5` The short-clip fallback quality/speed tension - needs the user's call
-4. `1.5.5` Parallel imports - the measurement that justified it predates the
-   keyframe change and has to be redone before the work is worth starting
-5. `1.6.2` Shortcut remapping, and a graphical keyboard map now the set is big
-   enough to be worth drawing
+4. `1.5.5` Parallel imports - re-measure first; the 1.6x predates the keyframe change
+5. `1.6.2` Shortcut remapping, and a graphical keyboard map
 
 The bug and polish backlog below also has a transcription cluster worth one pass,
 and the master-volume defect, which is blocked on a diagnosis rather than effort.
@@ -507,15 +508,38 @@ an import the user already got.
 through the picker landed in the database, and it renders and navigates from both ends - the target
 clip shows the link back with the source clip's thumbnail and game tag.
 
-### F-F - Import game titles from installed libraries
+### F-F - Import game titles from installed libraries - Steam done (2026-09-10)
 
-- [ ] `IInstalledGameScanner` abstraction with one implementation per launcher
-- [ ] `SteamLibraryScanner` - parse `libraryfolders.vdf` + `appmanifest_*.acf`, gives AppId + name (also fills GameStoreAppId + cover URL for free)
+- [x] `IInstalledGameScanner` abstraction with one implementation per launcher
+- [x] `SteamLibraryScanner` - parses `libraryfolders.vdf` + `appmanifest_*.acf`, giving the AppId
+  as well as the name, which fills `GameStoreAppId` and the cover URL for free
+- [x] `ValveKeyValueParser` for the KeyValues format both files use
+- [x] Platform guards: the Steam root is resolved per platform, including the Linux Flatpak path
+- [x] `GamesPage` - "Import from launchers" button, preview list with checkboxes, merge-by-name
+  into existing Game tags
+- [x] Tests: parser and scanner against fixtures, plus the import view model. 662 -> 703 passing.
 - [ ] `EpicLibraryScanner` - parse `ProgramData/Epic/EpicGamesLauncher/Data/Manifests/*.item`
-- [ ] `GogLibraryScanner` - registry `HKLM\SOFTWARE\WOW6432Node\GOG.com\Games` on Windows; skip elsewhere
-- [ ] Platform guards: Steam paths for Windows/Linux/macOS; Epic and GOG Windows only
-- [ ] `GamesPage` - "Import from launchers" button, preview list with checkboxes, merge-by-name into existing Game tags
-- [ ] Tests: VDF and ACF parser with fixture files
+- [ ] `GogLibraryScanner` - registry `HKLM\SOFTWARE\WOW6432Node\GOG.com\Games` on Windows
+
+**Epic and GOG are deliberately not written yet.** Neither launcher is installed on this machine,
+so the parsers could not be run against a real install - only against fixtures built from the
+documented formats. Shipping two scanners that have never met real data would have been worse than
+shipping one that has. They slot in behind `IInstalledGameScanner` with no rework: register the
+implementation and the import panel picks it up. **Whoever adds them needs a machine with those
+launchers installed to verify.**
+
+**Verified against a real 248-title Steam library** across two library folders on different drives:
+248 read in 70 ms, every one carrying its AppId. Trademark symbols, apostrophes and colons in names
+all survive the parser.
+
+**Non-games are flagged, not hidden.** Steam installs dedicated servers, soundtracks, demos, betas
+and redistributables as separate apps with their own manifests - thirteen of them in that library.
+Hiding them would be guessing on the user's behalf, so they are listed and unticked with a reason.
+The same is true of games already in the library, matched by name.
+
+**Nothing is created without being ticked.** With 222 games ticked by default out of 248 found, the
+preview is the feature: a one-click import would flood the tag list with games the user has no
+clips of.
 
 ### F-I - Grouped search results flyout
 
