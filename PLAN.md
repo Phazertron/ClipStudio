@@ -6,14 +6,23 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-09): 0 warnings, 487 tests passing. **Phase 0 is complete and
-verified at a keyboard. F-R is complete** apart from "import and link", which waits
-on F-A.
+Status (2026-09-10): 0 warnings, 493 tests passing, working tree clean, 19 commits
+ahead of origin/master and unpushed. **Phase 0 is complete and verified at a
+keyboard. F-R is complete** apart from "import and link", which waits on F-A.
+Import performance work is done and measured.
 
-**Start here next: Phase 1.5 below.** It is written to be picked up cold and covers
-the Settings overhaul, the "Attention required" list, duplicate merge, and the
-import performance work - in that order, because each gives the next one somewhere
-to live.
+**Start here next: Phase 1.5 below.** It is written to be picked up cold, in five
+parts, ordered so each gives the next one somewhere to live:
+
+1. `1.5.1` Settings restructure - the view is 731 lines and the view model 869
+2. `1.5.2` Split the startup sanitize from the repair
+3. `1.5.3` "Attention required" section - the home every finding below needs
+4. `1.5.4` Duplicate resolution with merge
+5. `1.5.5` Import performance - the measured wins are done; what remains is listed
+
+The two findings most worth reading first are in `1.5.2` and `1.5.4`: the full
+sanitize runs unannounced on every startup, and duplicates already in the library
+are never surfaced because detection only runs at import.
 
 Commit style from 2026-09-09 onwards follows the conventional-commit skill
 (`type(scope): subject` plus a bullet body), maintained in the `claude-skills`
