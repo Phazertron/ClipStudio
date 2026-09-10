@@ -1376,6 +1376,185 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- ===== Related clips section ===== -->
+                    <Border Padding="14,12"
+                            BorderBrush="{DynamicResource SystemChromeHighColor}"
+                            BorderThickness="0,0,0,1">
+                        <StackPanel Spacing="8" DataContext="{Binding RelatedClips}">
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0"
+                                           Text="Related clips"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Command="{Binding TogglePickerCommand}"
+                                        FontSize="11"
+                                        Padding="8,3"
+                                        ToolTip.Tip="Link this clip to another">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <icons:MaterialIcon Kind="LinkVariantPlus" Width="13" Height="13"/>
+                                        <TextBlock Text="Link"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <TextBlock Text="{Binding ErrorMessage}"
+                                       FontSize="11"
+                                       Foreground="#E74C3C"
+                                       TextWrapping="Wrap"
+                                       IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                            <TextBlock Text="Nothing linked yet. Use Link to connect this clip to another angle, a sequel, or a reaction."
+                                       FontSize="11"
+                                       Opacity="0.55"
+                                       TextWrapping="Wrap"
+                                       IsVisible="{Binding HasNoLinks}"/>
+
+                            <!-- The links themselves -->
+                            <ItemsControl ItemsSource="{Binding Related}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:RelatedClipRowViewModel">
+                                        <Border Margin="0,0,0,6"
+                                                Padding="8"
+                                                CornerRadius="5"
+                                                Background="{DynamicResource SystemChromeLowColor}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <Border Grid.Column="0"
+                                                        Width="64" Height="36"
+                                                        CornerRadius="3"
+                                                        ClipToBounds="True"
+                                                        Background="#22FFFFFF">
+                                                    <Image Source="{Binding Thumbnail}"
+                                                           Stretch="UniformToFill"/>
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" Spacing="2" Margin="8,0,0,0">
+                                                    <TextBlock Text="{Binding FileName}"
+                                                               FontSize="11"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <Border Padding="5,1"
+                                                                CornerRadius="8"
+                                                                Background="{DynamicResource SystemAccentColor}">
+                                                            <TextBlock Text="{Binding RelationshipLabel}"
+                                                                       FontSize="9"
+                                                                       Foreground="White"/>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding GameName}"
+                                                                   FontSize="10"
+                                                                   Opacity="0.6"
+                                                                   VerticalAlignment="Center"
+                                                                   IsVisible="{Binding GameName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                        <TextBlock Text="{Binding DurationDisplay}"
+                                                                   FontSize="10"
+                                                                   Opacity="0.5"
+                                                                   VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Note}"
+                                                               FontSize="10"
+                                                               Opacity="0.6"
+                                                               TextWrapping="Wrap"
+                                                               IsVisible="{Binding HasNote}"/>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+                                                    <Button Command="{Binding $parent[ItemsControl].((vm:RelatedClipsViewModel)DataContext).OpenCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            Padding="5"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            ToolTip.Tip="Open this clip">
+                                                        <icons:MaterialIcon Kind="OpenInNew" Width="13" Height="13"/>
+                                                    </Button>
+                                                    <Button Command="{Binding $parent[ItemsControl].((vm:RelatedClipsViewModel)DataContext).UnlinkCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            Padding="5"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            ToolTip.Tip="Remove this link">
+                                                        <icons:MaterialIcon Kind="LinkVariantOff" Width="13" Height="13"/>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- The link picker -->
+                            <Border IsVisible="{Binding IsPickerOpen}"
+                                    Padding="10"
+                                    CornerRadius="5"
+                                    Background="{DynamicResource SystemChromeLowColor}">
+                                <StackPanel Spacing="8">
+                                    <ComboBox ItemsSource="{x:Static vm:RelatedClipsViewModel.LinkTypeOptions}"
+                                              SelectedItem="{Binding SelectedLinkType}"
+                                              HorizontalAlignment="Stretch"
+                                              FontSize="11">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate DataType="vm:ClipLinkTypeOption">
+                                                <StackPanel Spacing="1">
+                                                    <TextBlock Text="{Binding Label}" FontSize="11"/>
+                                                    <TextBlock Text="{Binding Hint}" FontSize="9" Opacity="0.55"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBox Grid.Column="0"
+                                                 Text="{Binding SearchText}"
+                                                 Watermark="Search clips by name..."
+                                                 FontSize="11"/>
+                                        <Button Grid.Column="1"
+                                                Command="{Binding SearchCommand}"
+                                                Margin="4,0,0,0"
+                                                Padding="8"
+                                                ToolTip.Tip="Search">
+                                            <icons:MaterialIcon Kind="Magnify" Width="13" Height="13"/>
+                                        </Button>
+                                    </Grid>
+
+                                    <TextBox Text="{Binding NewLinkNote}"
+                                             Watermark="Note (optional)"
+                                             FontSize="11"/>
+
+                                    <ItemsControl ItemsSource="{Binding SearchResults}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="vm:ClipSearchResultViewModel">
+                                                <Button Command="{Binding $parent[ItemsControl].((vm:RelatedClipsViewModel)DataContext).LinkToCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        HorizontalAlignment="Stretch"
+                                                        HorizontalContentAlignment="Left"
+                                                        Margin="0,0,0,3"
+                                                        Padding="8,5"
+                                                        FontSize="11">
+                                                    <StackPanel Spacing="1">
+                                                        <TextBlock Text="{Binding FileName}"
+                                                                   FontSize="11"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <TextBlock Text="{Binding GameName}"
+                                                                       FontSize="9"
+                                                                       Opacity="0.6"
+                                                                       IsVisible="{Binding GameName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                            <TextBlock Text="{Binding RecordedAtDisplay}"
+                                                                       FontSize="9"
+                                                                       Opacity="0.5"/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </Border>
+
                     <!-- ===== Notes section ===== -->
                     <Border Padding="14,12"
                             BorderBrush="{DynamicResource SystemChromeHighColor}"

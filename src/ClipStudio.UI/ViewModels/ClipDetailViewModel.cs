@@ -26,7 +26,7 @@ namespace ClipStudio.UI.ViewModels;
 /// highlight management, tag management, rename, trim/export, keyboard shortcuts, and queue navigation.
 /// Implements <see cref="IDisposable"/> to release the unmanaged MediaPlayer when the view is closed.
 /// </summary>
-public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackHost, IPlaybackHost, ITrimEditorHost, IHighlightEditorHost, IDisposable
+public sealed partial class ClipDetailViewModel : ViewModelBase, IRelatedClipsHost, IAudioPlaybackHost, IPlaybackHost, ITrimEditorHost, IHighlightEditorHost, IDisposable
 {
     private readonly LibVLC _libVlc;
     private readonly IClipService _clipService;
@@ -46,6 +46,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
     /// <summary>Gets the child view model that owns frame capture for the open clip.</summary>
     public ScreenshotViewModel Screenshots { get; }
+
+    /// <summary>Gets the related-clips panel for the open clip.</summary>
+    public RelatedClipsViewModel RelatedClips { get; }
 
     /// <summary>Gets the child view model that owns per-clip audio routing and mixing.</summary>
     public AudioMixerViewModel Audio { get; }
@@ -545,7 +548,9 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         ClipStudio.Application.Interfaces.ITagSuggestionService tagSuggestionService,
         ITranscriptionService transcriptionService,
         ITranscriptionRepository transcriptionRepository,
-        ClipStudio.UI.Services.IBackgroundTaskService backgroundTasks)
+        ClipStudio.UI.Services.IBackgroundTaskService backgroundTasks,
+        ClipStudio.Application.Interfaces.IClipLinkService clipLinkService,
+        ClipStudio.Application.Interfaces.IMediaAssetProvider mediaAssets)
     {
         _libVlc                   = libVlc;
         _clipService              = clipService;
@@ -583,6 +588,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         Screenshots = new ScreenshotViewModel(
             screenshotService,
             () => TimeSpan.FromMilliseconds(MediaPlayer.Time));
+
+        RelatedClips = new RelatedClipsViewModel(this, clipLinkService, clipService, mediaAssets);
 
         Audio = new AudioMixerViewModel(
             this,
@@ -652,6 +659,11 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
         _clip = await _clipService.GetByIdAsync(clipId);
         Screenshots.SetClip(_clip?.Id);
+
+        // Loaded without awaiting: the panel is supplementary, and a slow link query should not
+        // hold up the video the user actually opened.
+        _ = RelatedClips.LoadAsync();
+
         if (_clip is null)
             return;
 
@@ -1763,4 +1775,23 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
 
         MediaPlayer.Dispose();
     }
+
+    // ---- IRelatedClipsHost ----
+
+    /// <inheritdoc/>
+    int? IRelatedClipsHost.OpenClipId => _clip?.Id;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Routed through the same callback the previous/next buttons use, so opening a related clip
+    /// behaves exactly like any other navigation - including disposing this clip's media.
+    /// </remarks>
+    void IRelatedClipsHost.OpenClip(int clipId) => RelatedClipOpenRequested?.Invoke(clipId);
+
+    /// <summary>
+    /// Optional callback invoked when the related-clips panel asks for a clip to be opened. Set by
+    /// the main window, which owns navigation.
+    /// </summary>
+    public Action<int>? RelatedClipOpenRequested { get; set; }
+
 }

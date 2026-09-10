@@ -316,6 +316,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _detailScope     = _serviceProvider.CreateScope();
         _currentDetailVm = _detailScope.ServiceProvider.GetRequiredService<ClipDetailViewModel>();
         _currentDetailVm.BackRequested = CloseClipDetail;
+        _currentDetailVm.RelatedClipOpenRequested = id => OpenClipDetail(id);
 
         // Wire sequence navigation when a clip list is provided
         if (sequence is not null && sequenceIndex >= 0)
