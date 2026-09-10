@@ -213,6 +213,33 @@ public sealed class AttentionSectionViewModelTests
         Assert.Equal(AttentionEntryKind.UpdateAvailable, vm.Entries[0].Kind);
     }
 
+    [Fact]
+    public async Task RecheckLooksForAnUpdateAsWellAsScanningTheFolders()
+    {
+        var vm = BuildSection();
+
+        await vm.RecheckCommand.ExecuteAsync(null);
+
+        _health.Verify(h => h.CheckAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(1, _updates.CheckCount);
+    }
+
+    [Fact]
+    public async Task RecheckStillRebuildsWhenTheUpdateCheckIsUnavailable()
+    {
+        // No network, or a build that cannot update itself. The folder findings must still be
+        // refreshed rather than lost behind an update failure.
+        _updates.SetStatus(UpdateStatus.Unsupported);
+        ReportWith(new LibraryHealthFinding(
+            LibraryHealthFindingKind.SourceFolderUnreachable,
+            "E:\\Clips is not reachable."));
+
+        var vm = BuildSection();
+        await vm.RecheckCommand.ExecuteAsync(null);
+
+        Assert.Contains(vm.Entries, e => e.Kind == AttentionEntryKind.SourceFolderUnreachable);
+    }
+
     // ---- Empty ----
 
     [Fact]

@@ -156,11 +156,18 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     public override Task RefreshAsync() => RebuildAsync();
 
     /// <summary>
-    /// Runs a fresh health check and rebuilds the list from it.
+    /// Re-checks everything this list can show, then rebuilds it.
     /// </summary>
     /// <remarks>
-    /// The check is the cheap pass, not a repair: it re-reads the folders and the broken flags but
-    /// does not hash, so it cannot find duplicates. Those arrive with Repair Library.
+    /// Covers both sources the list draws on: the library health check, which re-reads the source
+    /// folders from disk and is the only way to notice a reconnected drive without restarting, and
+    /// the update check. Leaving the update out made a button labelled "Re-check" quietly ignore
+    /// rows it was displaying.
+    /// <para>
+    /// The health check is the cheap pass, not a repair: it re-reads the folders and the broken
+    /// flags but does not hash, so it cannot find duplicates. Those arrive with Repair Library.
+    /// The update check downloads nothing.
+    /// </para>
     /// </remarks>
     private async Task RecheckAsync()
     {
@@ -168,6 +175,11 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
         try
         {
             await _health.CheckAsync();
+
+            // Never throws, and is deliberately not allowed to stop the folder findings being
+            // rebuilt if the network is down.
+            await _updates.CheckAsync();
+
             await RebuildAsync();
         }
         catch (Exception ex)
