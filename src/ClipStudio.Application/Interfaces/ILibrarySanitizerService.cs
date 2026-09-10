@@ -20,5 +20,12 @@ public interface ILibrarySanitizerService
     /// </summary>
     /// <param name="progress">Optional progress sink; receives a human-readable status message after each step.</param>
     /// <param name="ct">Cancellation token.</param>
-    Task SanitizeAsync(IProgress<string>? progress = null, CancellationToken ct = default);
+    /// <returns>The summary of what the pass did.</returns>
+    /// <remarks>
+    /// The summary is returned as well as reported through <paramref name="progress"/>, because a
+    /// caller that wants the outcome cannot reliably scrape it from the progress sink:
+    /// <see cref="Progress{T}"/> posts asynchronously, so the last callback can still be queued
+    /// when this task completes.
+    /// </remarks>
+    Task<string> SanitizeAsync(IProgress<string>? progress = null, CancellationToken ct = default);
 }

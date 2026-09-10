@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using ClipStudio.Application.Interfaces;
+using ClipStudio.UI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Material.Icons;
@@ -22,6 +23,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private readonly ILibraryWatcherService _watcher;
     private readonly IClipService _clipService;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IBackgroundTaskService _tasks;
 
     private LibraryViewModel? _library;
     private UnreviewedQueueViewModel? _unreviewedQueue;
@@ -84,6 +86,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <param name="watcher">The library watcher service.</param>
     /// <param name="clipService">The clip service used to refresh the unreviewed count.</param>
     /// <param name="serviceProvider">The root DI service provider, used to create scoped detail VMs.</param>
+    /// <param name="tasks">The registry of running background work.</param>
     public MainWindowViewModel(
         LibraryViewModel library,
         UnreviewedQueueViewModel unreviewedQueue,
@@ -97,11 +100,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         StatsPageViewModel stats,
         ILibraryWatcherService watcher,
         IClipService clipService,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        IBackgroundTaskService tasks)
     {
         _watcher         = watcher;
         _clipService     = clipService;
         _serviceProvider = serviceProvider;
+        _tasks           = tasks;
+
+        ClearFinishedTasksCommand = new RelayCommand(_tasks.ClearFinished);
+        _tasks.Changed += (_, _) => OnBackgroundTasksChanged();
         _library         = library;
         _unreviewedQueue = unreviewedQueue;
         _highlights      = highlights;
@@ -163,6 +171,68 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _watcher.FileDeleted  += OnFileDeleted;
 
         _ = RefreshUnreviewedCountAsync();
+    }
+
+    // ---- Background activity ----
+
+    /// <summary>Gets the registry of running and recently finished background work.</summary>
+    /// <remarks>
+    /// Exposed so the activity indicator in the sidebar can bind straight to its collections.
+    /// </remarks>
+    public IBackgroundTaskService Tasks => _tasks;
+
+    /// <summary>Gets whether anything is running right now.</summary>
+    public bool HasRunningTasks => _tasks.RunningCount > 0;
+
+    /// <summary>Gets whether anything has finished this session.</summary>
+    public bool HasRecentTasks => _tasks.Recent.Count > 0;
+
+    /// <summary>Gets whether there is nothing at all to show in the activity panel.</summary>
+    public bool IsActivityEmpty => !HasRunningTasks && !HasRecentTasks;
+
+    /// <summary>Gets the one-line summary shown on the activity indicator.</summary>
+    public string ActivitySummary
+    {
+        get
+        {
+            var running = _tasks.RunningCount;
+            if (running == 0)
+                return HasRecentTasks ? "No background tasks" : "Idle";
+
+            // With one task its own title is more useful than a count.
+            return running == 1
+                ? _tasks.Running[0].Title
+                : $"{running} tasks running";
+        }
+    }
+
+    /// <summary>Gets the command that forgets every finished task.</summary>
+    public IRelayCommand ClearFinishedTasksCommand { get; }
+
+    /// <summary>
+    /// Re-derives everything the chrome shows about background work.
+    /// </summary>
+    /// <remarks>
+    /// Driven by one event rather than by each caller, so a page that starts work does not also
+    /// have to remember to spin an icon. The navigation spinner is set from the tasks that name an
+    /// owning page, which is why <see cref="NavigationItemViewModel.HasBackgroundTask"/> is
+    /// separate from <c>IsScanning</c>: the watcher sets that one for a moment when a file lands,
+    /// and the two would otherwise clear each other.
+    /// </remarks>
+    private void OnBackgroundTasksChanged()
+    {
+        OnPropertyChanged(nameof(HasRunningTasks));
+        OnPropertyChanged(nameof(HasRecentTasks));
+        OnPropertyChanged(nameof(IsActivityEmpty));
+        OnPropertyChanged(nameof(ActivitySummary));
+
+        var busyPages = _tasks.Running
+            .Select(t => t.OwnerNavLabel)
+            .Where(label => label is not null)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var item in NavigationItems)
+            item.HasBackgroundTask = busyPages.Contains(item.Label);
     }
 
     // ---- Navigation ----

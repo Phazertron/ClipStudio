@@ -3,6 +3,7 @@ using ClipStudio.Application.Models;
 using ClipStudio.Core.Interfaces;
 using ClipStudio.Core.Models;
 using ClipStudio.Tests.Fakes;
+using ClipStudio.UI.ViewModels;
 using ClipStudio.UI.ViewModels.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -22,6 +23,7 @@ public sealed class AttentionSectionViewModelTests
 {
     private readonly FakeSettingsSectionHost _host = new();
     private readonly FakeAttentionActionHost _actions = new();
+    private readonly FakeBackgroundTaskService _tasks = new();
     private readonly Mock<IClipRepository> _clips = new();
     private readonly Mock<IHighlightRepository> _highlights = new();
     private readonly Mock<ILibraryHealthCheckService> _health = new();
@@ -44,7 +46,7 @@ public sealed class AttentionSectionViewModelTests
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         return new AttentionSectionViewModel(
-            _host, scopeFactory, _health.Object, _duplicateFinder.Object, _actions);
+            _host, scopeFactory, _health.Object, _duplicateFinder.Object, _actions, _tasks);
     }
 
     private void ReportWith(params LibraryHealthFinding[] findings) =>
@@ -278,6 +280,39 @@ public sealed class AttentionSectionViewModelTests
 
         Assert.Equal("Found 2 clips in 1 group(s).", vm.DuplicateScanResult);
         Assert.Single(vm.Entries, e => e.Kind == AttentionEntryKind.DuplicateClips);
+        Assert.False(vm.IsScanningForDuplicates);
+    }
+
+    [Fact]
+    public async Task ADuplicateScanAnnouncesItselfAsCancellableWork()
+    {
+        // It reads whole files to confirm a match, so it is the scan most worth being able to stop
+        // and the one most worth seeing from another page while it runs.
+        _duplicateFinder.Setup(x => x.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync([]);
+
+        var vm = BuildSection();
+        await vm.ScanForDuplicatesCommand.ExecuteAsync(null);
+
+        Assert.Equal("Looking for duplicate clips", _tasks.Single.Title);
+        Assert.Equal("Settings", _tasks.Single.OwnerNavLabel);
+        Assert.Equal(BackgroundTaskState.Completed, _tasks.Single.State);
+        Assert.Equal("No duplicate clips found.", _tasks.Single.CompletionMessage);
+    }
+
+    [Fact]
+    public async Task ACancelledDuplicateScanReportsNoGroupsRatherThanAPartialAnswer()
+    {
+        // A partial scan would list some groups and silently omit others, which reads as "these are
+        // the duplicates" when it is not.
+        _duplicateFinder.Setup(x => x.FindAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+                        .ThrowsAsync(new OperationCanceledException());
+
+        var vm = BuildSection();
+        await vm.ScanForDuplicatesCommand.ExecuteAsync(null);
+
+        Assert.Equal("Duplicate scan cancelled.", vm.DuplicateScanResult);
+        Assert.Equal(BackgroundTaskState.Cancelled, _tasks.Single.State);
         Assert.False(vm.IsScanningForDuplicates);
     }
 

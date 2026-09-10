@@ -3,6 +3,7 @@ using ClipStudio.Application.Models;
 using ClipStudio.Core.Enums;
 using ClipStudio.Core.Interfaces;
 using ClipStudio.Tests.Fakes;
+using ClipStudio.UI.ViewModels;
 using ClipStudio.UI.ViewModels.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -22,6 +23,7 @@ namespace ClipStudio.Tests.ViewModels;
 public sealed class SettingsSectionViewModelTests
 {
     private readonly FakeSettingsSectionHost _host = new();
+    private readonly FakeBackgroundTaskService _tasks = new();
 
     /// <summary>Builds a scope factory whose scopes resolve the given services.</summary>
     private static IServiceScopeFactory BuildScopeFactory(Action<ServiceCollection>? configure = null)
@@ -187,7 +189,7 @@ public sealed class SettingsSectionViewModelTests
     [Fact]
     public void Maintenance_RoundTripsTheLogLevel()
     {
-        var vm = new MaintenanceSectionViewModel(_host, BuildScopeFactory());
+        var vm = new MaintenanceSectionViewModel(_host, BuildScopeFactory(), _tasks);
 
         vm.LoadFrom(new AppSettings { MinimumLogLevel = "Information" });
         Assert.Equal("Information", vm.MinimumLogLevel);
@@ -202,7 +204,7 @@ public sealed class SettingsSectionViewModelTests
     {
         var sanitizer = new Mock<ILibrarySanitizerService>();
         var vm = new MaintenanceSectionViewModel(
-            _host, BuildScopeFactory(s => s.AddScoped(_ => sanitizer.Object)));
+            _host, BuildScopeFactory(s => s.AddScoped(_ => sanitizer.Object)), _tasks);
 
         await vm.RepairLibraryCommand.ExecuteAsync(null);
 
@@ -215,20 +217,77 @@ public sealed class SettingsSectionViewModelTests
     }
 
     [Fact]
-    public async Task Maintenance_ClearsTheRepairFlagWhenTheSanitizerThrows()
+    public async Task Maintenance_ReportsAFailedRepairRatherThanThrowingOutOfTheCommand()
     {
-        // A failed repair must not leave the page stuck showing a progress bar forever.
+        // A failed repair must not leave the page stuck showing a progress bar forever, and it must
+        // not escape the command either - an unhandled exception out of an async command has
+        // nowhere useful to go. It is reported as a failed task instead.
         var sanitizer = new Mock<ILibrarySanitizerService>();
         sanitizer.Setup(x => x.SanitizeAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
                  .ThrowsAsync(new InvalidOperationException("disk gone"));
 
         var vm = new MaintenanceSectionViewModel(
-            _host, BuildScopeFactory(s => s.AddScoped(_ => sanitizer.Object)));
+            _host, BuildScopeFactory(s => s.AddScoped(_ => sanitizer.Object)), _tasks);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => vm.RepairLibraryCommand.ExecuteAsync(null));
+        await vm.RepairLibraryCommand.ExecuteAsync(null);
 
         Assert.Equal(new[] { true, false }, _host.RepairingChanges);
+        Assert.False(vm.IsRepairRunning);
+        Assert.Equal(BackgroundTaskState.Failed, _tasks.Single.State);
+        Assert.Equal("disk gone", _tasks.Single.CompletionMessage);
+    }
+
+    [Fact]
+    public async Task Maintenance_AnnouncesTheRepairAsACancellableTask()
+    {
+        // The plan's complaint about the old startup pass was that it was uncancellable. The pass
+        // always threaded a token; nothing was ever passing one.
+        var sanitizer = new Mock<ILibrarySanitizerService>();
+        var vm = new MaintenanceSectionViewModel(
+            _host, BuildScopeFactory(s => s.AddScoped(_ => sanitizer.Object)), _tasks);
+
+        await vm.RepairLibraryCommand.ExecuteAsync(null);
+
+        Assert.Equal("Repairing library", _tasks.Single.Title);
+        Assert.Equal("Settings", _tasks.Single.OwnerNavLabel);
+        Assert.Equal(BackgroundTaskState.Completed, _tasks.Single.State);
+    }
+
+    [Fact]
+    public async Task Maintenance_KeepsTheSummaryTheRepairReturnedRatherThanItsLastProgressLine()
+    {
+        // Progress<T> posts asynchronously, so scraping the last reported line kept whichever
+        // message happened to have landed - in practice "Confirming 2 possible duplicates..."
+        // rather than the summary. The summary comes back from the call itself.
+        var sanitizer = new Mock<ILibrarySanitizerService>();
+        sanitizer.Setup(x => x.SanitizeAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+                 .Callback<IProgress<string>?, CancellationToken>((p, _) => p?.Report("Confirming 2 possible duplicates..."))
+                 .ReturnsAsync("Sanitize complete: 1 repair(s), 0 orphan(s) removed.");
+
+        var vm = new MaintenanceSectionViewModel(
+            _host, BuildScopeFactory(s => s.AddScoped(_ => sanitizer.Object)), _tasks);
+
+        await vm.RepairLibraryCommand.ExecuteAsync(null);
+
+        Assert.Equal("Sanitize complete: 1 repair(s), 0 orphan(s) removed.", _tasks.Single.CompletionMessage);
+    }
+
+    [Fact]
+    public async Task Maintenance_ReportsACancelledRepairAsCancelled()
+    {
+        // Every repair already made is a completed write of its own, so stopping leaves the library
+        // consistent - just less repaired. The message has to say that rather than read as failure.
+        var sanitizer = new Mock<ILibrarySanitizerService>();
+        sanitizer.Setup(x => x.SanitizeAsync(It.IsAny<IProgress<string>>(), It.IsAny<CancellationToken>()))
+                 .ThrowsAsync(new OperationCanceledException());
+
+        var vm = new MaintenanceSectionViewModel(
+            _host, BuildScopeFactory(s => s.AddScoped(_ => sanitizer.Object)), _tasks);
+
+        await vm.RepairLibraryCommand.ExecuteAsync(null);
+
+        Assert.Equal(BackgroundTaskState.Cancelled, _tasks.Single.State);
+        Assert.Contains("already repaired was kept", _tasks.Single.CompletionMessage);
         Assert.False(vm.IsRepairRunning);
     }
 
@@ -245,7 +304,7 @@ public sealed class SettingsSectionViewModelTests
             new PreferencesSectionViewModel(_host, BuildScopeFactory()),
             new TranscriptionSectionViewModel(_host, settings.Object),
             new ObsIntegrationSectionViewModel(_host),
-            new MaintenanceSectionViewModel(_host, BuildScopeFactory()),
+            new MaintenanceSectionViewModel(_host, BuildScopeFactory(), _tasks),
             new AboutSectionViewModel(_host),
         ];
 

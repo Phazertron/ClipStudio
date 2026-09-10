@@ -6,11 +6,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ClipStudio.Application.Interfaces;
+using ClipStudio.UI.Services;
 using ClipStudio.Application.Services;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Material.Icons;
 
 namespace ClipStudio.UI.ViewModels;
 
@@ -29,6 +31,7 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
     private readonly ITranscriptionRepository _transcriptionRepository;
     private readonly ISettingsService _settingsService;
     private readonly Action<long> _seekRequested;
+    private readonly IBackgroundTaskService? _tasks;
     private CancellationTokenSource? _transcribeCts;
 
     /// <summary>The most recently loaded or produced transcription; used to locate the SRT path for regeneration.</summary>
@@ -111,12 +114,14 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
         ITranscriptionService transcriptionService,
         ITranscriptionRepository transcriptionRepository,
         ISettingsService settingsService,
-        Action<long> seekRequested)
+        Action<long> seekRequested,
+        IBackgroundTaskService? tasks = null)
     {
         _transcriptionService    = transcriptionService;
         _transcriptionRepository = transcriptionRepository;
         _settingsService         = settingsService;
         _seekRequested           = seekRequested;
+        _tasks                   = tasks;
 
         TranscribeCommand = new AsyncRelayCommand(TranscribeAsync, () => CanTranscribe);
         CancelCommand     = new RelayCommand(CancelTranscription, () => IsTranscribing);
@@ -200,12 +205,21 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
             : "Extracting audio...";
         Segments.Clear();
 
+        // The panel keeps its own bar - you want it next to the transcript it is producing - and
+        // the registry entry makes a long transcription visible from every other page.
+        var task = _tasks?.Start(
+            "Transcribing clip",
+            MaterialIconKind.ClosedCaptionOutline,
+            ownerNavLabel: "Library",
+            cancellation: _transcribeCts);
+
         try
         {
             var progress = new Progress<float>(p =>
             {
                 Progress      = p;
                 StatusMessage = p < 1f ? $"Transcribing... {p * 100:F0}%" : StatusMessage;
+                task?.Report(p * 100, StatusMessage);
             });
 
             var result = await _transcriptionService.TranscribeAsync(
@@ -222,15 +236,18 @@ public sealed partial class TranscriptionViewModel : ViewModelBase
             HasExistingTranscription = true;
             LastTranscriptionDate    = result.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
             StatusMessage            = $"Done - {result.Segments.Count} segments.";
+            task?.Finish(BackgroundTaskState.Completed, StatusMessage);
             TranscriptionCompleted?.Invoke(result.SrtFilePath);
         }
         catch (OperationCanceledException)
         {
             StatusMessage = "Cancelled.";
+            task?.Finish(BackgroundTaskState.Cancelled, "Transcription stopped.");
         }
         catch (Exception ex)
         {
             StatusMessage = $"Error: {ex.Message}";
+            task?.Finish(BackgroundTaskState.Failed, ex.Message);
         }
         finally
         {

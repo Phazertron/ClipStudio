@@ -2,11 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
+using Avalonia.Threading;
 using System.Threading.Tasks;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Application.Models;
 using ClipStudio.Core.Interfaces;
 using ClipStudio.Core.Models;
+using ClipStudio.UI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Material.Icons;
@@ -44,6 +47,7 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     private readonly ILibraryHealthCheckService _health;
     private readonly IDuplicateClipFinder _duplicates;
     private readonly IAttentionActionHost _actions;
+    private readonly IBackgroundTaskService _tasks;
 
     /// <inheritdoc/>
     public override string Title => "Attention required";
@@ -108,18 +112,21 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     /// <param name="health">The health check whose last report supplies the folder findings.</param>
     /// <param name="duplicates">The finder whose last run supplies the duplicate groups.</param>
     /// <param name="actions">The seam through which an entry's action reaches the rest of the app.</param>
+    /// <param name="tasks">The registry the duplicate scan reports itself into.</param>
     public AttentionSectionViewModel(
         ISettingsSectionHost host,
         IServiceScopeFactory scopeFactory,
         ILibraryHealthCheckService health,
         IDuplicateClipFinder duplicates,
-        IAttentionActionHost actions)
+        IAttentionActionHost actions,
+        IBackgroundTaskService tasks)
         : base(host)
     {
         _scopeFactory = scopeFactory;
         _health       = health;
         _duplicates   = duplicates;
         _actions      = actions;
+        _tasks        = tasks;
 
         RecheckCommand           = new AsyncRelayCommand(RecheckAsync);
         ScanForDuplicatesCommand = new AsyncRelayCommand(ScanForDuplicatesAsync);
@@ -160,19 +167,41 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     {
         IsScanningForDuplicates = true;
         DuplicateScanResult     = null;
+
+        // This one reads whole files to confirm a match, so it is the scan most worth being able
+        // to stop - and the one most worth seeing from another page while it runs.
+        using var cancellation = new CancellationTokenSource();
+        var task = _tasks.Start(
+            "Looking for duplicate clips",
+            MaterialIconKind.ContentDuplicate,
+            ownerNavLabel: "Settings",
+            cancellation: cancellation);
+
+        var progress = new Progress<string>(msg =>
+            Dispatcher.UIThread.Post(() => task.Report(msg)));
+
         try
         {
-            var groups = await _duplicates.FindAsync();
+            var groups = await _duplicates.FindAsync(progress, cancellation.Token);
             DuplicateScanResult = groups.Count == 0
                 ? "No duplicate clips found."
                 : $"Found {groups.Sum(g => g.ClipIds.Count)} clips in {groups.Count} group(s).";
 
+            task.Finish(BackgroundTaskState.Completed, DuplicateScanResult);
             await RebuildAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // A partial scan would list some groups and silently omit others, which reads as "these
+            // are the duplicates" when it is not. Report nothing rather than something misleading.
+            DuplicateScanResult = "Duplicate scan cancelled.";
+            task.Finish(BackgroundTaskState.Cancelled, "Scan stopped before it could compare everything.");
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "The duplicate scan failed.");
             DuplicateScanResult = "The duplicate scan could not be completed.";
+            task.Finish(BackgroundTaskState.Failed, ex.Message);
         }
         finally
         {

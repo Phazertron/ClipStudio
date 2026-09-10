@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using ClipStudio.Application.Interfaces;
@@ -29,6 +30,7 @@ public sealed partial class SourceFoldersSectionViewModel : SettingsSectionViewM
     private readonly IImportService _importService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISoundService _soundService;
+    private readonly IBackgroundTaskService _tasks;
 
     /// <summary>Tracks the number of folder scans currently in progress.</summary>
     private int _activeScanCount;
@@ -70,13 +72,15 @@ public sealed partial class SourceFoldersSectionViewModel : SettingsSectionViewM
     /// <param name="importService">The import service used to scan folders for existing clips.</param>
     /// <param name="scopeFactory">The scope factory used to resolve scoped services for a write.</param>
     /// <param name="soundService">The service that plays the import-complete cue.</param>
+    /// <param name="tasks">The registry a scan reports itself into.</param>
     public SourceFoldersSectionViewModel(
         ISettingsSectionHost host,
         ISourceFolderRepository folders,
         ILibraryWatcherService watcher,
         IImportService importService,
         IServiceScopeFactory scopeFactory,
-        ISoundService soundService)
+        ISoundService soundService,
+        IBackgroundTaskService tasks)
         : base(host)
     {
         _folders       = folders;
@@ -84,6 +88,7 @@ public sealed partial class SourceFoldersSectionViewModel : SettingsSectionViewM
         _importService = importService;
         _scopeFactory  = scopeFactory;
         _soundService  = soundService;
+        _tasks         = tasks;
 
         AddFolderCommand = new AsyncRelayCommand(AddFolderAsync);
         ScanAllCommand   = new AsyncRelayCommand(ScanAllAsync);
@@ -285,6 +290,16 @@ public sealed partial class SourceFoldersSectionViewModel : SettingsSectionViewM
         row.LastScanSummary     = null;
         row.ScanErrorMessages.Clear();
 
+        // The row keeps its own progress bar because that is genuinely contextual - you want it on
+        // the folder it belongs to. The registry entry is so the scan is visible from every other
+        // page too, and so it can be stopped from there.
+        using var cancellation = new CancellationTokenSource();
+        var task = _tasks.Start(
+            $"Scanning {System.IO.Path.GetFileName(row.Path)}",
+            MaterialIconKind.FolderSearchOutline,
+            ownerNavLabel: "Settings",
+            cancellation: cancellation);
+
         try
         {
             // Build a progress handler that marshals updates to the UI thread.
@@ -303,10 +318,13 @@ public sealed partial class SourceFoldersSectionViewModel : SettingsSectionViewM
                         $"File {report.CurrentFileIndex} / {report.TotalFiles} — {report.CurrentFileName}" +
                         $"  |  {report.Imported} imported" +
                         (report.Failed > 0 ? $", {report.Failed} failed" : string.Empty);
+
+                    task.Report(row.ScanProgressPercent, row.ScanStatusText);
                 });
             });
 
-            var results = await _importService.ScanFolderAsync(row.FolderId, progress);
+            var results = await _importService.ScanFolderAsync(
+                row.FolderId, progress, cancellation.Token);
 
             // Import refuses duplicates rather than deciding for the user, so they are resolved
             // here - after the scan, so a long scan is never blocked waiting on a dialog.
@@ -330,6 +348,20 @@ public sealed partial class SourceFoldersSectionViewModel : SettingsSectionViewM
             var updated = await _folders.GetByIdAsync(row.FolderId);
             if (updated?.LastScannedAt.HasValue == true)
                 row.LastScannedDisplay = updated.LastScannedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+            task.Finish(BackgroundTaskState.Completed, row.LastScanSummary);
+        }
+        catch (OperationCanceledException)
+        {
+            // Files already imported stay imported; the scan simply stops where it was.
+            task.Finish(BackgroundTaskState.Cancelled, "Scan stopped. Clips already imported were kept.");
+            row.LastScanSummary = "Scan cancelled.";
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Scanning folder {Path} failed.", row.Path);
+            task.Finish(BackgroundTaskState.Failed, ex.Message);
+            row.LastScanSummary = "Scan failed.";
         }
         finally
         {

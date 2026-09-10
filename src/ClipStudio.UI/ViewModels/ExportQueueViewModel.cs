@@ -4,7 +4,9 @@ using System.Threading.Tasks;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Core.Enums;
 using CommunityToolkit.Mvvm.ComponentModel;
+using ClipStudio.UI.Services;
 using CommunityToolkit.Mvvm.Input;
+using Material.Icons;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ClipStudio.UI.ViewModels;
@@ -18,6 +20,7 @@ namespace ClipStudio.UI.ViewModels;
 public sealed partial class ExportQueueViewModel : ViewModelBase
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBackgroundTaskService _tasks;
 
     /// <summary>Gets the collection of jobs that are pending or currently processing.</summary>
     public ObservableCollection<ExportJobRowViewModel> PendingJobs { get; } = new();
@@ -56,9 +59,11 @@ public sealed partial class ExportQueueViewModel : ViewModelBase
     /// This prevents concurrent root-scope DbContext access when multiple page VMs load at the
     /// same time (e.g. the Library reloading in the background while the user navigates here).
     /// </param>
-    public ExportQueueViewModel(IServiceScopeFactory scopeFactory)
+    /// <param name="tasks">The registry an export run reports itself into.</param>
+    public ExportQueueViewModel(IServiceScopeFactory scopeFactory, IBackgroundTaskService tasks)
     {
         _scopeFactory       = scopeFactory;
+        _tasks              = tasks;
         LoadCommand         = new AsyncRelayCommand(LoadAsync);
         ProcessQueueCommand = new AsyncRelayCommand(ProcessQueueAsync);
     }
@@ -114,6 +119,10 @@ public sealed partial class ExportQueueViewModel : ViewModelBase
         IsProcessing  = true;
         StatusMessage = null;
 
+        // This page stays the place jobs are managed - they are user-created and persisted, unlike
+        // a scan or a repair. The registry entry only makes the run itself visible from elsewhere.
+        var task = _tasks.Start("Processing export queue", MaterialIconKind.FileExport, ownerNavLabel: "Export");
+
         try
         {
             using var scope   = _scopeFactory.CreateScope();
@@ -121,11 +130,13 @@ public sealed partial class ExportQueueViewModel : ViewModelBase
 
             await exportService.ProcessQueueAsync();
             StatusMessage = "Queue processed.";
+            task.Finish(BackgroundTaskState.Completed, StatusMessage);
             await LoadAsync();
         }
         catch (Exception ex)
         {
             StatusMessage = $"Error: {ex.Message}";
+            task.Finish(BackgroundTaskState.Failed, ex.Message);
         }
         finally
         {

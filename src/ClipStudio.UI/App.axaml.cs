@@ -329,6 +329,10 @@ public partial class App : AvaloniaApp
         // Sound effects — singleton so the SoundPlayer instance is reused across calls
         services.AddSingleton<ISoundService, SoundService>();
 
+        // A singleton because the point of the registry is that the list of running work outlives
+        // the page that started it.
+        services.AddSingleton<IBackgroundTaskService, BackgroundTaskService>();
+
         // ViewModels — setup wizard
         services.AddTransient<SetupWizardViewModel>();
         services.AddTransient<WelcomeStepViewModel>();

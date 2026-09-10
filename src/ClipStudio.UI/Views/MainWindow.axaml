@@ -59,12 +59,12 @@
                                     <!-- Normal icon (hidden while scanning) -->
                                     <icons:MaterialIcon Kind="{Binding Icon}"
                                                         Width="20" Height="20"
-                                                        IsVisible="{Binding !IsScanning}"/>
+                                                        IsVisible="{Binding !ShowSpinner}"/>
 
                                     <!-- Spinning cog shown during scan/import -->
                                     <icons:MaterialIcon Kind="Cog"
                                                         Width="20" Height="20"
-                                                        IsVisible="{Binding IsScanning}"
+                                                        IsVisible="{Binding ShowSpinner}"
                                                         RenderTransformOrigin="50%,50%">
                                         <icons:MaterialIcon.RenderTransform>
                                             <RotateTransform/>
@@ -120,6 +120,197 @@
                     </ListBox.Styles>
                 </ListBox>
 
+
+                <!-- Activity indicator: docked to the bottom so it is reachable from every page.
+                     Whatever is running is visible here even when the page that started it is not
+                     on screen, and a finished task's message stays readable in full instead of
+                     being truncated by whatever bar it was reported into. -->
+                <Border DockPanel.Dock="Bottom"
+                        Padding="10,8"
+                        BorderBrush="{DynamicResource SystemChromeHighColor}"
+                        BorderThickness="0,1,0,0">
+                    <Button HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="8,6"
+                            ToolTip.Tip="Background activity">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <!-- Idle -->
+                            <icons:MaterialIcon Grid.Column="0"
+                                                Kind="CheckCircleOutline"
+                                                Width="16" Height="16"
+                                                Opacity="0.4"
+                                                IsVisible="{Binding !HasRunningTasks}"
+                                                VerticalAlignment="Center"/>
+
+                            <!-- Busy: the same spinning cog the navigation items use -->
+                            <icons:MaterialIcon Grid.Column="0"
+                                                Kind="Cog"
+                                                Width="16" Height="16"
+                                                IsVisible="{Binding HasRunningTasks}"
+                                                VerticalAlignment="Center"
+                                                RenderTransformOrigin="50%,50%">
+                                <icons:MaterialIcon.RenderTransform>
+                                    <RotateTransform/>
+                                </icons:MaterialIcon.RenderTransform>
+                                <icons:MaterialIcon.Styles>
+                                    <Style Selector="icons|MaterialIcon[IsVisible=True]">
+                                        <Style.Animations>
+                                            <Animation Duration="0:0:1.5" IterationCount="INFINITE">
+                                                <KeyFrame Cue="0%">
+                                                    <Setter Property="RotateTransform.Angle" Value="0"/>
+                                                </KeyFrame>
+                                                <KeyFrame Cue="100%">
+                                                    <Setter Property="RotateTransform.Angle" Value="360"/>
+                                                </KeyFrame>
+                                            </Animation>
+                                        </Style.Animations>
+                                    </Style>
+                                </icons:MaterialIcon.Styles>
+                            </icons:MaterialIcon>
+
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ActivitySummary}"
+                                       FontSize="11"
+                                       Opacity="0.7"
+                                       Margin="8,0,0,0"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+
+                            <icons:MaterialIcon Grid.Column="2"
+                                                Kind="ChevronUp"
+                                                Width="14" Height="14"
+                                                Opacity="0.5"
+                                                VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <Button.Flyout>
+                            <Flyout Placement="RightEdgeAlignedBottom">
+                                <Border Width="360" Padding="4">
+                                    <StackPanel Spacing="10">
+
+                                        <TextBlock Text="Background activity"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"/>
+
+                                        <TextBlock Text="Nothing is running, and nothing has finished this session."
+                                                   FontSize="11"
+                                                   Opacity="0.6"
+                                                   TextWrapping="Wrap"
+                                                   IsVisible="{Binding IsActivityEmpty}"/>
+
+                                        <!-- Running -->
+                                        <ItemsControl ItemsSource="{Binding Tasks.Running}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="vm:BackgroundTaskViewModel">
+                                                    <Border Margin="0,0,0,8"
+                                                            Padding="10"
+                                                            CornerRadius="6"
+                                                            Background="{DynamicResource SystemChromeLowColor}">
+                                                        <StackPanel Spacing="6">
+                                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                                <icons:MaterialIcon Grid.Column="0"
+                                                                                    Kind="{Binding Icon}"
+                                                                                    Width="14" Height="14"
+                                                                                    VerticalAlignment="Center"/>
+                                                                <TextBlock Grid.Column="1"
+                                                                           Text="{Binding Title}"
+                                                                           FontSize="12"
+                                                                           FontWeight="SemiBold"
+                                                                           Margin="8,0,0,0"
+                                                                           TextWrapping="Wrap"
+                                                                           VerticalAlignment="Center"/>
+                                                                <Button Grid.Column="2"
+                                                                        Command="{Binding CancelCommand}"
+                                                                        IsVisible="{Binding CanCancel}"
+                                                                        Padding="4"
+                                                                        Background="Transparent"
+                                                                        BorderThickness="0"
+                                                                        ToolTip.Tip="Stop this task">
+                                                                    <icons:MaterialIcon Kind="Close" Width="12" Height="12"/>
+                                                                </Button>
+                                                            </Grid>
+
+                                                            <ProgressBar Value="{Binding ProgressPercent}"
+                                                                         IsIndeterminate="{Binding IsIndeterminate}"
+                                                                         Minimum="0" Maximum="100"
+                                                                         Height="4"/>
+
+                                                            <TextBlock Text="{Binding Detail}"
+                                                                       FontSize="10"
+                                                                       Opacity="0.6"
+                                                                       TextWrapping="Wrap"
+                                                                       IsVisible="{Binding Detail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- Recently finished -->
+                                        <Grid ColumnDefinitions="*,Auto"
+                                              IsVisible="{Binding HasRecentTasks}">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Recently finished"
+                                                       FontSize="11"
+                                                       Opacity="0.6"
+                                                       VerticalAlignment="Center"/>
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding ClearFinishedTasksCommand}"
+                                                    Content="Clear"
+                                                    FontSize="10"
+                                                    Padding="6,2"/>
+                                        </Grid>
+
+                                        <ScrollViewer MaxHeight="260">
+                                            <ItemsControl ItemsSource="{Binding Tasks.Recent}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="vm:BackgroundTaskViewModel">
+                                                        <Border Margin="0,0,0,6"
+                                                                Padding="10"
+                                                                CornerRadius="6"
+                                                                Background="{DynamicResource SystemChromeLowColor}">
+                                                            <StackPanel Spacing="4">
+                                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                                    <icons:MaterialIcon Grid.Column="0"
+                                                                                        Kind="{Binding Icon}"
+                                                                                        Width="14" Height="14"
+                                                                                        Opacity="0.6"
+                                                                                        VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="1"
+                                                                               Text="{Binding Title}"
+                                                                               FontSize="12"
+                                                                               Margin="8,0,0,0"
+                                                                               TextWrapping="Wrap"
+                                                                               VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="2"
+                                                                               Text="{Binding StateDisplay}"
+                                                                               FontSize="10"
+                                                                               Opacity="0.5"
+                                                                               VerticalAlignment="Center"/>
+                                                                </Grid>
+
+                                                                <!-- In full, and wrapped. This is the line that used
+                                                                     to run off the edge of the settings page. -->
+                                                                <TextBlock Text="{Binding CompletionMessage}"
+                                                                           FontSize="10"
+                                                                           Opacity="0.7"
+                                                                           TextWrapping="Wrap"
+                                                                           IsVisible="{Binding CompletionMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+
+                                    </StackPanel>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                </Border>
 
                 <!-- Spacer -->
                 <Grid DockPanel.Dock="Top"/>

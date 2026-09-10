@@ -544,7 +544,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
         ClipStudio.UI.Services.ISoundService soundService,
         ClipStudio.Application.Interfaces.ITagSuggestionService tagSuggestionService,
         ITranscriptionService transcriptionService,
-        ITranscriptionRepository transcriptionRepository)
+        ITranscriptionRepository transcriptionRepository,
+        ClipStudio.UI.Services.IBackgroundTaskService backgroundTasks)
     {
         _libVlc                   = libVlc;
         _clipService              = clipService;
@@ -563,7 +564,8 @@ public sealed partial class ClipDetailViewModel : ViewModelBase, IAudioPlaybackH
             _transcriptionService,
             _transcriptionRepository,
             _settingsService,
-            seekMs => SeekToMs(seekMs));
+            seekMs => SeekToMs(seekMs),
+            backgroundTasks);
         Transcription.TranscriptionCompleted += OnTranscriptionCompleted;
         Transcription.SegmentTextEdited      += OnSegmentTextEdited;
 

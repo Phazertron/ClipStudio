@@ -24,7 +24,22 @@ public sealed partial class NavigationItemViewModel : ViewModelBase
     /// for this navigation item. When true the sidebar icon is replaced with a spinning cog.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSpinner))]
     private bool _isScanning;
+
+    /// <summary>
+    /// Gets or sets whether a registered background task owned by this page is running.
+    /// </summary>
+    /// <remarks>
+    /// Kept separate from <see cref="IsScanning"/>, which the file watcher sets for a moment when a
+    /// file lands. The two mean different things and would otherwise clear each other.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSpinner))]
+    private bool _hasBackgroundTask;
+
+    /// <summary>Gets whether the sidebar icon should be replaced with the spinning cog.</summary>
+    public bool ShowSpinner => IsScanning || HasBackgroundTask;
 
     /// <summary>
     /// Gets or sets the badge count overlaid on the nav icon (e.g. number of unreviewed clips).

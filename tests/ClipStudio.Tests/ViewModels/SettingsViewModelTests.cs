@@ -2,6 +2,7 @@ using ClipStudio.Application.Interfaces;
 using ClipStudio.Application.Models;
 using ClipStudio.Core.Entities;
 using ClipStudio.Core.Interfaces;
+using ClipStudio.Tests.Fakes;
 using ClipStudio.UI.Services;
 using ClipStudio.UI.ViewModels;
 using ClipStudio.UI.ViewModels.Settings;
@@ -25,6 +26,7 @@ public sealed class SettingsViewModelTests
     private readonly Mock<IHighlightRepository>    _highlightsMock = new();
     private readonly Mock<ILibraryHealthCheckService> _healthMock = new();
     private readonly Mock<IDuplicateClipFinder> _duplicatesMock = new();
+    private readonly FakeBackgroundTaskService _tasks = new();
     private readonly AppSettings                   _settings     = new();
     private readonly SettingsViewModel             _vm;
 
@@ -50,7 +52,8 @@ public sealed class SettingsViewModelTests
             scopeFactory,
             _soundMock.Object,
             _healthMock.Object,
-            _duplicatesMock.Object);
+            _duplicatesMock.Object,
+            _tasks);
     }
 
     [Fact]

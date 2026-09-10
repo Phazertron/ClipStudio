@@ -55,7 +55,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
     }
 
     /// <inheritdoc/>
-    public async Task SanitizeAsync(IProgress<string>? progress = null, CancellationToken ct = default)
+    public async Task<string> SanitizeAsync(IProgress<string>? progress = null, CancellationToken ct = default)
     {
         _logger.LogInformation("Library sanitizer started.");
 
@@ -630,6 +630,7 @@ public sealed class LibrarySanitizerService : ILibrarySanitizerService
 
         progress?.Report(summary);
         _logger.LogInformation("{Summary}", summary);
+        return summary;
     }
 
     /// <summary>Returns the audio cache directory, creating it when it does not yet exist.</summary>

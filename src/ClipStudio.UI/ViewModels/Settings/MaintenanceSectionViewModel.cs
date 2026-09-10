@@ -7,10 +7,12 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using ClipStudio.Application.Interfaces;
 using ClipStudio.Application.Models;
+using ClipStudio.UI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Material.Icons;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 
 namespace ClipStudio.UI.ViewModels.Settings;
 
@@ -21,6 +23,7 @@ namespace ClipStudio.UI.ViewModels.Settings;
 public sealed partial class MaintenanceSectionViewModel : SettingsSectionViewModel
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBackgroundTaskService _tasks;
 
     /// <inheritdoc/>
     public override string Title => "Maintenance";
@@ -62,10 +65,15 @@ public sealed partial class MaintenanceSectionViewModel : SettingsSectionViewMod
     /// <summary>Initialises a new <see cref="MaintenanceSectionViewModel"/>.</summary>
     /// <param name="host">The settings page hosting this section.</param>
     /// <param name="scopeFactory">The scope factory used to resolve the scoped sanitizer service.</param>
-    public MaintenanceSectionViewModel(ISettingsSectionHost host, IServiceScopeFactory scopeFactory)
+    /// <param name="tasks">The registry the repair reports itself into.</param>
+    public MaintenanceSectionViewModel(
+        ISettingsSectionHost host,
+        IServiceScopeFactory scopeFactory,
+        IBackgroundTaskService tasks)
         : base(host)
     {
         _scopeFactory = scopeFactory;
+        _tasks        = tasks;
 
         RepairLibraryCommand  = new AsyncRelayCommand(RepairLibraryAsync);
         OpenLogsFolderCommand = new RelayCommand(OpenLogsFolder);
@@ -94,14 +102,46 @@ public sealed partial class MaintenanceSectionViewModel : SettingsSectionViewMod
         Host.SetRepairing(true);
         Host.StatusMessage = "Repairing library...";
 
+        // Cancellable now. The pass already threaded a token all the way down; nothing was ever
+        // passing one, which is what made the old startup run impossible to stop.
+        using var cancellation = new CancellationTokenSource();
+        var task = _tasks.Start(
+            "Repairing library",
+            MaterialIconKind.Wrench,
+            ownerNavLabel: "Settings",
+            cancellation: cancellation);
+
+        // The sanitizer reports what it is doing rather than how much is left, so progress only
+        // drives the running detail. The summary comes back from the call itself: Progress<T> posts
+        // asynchronously, so scraping the last reported line here read whichever message happened
+        // to have landed, not the summary.
         var progress = new Progress<string>(msg =>
-            Dispatcher.UIThread.Post(() => Host.StatusMessage = msg));
+            Dispatcher.UIThread.Post(() =>
+            {
+                Host.StatusMessage = msg;
+                task.Report(msg);
+            }));
 
         try
         {
             using var scope = _scopeFactory.CreateScope();
             var sanitizer   = scope.ServiceProvider.GetRequiredService<ILibrarySanitizerService>();
-            await sanitizer.SanitizeAsync(progress, CancellationToken.None);
+            var summary = await sanitizer.SanitizeAsync(progress, cancellation.Token);
+
+            task.Finish(BackgroundTaskState.Completed, summary);
+        }
+        catch (OperationCanceledException)
+        {
+            // Every repair the pass had already made is a completed write of its own, so stopping
+            // leaves the library consistent - just less repaired than it would have been.
+            task.Finish(BackgroundTaskState.Cancelled, "Repair stopped. Everything already repaired was kept.");
+            Host.StatusMessage = "Repair cancelled.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Library repair failed.");
+            task.Finish(BackgroundTaskState.Failed, ex.Message);
+            Host.StatusMessage = "Repair failed - see the log for details.";
         }
         finally
         {

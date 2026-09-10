@@ -102,6 +102,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
     /// <param name="soundService">The service that plays UI sound cues.</param>
     /// <param name="health">The library health check whose last report feeds the attention list.</param>
     /// <param name="duplicates">The duplicate finder whose last run feeds the attention list.</param>
+    /// <param name="tasks">The registry long-running settings work reports itself into.</param>
     public SettingsViewModel(
         ISettingsService settings,
         ISourceFolderRepository folders,
@@ -110,16 +111,17 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
         IServiceScopeFactory scopeFactory,
         ClipStudio.UI.Services.ISoundService soundService,
         ILibraryHealthCheckService health,
-        IDuplicateClipFinder duplicates)
+        IDuplicateClipFinder duplicates,
+        ClipStudio.UI.Services.IBackgroundTaskService tasks)
     {
         _settings = settings;
 
-        SourceFoldersSection  = new SourceFoldersSectionViewModel(this, folders, watcher, importService, scopeFactory, soundService);
+        SourceFoldersSection  = new SourceFoldersSectionViewModel(this, folders, watcher, importService, scopeFactory, soundService, tasks);
         PreferencesSection    = new PreferencesSectionViewModel(this, scopeFactory);
         TranscriptionSection  = new TranscriptionSectionViewModel(this, settings);
         ObsIntegrationSection = new ObsIntegrationSectionViewModel(this);
-        MaintenanceSection    = new MaintenanceSectionViewModel(this, scopeFactory);
-        AttentionSection      = new AttentionSectionViewModel(this, scopeFactory, health, duplicates, this);
+        MaintenanceSection    = new MaintenanceSectionViewModel(this, scopeFactory, tasks);
+        AttentionSection      = new AttentionSectionViewModel(this, scopeFactory, health, duplicates, this, tasks);
         AboutSection          = new AboutSectionViewModel(this);
 
         Sections.Add(SourceFoldersSection);
