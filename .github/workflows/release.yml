@@ -10,6 +10,8 @@ on:
 env:
   DOTNET_VERSION: '9.0.x'
   PROJECT:        'src/ClipStudio.UI/ClipStudio.UI.csproj'
+  # Must match the Velopack PackageReference in ClipStudio.UI.csproj.
+  VELOPACK_VERSION: '1.2.0'
 
 jobs:
   # --------------------------------------------------------------------------
@@ -58,7 +60,10 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Install vpk CLI
-        run: dotnet tool install -g vpk
+        # Pinned: the vpk CLI and the Velopack library must be the same version, and an
+        # unpinned install silently tracks latest. CI was packing with 1.2.0 against a
+        # 0.0.1015 runtime.
+        run: dotnet tool install -g vpk --version ${{ env.VELOPACK_VERSION }}
 
       - name: Restore
         run: dotnet restore
@@ -134,10 +139,16 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Install vpk CLI
-        run: dotnet tool install -g vpk
+        # Pinned: the vpk CLI and the Velopack library must be the same version, and an
+        # unpinned install silently tracks latest. CI was packing with 1.2.0 against a
+        # 0.0.1015 runtime.
+        run: dotnet tool install -g vpk --version ${{ env.VELOPACK_VERSION }}
 
       - name: Restore
         run: dotnet restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-restore --verbosity minimal
 
       - name: Publish
         run: |
@@ -154,6 +165,9 @@ jobs:
         run: cp -r obs-scripts publish/macos/obs-scripts
 
       - name: Add macOS launcher script
+        # No longer the bundle entry point - Velopack requires a Mach-O main executable, and
+        # MacOsVlcRelauncher now sets the VLC environment from inside the binary. Kept because
+        # it is still the convenient way to launch a publish folder from a terminal.
         run: |
           cp clipstudio-mac.sh publish/macos/ClipStudio.sh
           chmod +x publish/macos/ClipStudio.sh
@@ -178,7 +192,7 @@ jobs:
             --packId ClipStudio \
             --packVersion ${{ needs.metadata.outputs.version }} \
             --packDir publish/macos \
-            --mainExe ClipStudio.sh \
+            --mainExe ClipStudio.UI \
             --outputDir releases/macos \
             --channel osx${{ needs.metadata.outputs.suffix }} \
             --packTitle "ClipStudio" \
@@ -209,7 +223,10 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Install vpk CLI
-        run: dotnet tool install -g vpk
+        # Pinned: the vpk CLI and the Velopack library must be the same version, and an
+        # unpinned install silently tracks latest. CI was packing with 1.2.0 against a
+        # 0.0.1015 runtime.
+        run: dotnet tool install -g vpk --version ${{ env.VELOPACK_VERSION }}
 
       - name: Restore
         run: dotnet restore

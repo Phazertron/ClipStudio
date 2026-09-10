@@ -64,6 +64,16 @@ internal sealed class Program
         };
 
         VelopackApp.Build().Run();
+
+        // Done after Velopack's hooks so an install, update or uninstall run is never handed off
+        // to a second process, and before any window exists so nothing flashes on screen.
+        if (MacOsVlcRelauncher.RelaunchIfNeeded(args))
+        {
+            Log.Information("Restarting with the VLC environment set.");
+            Log.CloseAndFlush();
+            return;
+        }
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
 
         Log.Information("ClipStudio shutting down.");
