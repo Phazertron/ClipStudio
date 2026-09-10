@@ -77,10 +77,15 @@ public sealed class MediaService : IMediaService
     /// <remarks>
     /// Asks the question the caller actually has - "are there enough?" - rather than counting them
     /// all, and stops reading the moment the answer is yes. That matters because the cost is
-    /// proportional to how much of the container index is walked: counting every keyframe of a
-    /// 186 MB clip measured at 8.0 seconds, while stopping at the twentieth measured at 0.54.
-    /// Even on clips with only about fifty keyframes, where the early exit still reads most of the
-    /// index, it measured roughly twice as fast.
+    /// proportional to how much of the container index is walked.
+    /// <para>
+    /// Reads <c>packet=flags</c> and counts the packets marked <c>K</c>. This walks the container
+    /// index without decoding anything, which is what the early exit was always meant to do. The
+    /// previous form, <c>-skip_frame nokey -show_entries frame=pts_time</c>, went through the
+    /// decoder: on a 503 MB clip it measured 1,724 ms against 236 ms here, and on ffmpeg 4.x it
+    /// reported zero keyframes for every file - so every import on Ubuntu 22.04 silently fell
+    /// through to the full-decode path and lost the optimisation entirely.
+    /// </para>
     /// <para>
     /// Returns false when the count cannot be established, which sends the caller down the safe
     /// full-decode path.
@@ -113,8 +118,7 @@ public sealed class MediaService : IMediaService
                      {
                          "-v", "error",
                          "-select_streams", "v:0",
-                         "-skip_frame", "nokey",
-                         "-show_entries", "frame=pts_time",
+                         "-show_entries", "packet=flags",
                          "-of", "csv=p=0",
                          filePath,
                      })
@@ -130,7 +134,9 @@ public sealed class MediaService : IMediaService
             {
                 while (await process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
                 {
-                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    // One line per packet, holding just the flags field. A keyframe packet is
+                    // marked 'K' (as in "K__"); everything else is skipped without being counted.
+                    if (!line.Contains('K')) continue;
 
                     if (++seen >= needed)
                         return (true, seen);
