@@ -6,23 +6,26 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-10): 0 warnings, 579 tests passing, working tree clean, 25 commits
+Status (2026-09-10): 0 warnings, 615 tests passing, working tree clean, 30 commits
 ahead of origin/master and unpushed. **Phase 0 is complete and verified at a
 keyboard. F-R is complete** apart from "import and link", which waits on F-A.
-**Phase 1.5 is complete**: the Settings restructure, the startup/repair split,
-the attention list, duplicate detection with merge, and the measured import
-work all landed and were verified in the running app under `--profile smoke`.
+**Phases 1.5 and 1.6 are complete**: the Settings restructure, the startup/repair
+split, the attention list, duplicate detection with merge, the measured import
+work, the background activity registry and the keyboard shortcut registry all
+landed and were verified in the running app under `--profile smoke`.
 
-**Start here next.** Two things are left open inside 1.5.5 and are written up
-there; neither is a defect, and both need a decision or a measurement rather
-than effort:
+**Start here next.** Three things are left open and are written up where they
+belong; none is a defect, and each needs a decision or a measurement rather than
+effort:
 
-1. The short-clip fallback quality/speed tension - needs the user's call
-2. Parallel imports - the measurement that justified it predates the keyframe
-   change and has to be redone before the work is worth starting
+1. `1.5.5` The short-clip fallback quality/speed tension - needs the user's call
+2. `1.5.5` Parallel imports - the measurement that justified it predates the
+   keyframe change and has to be redone before the work is worth starting
+3. `1.6.2` Shortcut remapping, and a graphical keyboard map now the set is big
+   enough to be worth drawing
 
-After that, `F-A` (link clips) is the next feature, and it also unblocks the
-one part of F-R still missing, "import and link".
+After that, `F-A` (link clips) is the next feature, and it also unblocks the one
+part of F-R still missing, "import and link".
 
 Commit style from 2026-09-09 onwards follows the conventional-commit skill
 (`type(scope): subject` plus a bullet body), maintained in the `claude-skills`
@@ -390,6 +393,82 @@ seeking that thumbnails and strips need.
   naming before anyone starts: `ImportService` creates tags and players as a side effect of
   import (GameTagAlias, auto-applied "Me" player), so two files carrying the same new game
   name could race and create it twice. That needs solving, not just parallelising.
+
+## Phase 1.6 - Background activity and keyboard shortcuts - DONE (2026-09-10)
+
+Agreed with the user after Phase 1.5, from two requests: make running work visible
+with the settings gear spinning while something is going, and consider a keybind
+map. Tests 597 -> 615, 0 warnings.
+
+### 1.6.1 Background activity
+
+Long-running work reported into whichever page started it, so nothing running was
+visible from anywhere else, and a finished summary was a single string on a
+one-line bar that ran off the edge of the window - which is the screenshot that
+started this.
+
+- [x] `IBackgroundTaskService`, a singleton registry every long-running operation
+  announces itself into: folder scans, library repair, duplicate scan,
+  transcription and the export run.
+- [x] An activity indicator docked at the bottom of the sidebar, reachable from
+  every page. It names what is running and opens a panel of running plus recently
+  finished work, where a completion message is shown in full and wrapped.
+- [x] The owning page's navigation icon spins while its work runs.
+- [x] Repair, duplicate scan and folder scans are cancellable.
+- [x] Export keeps its own page. Export jobs are user-created and persisted, unlike
+  a scan or a repair; the registry only makes the run visible from elsewhere.
+
+**The spinner machinery already existed** on every navigation item and was only
+wired to Library during watcher imports, so most of that request was wiring.
+`HasBackgroundTask` is deliberately separate from `IsScanning`: the watcher sets
+the latter for a moment when a file lands, and the two would clear each other.
+
+**Cancellation was almost free.** Repair, the duplicate scan and folder scans all
+threaded a `CancellationToken` already - nothing was ever passing one, which is
+exactly what made the old startup pass impossible to stop. Two rules came out of
+wiring it: a cancelled task says what it *kept* rather than reading as a failure,
+and a cancelled duplicate scan reports no groups at all, because a partial list
+reads as "these are the duplicates" when it is not.
+
+**Two truncation bugs, one of them mine:**
+
+- The settings status line sat in a horizontal `StackPanel`, which measures its
+  children with infinite width, so `TextWrapping` on it did nothing. Introduced in
+  1.5.1. A `Grid` with a `*` column fixes it.
+- The repair's completion message was scraped from `IProgress`, which posts
+  asynchronously, so it kept whichever line had landed rather than the summary - in
+  practice "Confirming 2 possible duplicates...". `SanitizeAsync` returns its
+  summary now. **Worth remembering: never scrape a result from a progress sink.**
+
+### 1.6.2 Keyboard shortcuts
+
+The request was a graphical keybind map. The honest answer was that the map was not
+the useful part yet: there were five shortcuts, hardcoded in a `switch` in
+`ClipDetailView.axaml.cs`, and **no list of them anywhere** - so a map would have
+been a second copy that drifted the first time one was added. Agreed with the user
+to build the registry and expand the shortcut set first.
+
+- [x] `KeyboardShortcuts` is the one source the handler and the help list both read.
+  Each entry carries a stable id separate from its keys.
+- [x] The handler is a registry lookup rather than a switch over keys. The focus
+  guards that stop a shortcut stealing a keystroke from a text box are unchanged.
+- [x] 5 shortcuts became 19: Escape closes the clip, Alt+Left/Right move between
+  clips, Alt+Up/Down between highlights, F favourites, R marks reviewed, 0-5 rate,
+  C toggles subtitles.
+- [x] A read-only Keyboard shortcuts section in Settings, grouped by category.
+
+**Alt carries clip navigation** because the bare arrows seek, and seeking is far
+more frequent, so it keeps the unmodified key.
+
+**Still open, and deliberately so:**
+
+- [ ] **Remapping.** The stable ids exist so a stored preference has something to
+  key on. Nothing else needs to change to add it.
+- [ ] **A graphical keyboard map.** Worth revisiting now the set is large enough to
+  be worth drawing - and a natural fit for the in-app wiki at v1.4.0, which already
+  lists keyboard shortcuts as coverage.
+
+---
 
 ### F-A - Link clips
 
