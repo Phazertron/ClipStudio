@@ -436,7 +436,7 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
                 "Their files hold identical contents. Only the ClipStudio metadata - tags, "
                 + "players, highlights, rating and notes - differs between them.",
                 MaterialIconKind.ContentDuplicate,
-                "Merge...",
+                "Inspect...",
                 MergeRequested is null ? null : () => MergeAndRebuildAsync(captured)));
         }
     }

@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 
 namespace ClipStudio.UI.Views;
@@ -16,5 +17,16 @@ public partial class DuplicateMergeDialog : Window
     public DuplicateMergeDialog()
     {
         InitializeComponent();
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Releases the preview player before the window goes away. It holds a native handle and keeps
+    /// the clip's file open, which on Windows would block the deletion the merge is about to do.
+    /// </remarks>
+    protected override void OnClosed(EventArgs e)
+    {
+        (DataContext as ViewModels.DuplicateMergeViewModel)?.DisposePreview();
+        base.OnClosed(e);
     }
 }

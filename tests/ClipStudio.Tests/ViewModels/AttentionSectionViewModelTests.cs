@@ -530,7 +530,7 @@ public sealed class AttentionSectionViewModelTests
         await vm.RefreshAsync();
 
         var entry = Assert.Single(vm.Entries);
-        Assert.Equal("Merge...", entry.ActionLabel);
+        Assert.Equal("Inspect...", entry.ActionLabel);
         await entry.ActionCommand!.ExecuteAsync(null);
         Assert.Equal("hash", merged?.FullHash);
     }

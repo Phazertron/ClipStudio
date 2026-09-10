@@ -2,13 +2,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:ClipStudio.UI.ViewModels"
         xmlns:icons="using:Material.Icons.Avalonia"
+        xmlns:vlc="using:LibVLCSharp.Avalonia"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="880" d:DesignHeight="700"
         x:Class="ClipStudio.UI.Views.DuplicateMergeDialog"
         x:DataType="vm:DuplicateMergeViewModel"
         x:CompileBindings="True"
-        Title="Merge duplicate clips"
+        Title="Inspect duplicate clips"
         Width="880" Height="700"
         WindowStartupLocation="CenterOwner">
 
@@ -37,6 +38,42 @@
 
         <ScrollViewer Grid.Row="1">
             <StackPanel Margin="20,16" Spacing="20">
+
+                <!-- ===== Preview =====
+                     One player, not two: the members are byte-identical, so a second view would
+                     show the same pixels. This answers "what is this clip", not "are they the
+                     same" - the hash already settled that. -->
+                <StackPanel Spacing="8" IsVisible="{Binding CanPreview}">
+                    <TextBlock Text="Preview"
+                               FontSize="13"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="Plays the copy selected below. Both copies hold identical video, so this is here to remind you what the clip is - not to compare them."
+                               FontSize="11"
+                               Opacity="0.5"
+                               TextWrapping="Wrap"/>
+
+                    <Border CornerRadius="6"
+                            ClipToBounds="True"
+                            Background="Black"
+                            Height="260">
+                        <vlc:VideoView MediaPlayer="{Binding MediaPlayer}"/>
+                    </Border>
+
+                    <Button Command="{Binding TogglePreviewCommand}"
+                            HorizontalAlignment="Left"
+                            FontSize="12">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="Play"
+                                                Width="16" Height="16"
+                                                IsVisible="{Binding !IsPreviewPlaying}"/>
+                            <icons:MaterialIcon Kind="Pause"
+                                                Width="16" Height="16"
+                                                IsVisible="{Binding IsPreviewPlaying}"/>
+                            <TextBlock Text="Play"  IsVisible="{Binding !IsPreviewPlaying}"/>
+                            <TextBlock Text="Pause" IsVisible="{Binding IsPreviewPlaying}"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
 
                 <!-- ===== Which copy survives ===== -->
                 <StackPanel Spacing="8">

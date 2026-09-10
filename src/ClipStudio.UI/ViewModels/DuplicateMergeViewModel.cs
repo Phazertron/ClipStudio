@@ -8,6 +8,7 @@ using ClipStudio.Application.Models;
 using ClipStudio.Core.Entities;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LibVLCSharp.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
@@ -38,6 +39,7 @@ public sealed partial class DuplicateMergeViewModel : ViewModelBase
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IDuplicateClipFinder _finder;
     private readonly DuplicateClipGroup _group;
+    private readonly LibVLC? _libVlc;
 
     /// <summary>Gets the copies in the group, in the order they were found.</summary>
     public ObservableCollection<DuplicateMergeCandidateViewModel> Candidates { get; } = new();
@@ -115,27 +117,147 @@ public sealed partial class DuplicateMergeViewModel : ViewModelBase
     /// </summary>
     public Action<bool>? CloseRequested { get; set; }
 
+    // ---- Preview ----
+
+    /// <summary>Gets the player the preview renders into, or null when there is no VLC.</summary>
+    /// <remarks>
+    /// One player, not two. The group's members are byte-identical - that is what confirming a
+    /// duplicate proves - so playing both would show the same pixels twice. What the user actually
+    /// needs to answer here is "what is this clip", which one player answers.
+    /// </remarks>
+    public MediaPlayer? MediaPlayer { get; }
+
+    /// <summary>Gets whether a preview can be played at all.</summary>
+    public bool CanPreview => MediaPlayer is not null;
+
+    /// <summary>Gets or sets whether the preview is playing.</summary>
+    [ObservableProperty]
+    private bool _isPreviewPlaying;
+
+    /// <summary>Gets the command that starts or pauses the preview.</summary>
+    public IRelayCommand TogglePreviewCommand { get; }
+
+    /// <summary>
+    /// Points the player at the chosen survivor, without starting playback.
+    /// </summary>
+    /// <remarks>
+    /// Re-pointed whenever the survivor changes so the preview always shows the copy that is about
+    /// to be kept. Since the files are identical this changes nothing on screen, but it keeps the
+    /// preview honestly tied to the selection rather than to whichever row happened to load first.
+    /// </remarks>
+    private void LoadPreviewMedia()
+    {
+        if (MediaPlayer is null || _libVlc is null)
+            return;
+
+        try
+        {
+            if (MediaPlayer.IsPlaying)
+                MediaPlayer.Stop();
+
+            IsPreviewPlaying = false;
+
+            var path = Survivor?.FilePath;
+            if (string.IsNullOrEmpty(path))
+                return;
+
+            using var media = new Media(_libVlc, new Uri(path));
+            MediaPlayer.Media = media;
+        }
+        catch (Exception ex)
+        {
+            // The preview is a convenience. A file that will not open must not stop the merge.
+            Log.Warning(ex, "Could not load the duplicate preview for '{Path}'.", Survivor?.FilePath);
+        }
+    }
+
+    /// <summary>Starts or pauses the preview.</summary>
+    private void TogglePreview()
+    {
+        if (MediaPlayer is null)
+            return;
+
+        try
+        {
+            if (MediaPlayer.IsPlaying)
+            {
+                MediaPlayer.Pause();
+                IsPreviewPlaying = false;
+            }
+            else
+            {
+                MediaPlayer.Play();
+                IsPreviewPlaying = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not start the duplicate preview.");
+            IsPreviewPlaying = false;
+        }
+    }
+
+    /// <summary>
+    /// Stops and releases the preview player. Called by the dialog when it closes.
+    /// </summary>
+    /// <remarks>
+    /// The player holds a native handle and keeps the clip's file open, which would block the very
+    /// deletion the merge is about to perform on Windows.
+    /// </remarks>
+    public void DisposePreview()
+    {
+        if (MediaPlayer is null)
+            return;
+
+        try
+        {
+            if (MediaPlayer.IsPlaying)
+                MediaPlayer.Stop();
+
+            MediaPlayer.Media?.Dispose();
+            MediaPlayer.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not release the duplicate preview player.");
+        }
+    }
+
     /// <summary>Initialises a new <see cref="DuplicateMergeViewModel"/>.</summary>
     /// <param name="group">The duplicate group to resolve.</param>
     /// <param name="scopeFactory">The scope factory used to read and write the library.</param>
     /// <param name="finder">The finder, told to forget the group once it is resolved.</param>
+    /// <param name="libVlc">
+    /// The shared LibVLC instance used for the preview, or <see langword="null"/> to build the
+    /// dialog without one - which is what a test does, and what a machine with no working VLC
+    /// falls back to. The rest of the dialog works either way.
+    /// </param>
     public DuplicateMergeViewModel(
         DuplicateClipGroup group,
         IServiceScopeFactory scopeFactory,
-        IDuplicateClipFinder finder)
+        IDuplicateClipFinder finder,
+        LibVLC? libVlc = null)
     {
         _group        = group;
         _scopeFactory = scopeFactory;
         _finder       = finder;
+        _libVlc       = libVlc;
+
+        if (_libVlc is not null)
+            MediaPlayer = new MediaPlayer(_libVlc) { EnableHardwareDecoding = true };
 
         KeepEverythingCommand = new RelayCommand(KeepEverything);
         ApplyCommand          = new AsyncRelayCommand(ApplyAsync, () => CanApply);
         CancelCommand         = new RelayCommand(() => CloseRequested?.Invoke(false));
+        TogglePreviewCommand  = new RelayCommand(TogglePreview, () => CanPreview);
 
         PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(CanApply))
                 ApplyCommand.NotifyCanExecuteChanged();
+
+            if (e.PropertyName == nameof(Survivor))
+                LoadPreviewMedia();
         };
     }
 

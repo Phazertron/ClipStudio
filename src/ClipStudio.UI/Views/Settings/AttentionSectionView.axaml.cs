@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using ClipStudio.Application.Interfaces;
@@ -40,10 +41,17 @@ public partial class AttentionSectionView : UserControl
         if (TopLevel.GetTopLevel(this) is not Window window) return false;
         if (App.Services is null) return false;
 
+        // LibVLC is resolved rather than required: if it cannot be created on this machine the
+        // dialog still opens and can still merge, just without the preview.
+        LibVLCSharp.Shared.LibVLC? libVlc = null;
+        try { libVlc = App.Services.GetService<LibVLCSharp.Shared.LibVLC>(); }
+        catch (Exception ex) { Serilog.Log.Warning(ex, "No LibVLC for the duplicate preview."); }
+
         var dialogVm = new DuplicateMergeViewModel(
             group,
             App.Services.GetRequiredService<IServiceScopeFactory>(),
-            App.Services.GetRequiredService<IDuplicateClipFinder>());
+            App.Services.GetRequiredService<IDuplicateClipFinder>(),
+            libVlc);
 
         var dialog = new DuplicateMergeDialog { DataContext = dialogVm };
         dialogVm.CloseRequested = applied => dialog.Close(applied);
