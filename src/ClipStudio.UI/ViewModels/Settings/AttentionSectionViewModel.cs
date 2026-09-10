@@ -276,21 +276,83 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     private void AddUpdateEntry(List<AttentionEntryViewModel> entries)
     {
         var status = _updates.Status;
-        if (!status.IsSupported || !status.IsUpdateAvailable || !status.IsDownloaded)
+        if (!status.IsSupported || !status.IsUpdateAvailable)
             return;
+
+        var running = status.CurrentVersion ?? "an earlier version";
+
+        if (status.IsDownloading)
+        {
+            // The download reports itself into the task registry, which is where its progress bar
+            // and its cancel button live. Repeating either here would be a second control for one
+            // operation, so this row only says what is happening.
+            entries.Add(new AttentionEntryViewModel(
+                AttentionEntryKind.UpdateAvailable,
+                $"Downloading ClipStudio {status.AvailableVersion}",
+                "Progress is shown in the task panel, where it can also be cancelled.",
+                MaterialIconKind.Download));
+            return;
+        }
+
+        if (status.IsDownloaded)
+        {
+            entries.Add(new AttentionEntryViewModel(
+                AttentionEntryKind.UpdateAvailable,
+                $"ClipStudio {status.AvailableVersion} is ready to install",
+                $"You are running {running}. Installing it restarts the application.",
+                MaterialIconKind.Download,
+                "Restart and install",
+                () =>
+                {
+                    _updates.ApplyAndRestart();
+                    return Task.CompletedTask;
+                }));
+            return;
+        }
 
         entries.Add(new AttentionEntryViewModel(
             AttentionEntryKind.UpdateAvailable,
-            $"ClipStudio {status.AvailableVersion} is ready to install",
-            $"You are running {status.CurrentVersion ?? "an earlier version"}. The update has been "
-            + "downloaded and will be installed when the application restarts.",
+            $"ClipStudio {status.AvailableVersion} is available",
+            $"You are running {running}. Nothing has been downloaded yet - an update package can "
+            + "run to several hundred megabytes, so it waits to be asked for.",
             MaterialIconKind.Download,
-            "Restart and install",
-            () =>
-            {
-                _updates.ApplyAndRestart();
-                return Task.CompletedTask;
-            }));
+            "Download update",
+            DownloadUpdateAsync));
+    }
+
+    /// <summary>
+    /// Downloads the available update, reporting into the task registry so its progress is
+    /// visible from anywhere and can be cancelled.
+    /// </summary>
+    private async Task DownloadUpdateAsync()
+    {
+        using var cancellation = new CancellationTokenSource();
+
+        var task = _tasks.Start(
+            $"Downloading ClipStudio {_updates.Status.AvailableVersion}",
+            MaterialIconKind.Download,
+            ownerNavLabel: "Settings",
+            cancellation: cancellation);
+
+        var progress = new Progress<int>(percent =>
+            Dispatcher.UIThread.Post(() => task.Report(percent, $"{percent}%")));
+
+        try
+        {
+            var downloaded = await _updates.DownloadAsync(progress, cancellation.Token);
+
+            task.Finish(
+                downloaded ? BackgroundTaskState.Completed : BackgroundTaskState.Failed,
+                downloaded
+                    ? "Ready to install. Restart ClipStudio to apply it."
+                    : _updates.Status.FailureReason ?? "The update could not be downloaded.");
+        }
+        catch (OperationCanceledException)
+        {
+            task.Finish(BackgroundTaskState.Cancelled, "Download stopped. The update is still available.");
+        }
+
+        await RebuildAsync();
     }
 
     /// <summary>

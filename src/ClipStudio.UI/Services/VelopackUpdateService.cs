@@ -80,29 +80,16 @@ public sealed class VelopackUpdateService : IApplicationUpdateService
             }
 
             var available = update.TargetFullRelease.Version.ToString();
-            Log.Information("Update available: {Version}. Downloading in the background.", available);
+            Log.Information("Update available: {Version}. Waiting to be asked before downloading.", available);
 
-            // Report the finding before the download so the notification appears immediately
-            // rather than after a package that can run to hundreds of megabytes has transferred.
-            Publish(new UpdateStatus
-            {
-                IsSupported      = true,
-                CurrentVersion   = current,
-                AvailableVersion = available,
-                IsDownloaded     = false,
-            });
-
-            await manager.DownloadUpdatesAsync(update, cancelToken: cancellationToken).ConfigureAwait(false);
             _pendingUpdate = update;
-
-            Log.Information("Update {Version} downloaded and ready to install.", available);
 
             return Publish(new UpdateStatus
             {
                 IsSupported      = true,
                 CurrentVersion   = current,
                 AvailableVersion = available,
-                IsDownloaded     = true,
+                IsDownloaded     = false,
             });
         }
         catch (OperationCanceledException)
@@ -119,6 +106,71 @@ public sealed class VelopackUpdateService : IApplicationUpdateService
                 IsSupported   = true,
                 FailureReason = ex.Message,
             });
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> DownloadAsync(
+        IProgress<int>? progress = null, CancellationToken cancellationToken = default)
+    {
+        if (_manager is null || _pendingUpdate is null)
+            return false;
+
+        var available = _pendingUpdate.TargetFullRelease.Version.ToString();
+        var current   = Status.CurrentVersion;
+
+        Publish(new UpdateStatus
+        {
+            IsSupported      = true,
+            CurrentVersion   = current,
+            AvailableVersion = available,
+            IsDownloading    = true,
+        });
+
+        try
+        {
+            Log.Information("Downloading update {Version}.", available);
+
+            await _manager.DownloadUpdatesAsync(
+                _pendingUpdate,
+                progress: percent => progress?.Report(percent),
+                cancelToken: cancellationToken).ConfigureAwait(false);
+
+            Log.Information("Update {Version} downloaded and ready to install.", available);
+
+            Publish(new UpdateStatus
+            {
+                IsSupported      = true,
+                CurrentVersion   = current,
+                AvailableVersion = available,
+                IsDownloaded     = true,
+            });
+
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            // A cancelled download leaves the offer standing so it can be taken up later.
+            Log.Information("Update download cancelled.");
+            Publish(new UpdateStatus
+            {
+                IsSupported      = true,
+                CurrentVersion   = current,
+                AvailableVersion = available,
+            });
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Update download failed.");
+            Publish(new UpdateStatus
+            {
+                IsSupported      = true,
+                CurrentVersion   = current,
+                AvailableVersion = available,
+                FailureReason    = ex.Message,
+            });
+            return false;
         }
     }
 

@@ -33,6 +33,13 @@ public sealed class UpdateStatus
     /// </summary>
     public bool IsDownloaded { get; init; }
 
+    /// <summary>Gets whether the update is being downloaded right now.</summary>
+    /// <remarks>
+    /// Downloading only ever starts because the user asked for it, so this is never true straight
+    /// after a check.
+    /// </remarks>
+    public bool IsDownloading { get; init; }
+
     /// <summary>Gets the reason the last check failed, or null when it did not fail.</summary>
     public string? FailureReason { get; init; }
 

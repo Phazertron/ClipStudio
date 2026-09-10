@@ -70,22 +70,101 @@ public sealed class AttentionSectionViewModelTests
     }
 
     [Fact]
-    public async Task ListsNoUpdateEntryWhileTheUpdateIsStillDownloading()
+    public async Task OffersTheDownloadRatherThanTakingIt()
     {
-        _updates.SetStatus(new UpdateStatus
-        {
-            IsSupported      = true,
-            CurrentVersion   = "1.1.1",
-            AvailableVersion = "1.2.0",
-            IsDownloaded     = false,
-        });
+        _updates.ReportAvailable("1.2.0", currentVersion: "1.1.1");
 
         var vm = BuildSection();
         await vm.RefreshAsync();
 
-        // Offering "Restart and install" before the package has arrived would give the user a
-        // button that cannot do anything.
-        Assert.DoesNotContain(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+        var entry = Assert.Single(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+        Assert.Contains("available", entry.Title);
+        Assert.Equal("Download update", entry.ActionLabel);
+
+        // Nothing may be downloaded until the user asks for it.
+        Assert.Equal(0, _updates.DownloadCount);
+    }
+
+    [Fact]
+    public async Task DownloadsOnlyWhenTheEntryIsActedOn()
+    {
+        _updates.ReportAvailable("1.2.0");
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+
+        var entry = Assert.Single(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+        await entry.ActionCommand!.ExecuteAsync(null);
+
+        Assert.Equal(1, _updates.DownloadCount);
+
+        // Having arrived, the offer becomes an install rather than a second download.
+        var after = Assert.Single(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+        Assert.Equal("Restart and install", after.ActionLabel);
+    }
+
+    [Fact]
+    public async Task ReportsTheDownloadIntoTheTaskRegistryWithProgress()
+    {
+        _updates.ReportAvailable("1.2.0");
+        _updates.DownloadProgressSteps = [25, 50, 100];
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+        await vm.Entries.Single(e => e.Kind == AttentionEntryKind.UpdateAvailable)
+                .ActionCommand!.ExecuteAsync(null);
+
+        var task = Assert.Single(_tasks.Started, t => t.Title.Contains("Downloading ClipStudio"));
+        Assert.Equal(BackgroundTaskState.Completed, task.State);
+        Assert.Contains("1.2.0", task.Title);
+    }
+
+    [Fact]
+    public async Task TheDownloadTaskCanBeCancelledWhileItRuns()
+    {
+        _updates.ReportAvailable("1.2.0");
+
+        var cancellableWhileRunning = false;
+        _updates.DuringDownload = () =>
+            cancellableWhileRunning = _tasks.Started[0].CanCancel;
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+        await vm.Entries.Single(e => e.Kind == AttentionEntryKind.UpdateAvailable)
+                .ActionCommand!.ExecuteAsync(null);
+
+        Assert.True(cancellableWhileRunning, "The download task must offer a working cancel.");
+    }
+
+    [Fact]
+    public async Task ACancelledDownloadLeavesTheOfferStanding()
+    {
+        _updates.ReportAvailable("1.2.0");
+        _updates.DownloadCancels = true;
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+        await vm.Entries.Single(e => e.Kind == AttentionEntryKind.UpdateAvailable)
+                .ActionCommand!.ExecuteAsync(null);
+
+        // Cancelling is not refusing: the update is still there to be taken later.
+        var entry = Assert.Single(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+        Assert.Equal("Download update", entry.ActionLabel);
+    }
+
+    [Fact]
+    public async Task ShowsNoActionWhileTheDownloadIsRunning()
+    {
+        _updates.ReportDownloading("1.2.0");
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+
+        // The task panel owns the progress bar and the cancel button; a second set of controls
+        // here would be two ways to drive one operation.
+        var entry = Assert.Single(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+        Assert.Contains("Downloading", entry.Title);
+        Assert.False(entry.HasAction);
     }
 
     [Fact]

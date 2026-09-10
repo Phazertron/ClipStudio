@@ -25,16 +25,36 @@ public interface IApplicationUpdateService
     event EventHandler<UpdateStatus>? StatusChanged;
 
     /// <summary>
-    /// Checks for a newer release and, if one exists, downloads it in the background.
+    /// Checks whether a newer release exists. Downloads nothing.
     /// </summary>
-    /// <param name="cancellationToken">Cancels the check and any download in progress.</param>
+    /// <param name="cancellationToken">Cancels the check.</param>
     /// <returns>The resulting status, which is also published through <see cref="StatusChanged"/>.</returns>
     /// <remarks>
+    /// Deliberately separate from <see cref="DownloadAsync"/>. An update package runs to hundreds
+    /// of megabytes, and spending someone's bandwidth without asking is not a decision this
+    /// application gets to make - particularly on a metered or shared connection.
+    /// <para>
     /// Never throws. A network failure, an unreachable repository or an uninstalled build all
     /// resolve to a status rather than an exception, because an update check must never be able
     /// to disturb the running application.
+    /// </para>
     /// </remarks>
     Task<UpdateStatus> CheckAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Downloads the update found by the last <see cref="CheckAsync"/>.
+    /// </summary>
+    /// <param name="progress">Receives the percentage complete, 0 to 100.</param>
+    /// <param name="cancellationToken">Cancels the download.</param>
+    /// <returns>
+    /// <see langword="true"/> when the package finished downloading and can be installed;
+    /// <see langword="false"/> when there was nothing to download or it failed.
+    /// </returns>
+    /// <exception cref="OperationCanceledException">
+    /// The download was cancelled. Every other failure resolves to <see langword="false"/> with
+    /// the reason recorded on <see cref="Status"/>.
+    /// </exception>
+    Task<bool> DownloadAsync(IProgress<int>? progress = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Installs the downloaded update and restarts the application.
