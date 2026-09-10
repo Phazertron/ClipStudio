@@ -21,6 +21,7 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
       channel: ${{ steps.meta.outputs.channel }}
+      suffix:  ${{ steps.meta.outputs.suffix }}
     steps:
       - name: Parse tag
         id: meta
@@ -30,11 +31,14 @@ jobs:
           VERSION="${TAG#v}"                  # strip leading 'v'
           if [[ "$VERSION" == *-* ]]; then
             CHANNEL="${VERSION##*-}"          # everything after last '-'
+            SUFFIX="-$CHANNEL"                # Velopack channel suffix, e.g. "-beta"
           else
             CHANNEL="stable"
+            SUFFIX=""                         # stable builds use the bare platform channel
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "suffix=$SUFFIX"   >> "$GITHUB_OUTPUT"
 
   # --------------------------------------------------------------------------
   # Windows build + Velopack package
@@ -100,7 +104,7 @@ jobs:
             --packDir publish/windows `
             --mainExe ClipStudio.UI.exe `
             --outputDir releases/windows `
-            --channel ${{ needs.metadata.outputs.channel }} `
+            --channel win${{ needs.metadata.outputs.suffix }} `
             --packTitle "ClipStudio" `
             --packAuthors "ClipStudio Team"
         shell: pwsh
@@ -176,7 +180,7 @@ jobs:
             --packDir publish/macos \
             --mainExe ClipStudio.sh \
             --outputDir releases/macos \
-            --channel ${{ needs.metadata.outputs.channel }} \
+            --channel osx${{ needs.metadata.outputs.suffix }} \
             --packTitle "ClipStudio" \
             --packAuthors "ClipStudio Team"
 
@@ -249,7 +253,7 @@ jobs:
             --packDir publish/linux \
             --mainExe ClipStudio.UI \
             --outputDir releases/linux \
-            --channel ${{ needs.metadata.outputs.channel }} \
+            --channel linux${{ needs.metadata.outputs.suffix }} \
             --packTitle "ClipStudio" \
             --packAuthors "ClipStudio Team"
 

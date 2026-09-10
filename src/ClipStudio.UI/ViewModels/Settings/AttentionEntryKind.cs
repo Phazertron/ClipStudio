@@ -26,4 +26,14 @@ public enum AttentionEntryKind
 
     /// <summary>Two or more clips in the library are the same recording.</summary>
     DuplicateClips = 4,
+
+    /// <summary>
+    /// A newer release of the application has been downloaded and is waiting to be installed.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the other kinds this is not a fault in the library, but it belongs to the same list
+    /// for the same reason: it needs a decision from the user. Installing an update restarts the
+    /// application, so it waits to be asked for rather than happening mid-session.
+    /// </remarks>
+    UpdateAvailable = 5,
 }

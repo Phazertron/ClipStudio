@@ -3,6 +3,7 @@ using ClipStudio.Application.Models;
 using ClipStudio.Core.Interfaces;
 using ClipStudio.Core.Models;
 using ClipStudio.Tests.Fakes;
+using ClipStudio.UI.Services;
 using ClipStudio.UI.ViewModels;
 using ClipStudio.UI.ViewModels.Settings;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,7 @@ public sealed class AttentionSectionViewModelTests
     private readonly Mock<IHighlightRepository> _highlights = new();
     private readonly Mock<ILibraryHealthCheckService> _health = new();
     private readonly Mock<IDuplicateClipFinder> _duplicateFinder = new();
+    private readonly FakeApplicationUpdateService _updates = new();
 
     public AttentionSectionViewModelTests()
     {
@@ -46,7 +48,7 @@ public sealed class AttentionSectionViewModelTests
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         return new AttentionSectionViewModel(
-            _host, scopeFactory, _health.Object, _duplicateFinder.Object, _actions, _tasks);
+            _host, scopeFactory, _health.Object, _duplicateFinder.Object, _actions, _tasks, _updates);
     }
 
     private void ReportWith(params LibraryHealthFinding[] findings) =>
@@ -54,6 +56,83 @@ public sealed class AttentionSectionViewModelTests
 
     private static ClipFileSnapshot BrokenClip(int id, string path)
         => new(id, 1, path, System.IO.Path.GetFileName(path), IsBroken: true);
+
+    // ---- Application updates ----
+
+    [Fact]
+    public async Task ListsNoUpdateEntryWhenTheBuildCannotUpdateItself()
+    {
+        var vm = BuildSection();
+
+        await vm.RefreshAsync();
+
+        Assert.DoesNotContain(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+    }
+
+    [Fact]
+    public async Task ListsNoUpdateEntryWhileTheUpdateIsStillDownloading()
+    {
+        _updates.SetStatus(new UpdateStatus
+        {
+            IsSupported      = true,
+            CurrentVersion   = "1.1.1",
+            AvailableVersion = "1.2.0",
+            IsDownloaded     = false,
+        });
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+
+        // Offering "Restart and install" before the package has arrived would give the user a
+        // button that cannot do anything.
+        Assert.DoesNotContain(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+    }
+
+    [Fact]
+    public async Task AnnouncesADownloadedUpdateAndNamesBothVersions()
+    {
+        _updates.ReportDownloaded("1.2.0", currentVersion: "1.1.1");
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+
+        var entry = Assert.Single(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+        Assert.Contains("1.2.0", entry.Title);
+        Assert.Contains("1.1.1", entry.Detail);
+        Assert.True(entry.HasAction);
+        Assert.Equal(1, vm.EntryCount);
+        Assert.False(vm.IsEverythingFine);
+    }
+
+    [Fact]
+    public async Task DoesNotInstallAnUpdateUntilTheEntryIsActedOn()
+    {
+        _updates.ReportDownloaded("1.2.0");
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+
+        Assert.Equal(0, _updates.ApplyCount);
+
+        var entry = Assert.Single(vm.Entries, e => e.Kind == AttentionEntryKind.UpdateAvailable);
+        await entry.ActionCommand!.ExecuteAsync(null);
+
+        Assert.Equal(1, _updates.ApplyCount);
+    }
+
+    [Fact]
+    public async Task ListsTheUpdateAboveTheLibraryFindings()
+    {
+        _updates.ReportDownloaded("1.2.0");
+        ReportWith(new LibraryHealthFinding(
+            LibraryHealthFindingKind.SourceFolderUnreachable,
+            "E:\\Clips is not reachable."));
+
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+
+        Assert.Equal(AttentionEntryKind.UpdateAvailable, vm.Entries[0].Kind);
+    }
 
     // ---- Empty ----
 

@@ -106,6 +106,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
     /// <param name="health">The library health check whose last report feeds the attention list.</param>
     /// <param name="duplicates">The duplicate finder whose last run feeds the attention list.</param>
     /// <param name="tasks">The registry long-running settings work reports itself into.</param>
+    /// <param name="updates">The updater whose finding is surfaced in the attention list.</param>
     public SettingsViewModel(
         ISettingsService settings,
         ISourceFolderRepository folders,
@@ -115,7 +116,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
         ClipStudio.UI.Services.ISoundService soundService,
         ILibraryHealthCheckService health,
         IDuplicateClipFinder duplicates,
-        ClipStudio.UI.Services.IBackgroundTaskService tasks)
+        ClipStudio.UI.Services.IBackgroundTaskService tasks,
+        ClipStudio.UI.Services.IApplicationUpdateService updates)
     {
         _settings = settings;
 
@@ -125,7 +127,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
         ObsIntegrationSection = new ObsIntegrationSectionViewModel(this);
         MaintenanceSection    = new MaintenanceSectionViewModel(this, scopeFactory, tasks);
         ShortcutsSection      = new ShortcutsSectionViewModel(this);
-        AttentionSection      = new AttentionSectionViewModel(this, scopeFactory, health, duplicates, this, tasks);
+        AttentionSection      = new AttentionSectionViewModel(this, scopeFactory, health, duplicates, this, tasks, updates);
         AboutSection          = new AboutSectionViewModel(this);
 
         Sections.Add(SourceFoldersSection);

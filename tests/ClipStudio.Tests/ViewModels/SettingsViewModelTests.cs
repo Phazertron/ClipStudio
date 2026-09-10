@@ -53,7 +53,8 @@ public sealed class SettingsViewModelTests
             _soundMock.Object,
             _healthMock.Object,
             _duplicatesMock.Object,
-            _tasks);
+            _tasks,
+            new FakeApplicationUpdateService());
     }
 
     [Fact]

@@ -188,8 +188,10 @@ public partial class App : AvaloniaApp
             }
         }
 
-        // Check for updates silently in the background; result is applied on next restart.
-        _ = Program.TryCheckForUpdatesAsync();
+        // Look for a newer release in the background. The check never throws, and installing
+        // what it finds is offered in Settings rather than done here - applying an update
+        // restarts the application, which is not something to do while the user is working.
+        _ = Services.GetRequiredService<IApplicationUpdateService>().CheckAsync();
 
         // Show crash report dialog if a dump from the previous session was found.
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime dl2)
@@ -332,6 +334,11 @@ public partial class App : AvaloniaApp
         // A singleton because the point of the registry is that the list of running work outlives
         // the page that started it.
         services.AddSingleton<IBackgroundTaskService, BackgroundTaskService>();
+
+        // A singleton so the downloaded package and the "restart to install" offer survive the
+        // Settings page being closed and reopened.
+        services.AddSingleton<IApplicationUpdateService>(
+            _ => new VelopackUpdateService(Program.AutoUpdateRepositoryUrl));
 
         // ViewModels — setup wizard
         services.AddTransient<SetupWizardViewModel>();

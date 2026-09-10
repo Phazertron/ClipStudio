@@ -16,7 +16,11 @@ internal sealed class Program
     /// GitHub repository URL used for automatic update checks.
     /// Set this to <see langword="null"/> to disable background update checks entirely.
     /// </summary>
-    private static readonly string? AutoUpdateRepositoryUrl = "https://github.com/Phazertron/ClipStudio";
+    /// <remarks>
+    /// Consumed by <see cref="ClipStudio.UI.Services.VelopackUpdateService"/>, which is registered
+    /// when the application builds its service provider.
+    /// </remarks>
+    internal static readonly string? AutoUpdateRepositoryUrl = "https://github.com/Phazertron/ClipStudio";
 
     /// <summary>
     /// Main entry point. Velopack's bootstrap call MUST be the very first statement so that
@@ -64,31 +68,6 @@ internal sealed class Program
 
         Log.Information("ClipStudio shutting down.");
         Log.CloseAndFlush();
-    }
-
-    /// <summary>
-    /// Checks for available updates from the configured GitHub repository source and silently
-    /// downloads them in the background. The downloaded update is applied the next time the
-    /// application is restarted. Failures are swallowed — update checks are best-effort and
-    /// must never affect the user experience.
-    /// </summary>
-    internal static async Task TryCheckForUpdatesAsync()
-    {
-        if (AutoUpdateRepositoryUrl is null)
-            return;
-
-        try
-        {
-            var mgr          = new UpdateManager(AutoUpdateRepositoryUrl);
-            var newVersion   = await mgr.CheckForUpdatesAsync();
-            if (newVersion is not null)
-                await mgr.DownloadUpdatesAsync(newVersion);
-        }
-        catch
-        {
-            // Update checks are best-effort; network errors or misconfigured URLs must
-            // never surface to the user.
-        }
     }
 
     /// <summary>

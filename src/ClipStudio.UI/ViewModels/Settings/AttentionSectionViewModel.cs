@@ -48,6 +48,7 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     private readonly IDuplicateClipFinder _duplicates;
     private readonly IAttentionActionHost _actions;
     private readonly IBackgroundTaskService _tasks;
+    private readonly IApplicationUpdateService _updates;
 
     /// <inheritdoc/>
     public override string Title => "Attention required";
@@ -113,13 +114,15 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     /// <param name="duplicates">The finder whose last run supplies the duplicate groups.</param>
     /// <param name="actions">The seam through which an entry's action reaches the rest of the app.</param>
     /// <param name="tasks">The registry the duplicate scan reports itself into.</param>
+    /// <param name="updates">The updater whose finding supplies the update entry.</param>
     public AttentionSectionViewModel(
         ISettingsSectionHost host,
         IServiceScopeFactory scopeFactory,
         ILibraryHealthCheckService health,
         IDuplicateClipFinder duplicates,
         IAttentionActionHost actions,
-        IBackgroundTaskService tasks)
+        IBackgroundTaskService tasks,
+        IApplicationUpdateService updates)
         : base(host)
     {
         _scopeFactory = scopeFactory;
@@ -127,10 +130,27 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
         _duplicates   = duplicates;
         _actions      = actions;
         _tasks        = tasks;
+        _updates      = updates;
+
+        // The check runs at startup and can finish long after this section was first built, so
+        // the list follows it rather than only reflecting what was known when Settings opened.
+        _updates.StatusChanged += OnUpdateStatusChanged;
 
         RecheckCommand           = new AsyncRelayCommand(RecheckAsync);
         ScanForDuplicatesCommand = new AsyncRelayCommand(ScanForDuplicatesAsync);
     }
+
+    /// <summary>
+    /// Rebuilds the list on the UI thread when the updater reports a new status.
+    /// </summary>
+    /// <param name="sender">The updater.</param>
+    /// <param name="status">The status just published.</param>
+    /// <remarks>
+    /// The updater publishes from a background task, so the hop to the UI thread is required
+    /// before touching the observable collection.
+    /// </remarks>
+    private void OnUpdateStatusChanged(object? sender, UpdateStatus status)
+        => Dispatcher.UIThread.Post(() => _ = RebuildAsync());
 
     /// <inheritdoc/>
     public override Task RefreshAsync() => RebuildAsync();
@@ -218,6 +238,7 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
 
         try
         {
+            AddUpdateEntry(entries);
             AddFolderEntries(entries, _health.LastReport);
             AddDuplicateEntries(entries);
             await AddLibraryEntriesAsync(entries);
@@ -238,6 +259,39 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     }
 
     // ---- Sources ----
+
+    /// <summary>
+    /// Adds the entry offering a downloaded application update, when one is waiting.
+    /// </summary>
+    /// <param name="entries">The list being built.</param>
+    /// <remarks>
+    /// Added first so it sits at the top: it is the only entry the user can clear in one click,
+    /// and an out-of-date build may be the reason some of the entries below it exist.
+    /// <para>
+    /// Only offered once the package has finished downloading. Announcing a version that is still
+    /// transferring would put a "Restart and install" button in front of the user that cannot do
+    /// anything yet.
+    /// </para>
+    /// </remarks>
+    private void AddUpdateEntry(List<AttentionEntryViewModel> entries)
+    {
+        var status = _updates.Status;
+        if (!status.IsSupported || !status.IsUpdateAvailable || !status.IsDownloaded)
+            return;
+
+        entries.Add(new AttentionEntryViewModel(
+            AttentionEntryKind.UpdateAvailable,
+            $"ClipStudio {status.AvailableVersion} is ready to install",
+            $"You are running {status.CurrentVersion ?? "an earlier version"}. The update has been "
+            + "downloaded and will be installed when the application restarts.",
+            MaterialIconKind.Download,
+            "Restart and install",
+            () =>
+            {
+                _updates.ApplyAndRestart();
+                return Task.CompletedTask;
+            }));
+    }
 
     /// <summary>
     /// Adds the entries that come from the startup health check: unreachable folders, and folders
