@@ -408,7 +408,7 @@ public partial class App : AvaloniaApp
                     await Dispatcher.UIThread.InvokeAsync(async () => await settingsVm.LoadAsync());
                     // Run the scan via ScanAllCommand, which reports per-folder progress and
                     // refreshes LastScannedDisplay on each row after each folder finishes.
-                    await Dispatcher.UIThread.InvokeAsync(async () => await settingsVm.ScanAllCommand.ExecuteAsync(null));
+                    await Dispatcher.UIThread.InvokeAsync(async () => await settingsVm.SourceFoldersSection.ScanAllCommand.ExecuteAsync(null));
                 }
 
                 // Purge trash items older than 30 days on every startup.

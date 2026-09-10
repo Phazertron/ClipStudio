@@ -1,0 +1,71 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels.Settings"
+             xmlns:rows="using:ClipStudio.UI.ViewModels"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="700"
+             x:Class="ClipStudio.UI.Views.Settings.MaintenanceSectionView"
+             x:DataType="vm:MaintenanceSectionViewModel"
+             x:CompileBindings="True">
+
+    <ScrollViewer>
+        <StackPanel Margin="24,16" Spacing="24" MaxWidth="700" HorizontalAlignment="Left">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Library Maintenance"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <TextBlock Text="Regenerate any missing thumbnail or preview-strip images and remove orphaned cache files. Run this if clips are showing broken images after moving or editing the database."
+                               FontSize="12"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"/>
+
+                    <Button Command="{Binding RepairLibraryCommand}"
+                            IsEnabled="{Binding !IsRepairRunning}"
+                            HorizontalAlignment="Left"
+                            FontSize="12">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="Wrench" Width="16" Height="16"/>
+                            <TextBlock Text="Repair Library"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                <!-- ===== Logging ===== -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Logging"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Minimum log level"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="Error is recommended for everyday use. Set to Verbose only when diagnosing a specific problem."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ComboBox ItemsSource="{x:Static vm:MaintenanceSectionViewModel.LogLevels}"
+                                  SelectedItem="{Binding MinimumLogLevel}"
+                                  FontSize="12"
+                                  Width="160"/>
+                    </StackPanel>
+
+                    <Button Command="{Binding OpenLogsFolderCommand}"
+                            FontSize="12">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:MaterialIcon Kind="FolderOpen" Width="16" Height="16"/>
+                            <TextBlock Text="Open Logs Folder"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>

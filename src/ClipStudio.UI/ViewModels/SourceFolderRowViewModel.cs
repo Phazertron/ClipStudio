@@ -10,7 +10,7 @@ namespace ClipStudio.UI.ViewModels;
 /// <summary>
 /// View model projection for a single <see cref="SourceFolder"/> row in the settings page.
 /// Exposes the folder path, its active state, and remove / toggle / scan commands that
-/// delegate back to the parent <see cref="SettingsViewModel"/> via constructor callbacks.
+/// delegate back to the owning source folders settings section via constructor callbacks.
 /// </summary>
 public sealed partial class SourceFolderRowViewModel : ViewModelBase
 {

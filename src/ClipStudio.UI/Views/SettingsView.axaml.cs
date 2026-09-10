@@ -1,17 +1,16 @@
-using System;
-using System.Threading.Tasks;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
-using Avalonia.Platform.Storage;
 using ClipStudio.UI.ViewModels;
 
 namespace ClipStudio.UI.Views;
 
 /// <summary>
 /// Code-behind for <see cref="SettingsView"/>.
-/// Triggers an initial data load when the view is attached to the visual tree and
-/// handles folder/clipboard interactions that require a reference to the top-level window.
 /// </summary>
+/// <remarks>
+/// The page is now only a shell around the section views, so everything that needs a window - the
+/// folder pickers, the removal dialog, the duplicate prompt, the model manager - moved into the
+/// code-behind of the section it belongs to. All that is left here is the initial load.
+/// </remarks>
 public partial class SettingsView : UserControl
 {
     /// <summary>Initialises a new <see cref="SettingsView"/> and wires up component events.</summary>
@@ -21,163 +20,9 @@ public partial class SettingsView : UserControl
         AttachedToVisualTree += OnAttachedToVisualTree;
     }
 
-    private async void OnManageModelsClicked(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not SettingsViewModel vm) return;
-
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel is not Window window) return;
-
-        try
-        {
-            var dlgVm = new TranscriptionSetupDialogViewModel(vm.SettingsService);
-            dlgVm.Confirmed += async () => await vm.LoadAsync();
-            var dialog = new TranscriptionSetupDialog(dlgVm);
-            await dialog.ShowDialog(window);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[ManageModels] {ex}");
-            await new Avalonia.Controls.Window
-            {
-                Title   = "Error",
-                Content = new Avalonia.Controls.ScrollViewer
-                {
-                    Content = new Avalonia.Controls.TextBlock
-                    {
-                        Text         = ex.ToString(),
-                        Margin       = new Avalonia.Thickness(16),
-                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                        FontSize     = 11
-                    }
-                },
-                Width  = 600,
-                Height = 400,
-                WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner
-            }.ShowDialog(window);
-        }
-    }
-
     private void OnAttachedToVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
     {
-        if (DataContext is not SettingsViewModel vm) return;
-
-        // The view model resolves a scan's duplicates but has no window to ask through, so the
-        // dialog is supplied from here. Left unset it skips them, which is the safe default.
-        vm.DuplicateResolutionRequested = AskAboutDuplicateAsync;
-
-        vm.LoadCommand.Execute(null);
-    }
-
-    /// <summary>
-    /// Shows the duplicate dialog and returns what the user chose.
-    /// </summary>
-    /// <param name="prompt">The duplicate being asked about.</param>
-    /// <returns>
-    /// The user's resolution, or a skip when there is no window to show a dialog over - dismissing
-    /// the dialog must never import something by default.
-    /// </returns>
-    private async Task<DuplicateResolution> AskAboutDuplicateAsync(DuplicateClipPrompt prompt)
-    {
-        if (TopLevel.GetTopLevel(this) is not Window window)
-            return DuplicateResolution.Skip;
-
-        var dialogVm = new DuplicateClipDialogViewModel(prompt);
-        var dialog   = new DuplicateClipDialog { DataContext = dialogVm };
-        dialogVm.CloseRequested = resolution => dialog.Close(resolution);
-
-        // Closing the window with its title bar returns null; treat that as a skip.
-        return await dialog.ShowDialog<DuplicateResolution?>(window) ?? DuplicateResolution.Skip;
-    }
-
-    /// <summary>
-    /// Opens a folder picker so the user can choose a new source folder to watch.
-    /// Updates <see cref="SettingsViewModel.NewFolderPath"/> on confirmation.
-    /// </summary>
-    private async void OnBrowseSourceFolderClicked(object? sender, RoutedEventArgs e)
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel is null) return;
-
-        var results = await topLevel.StorageProvider.OpenFolderPickerAsync(
-            new FolderPickerOpenOptions { Title = "Select Source Folder to Watch", AllowMultiple = false });
-
-        if (results.Count > 0 && DataContext is SettingsViewModel vm)
-            vm.NewFolderPath = results[0].Path.LocalPath;
-    }
-
-    /// <summary>
-    /// Opens a folder picker so the user can choose the screenshot output folder.
-    /// Updates <see cref="SettingsViewModel.ScreenshotOutputFolder"/> on confirmation.
-    /// </summary>
-    private async void OnBrowseScreenshotFolderClicked(object? sender, RoutedEventArgs e)
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel is null) return;
-
-        var results = await topLevel.StorageProvider.OpenFolderPickerAsync(
-            new FolderPickerOpenOptions { Title = "Select Screenshot Output Folder", AllowMultiple = false });
-
-        if (results.Count > 0 && DataContext is SettingsViewModel vm)
-            vm.ScreenshotOutputFolder = results[0].Path.LocalPath;
-    }
-
-    /// <summary>
-    /// Copies the OBS script path to the system clipboard.
-    /// </summary>
-    private async void OnCopyOBSScriptPathClicked(object? sender, RoutedEventArgs e)
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel?.Clipboard is null) return;
-
         if (DataContext is SettingsViewModel vm)
-            await topLevel.Clipboard.SetTextAsync(vm.OBSScriptPath);
-    }
-
-    /// <summary>
-    /// Handles the Remove button click on a source folder row.
-    /// Shows the <see cref="SourceFolderRemovalDialog"/> so the user can choose Archive, Wipe, or Cancel,
-    /// then delegates to the appropriate <see cref="SettingsViewModel"/> method.
-    /// </summary>
-    private async void OnBrowseTranscriptionSrtFolderClicked(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not SettingsViewModel vm) return;
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel is null) return;
-        var folder = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title         = "Select SRT output folder",
-            AllowMultiple = false
-        });
-        if (folder.Count > 0)
-        {
-            var path = folder[0].TryGetLocalPath();
-            if (!string.IsNullOrEmpty(path))
-                vm.TranscriptionSrtFolder = path;
-        }
-    }
-
-    private async void OnRemoveFolderClicked(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button btn) return;
-        if (btn.DataContext is not SourceFolderRowViewModel row) return;
-        if (DataContext is not SettingsViewModel vm) return;
-        if (TopLevel.GetTopLevel(this) is not Window window) return;
-
-        var dialogVm = new SourceFolderRemovalDialogViewModel(row.Path);
-        var dialog   = new SourceFolderRemovalDialog { DataContext = dialogVm };
-        dialogVm.CloseRequested = r => dialog.Close(r);
-        var result   = await dialog.ShowDialog<SourceFolderRemovalResult>(window);
-
-        switch (result)
-        {
-            case SourceFolderRemovalResult.Archive:
-                await vm.ArchiveFolderAsync(row);
-                break;
-            case SourceFolderRemovalResult.Wipe:
-                await vm.WipeFolderAsync(row);
-                break;
-            // Cancel: do nothing
-        }
+            vm.LoadCommand.Execute(null);
     }
 }

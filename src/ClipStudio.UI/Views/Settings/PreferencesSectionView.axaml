@@ -1,0 +1,226 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ClipStudio.UI.ViewModels.Settings"
+             xmlns:rows="using:ClipStudio.UI.ViewModels"
+             xmlns:icons="using:Material.Icons.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="700"
+             x:Class="ClipStudio.UI.Views.Settings.PreferencesSectionView"
+             x:DataType="vm:PreferencesSectionViewModel"
+             x:CompileBindings="True">
+
+    <ScrollViewer>
+        <StackPanel Margin="24,16" Spacing="24" MaxWidth="700" HorizontalAlignment="Left">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Preferences"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <!-- Thumbnail offset -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Thumbnail offset (seconds)"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <NumericUpDown Value="{Binding ThumbnailOffsetSeconds}"
+                                       Minimum="0"
+                                       Maximum="300"
+                                       Increment="1"
+                                       Width="140"
+                                       HorizontalAlignment="Left"
+                                       FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Screenshot output folder -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Screenshot output folder"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding ScreenshotOutputFolder}"
+                                     Watermark="Absolute path to screenshots folder..."
+                                     FontSize="12"/>
+                            <Button Grid.Column="1"
+                                    Click="OnBrowseScreenshotFolderClicked"
+                                    ToolTip.Tip="Browse for folder"
+                                    Margin="6,0,0,0"
+                                    Padding="8">
+                                <icons:MaterialIcon Kind="FolderOpen" Width="16" Height="16"/>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Auto-mark reviewed toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-mark clip as Reviewed when a tag is added"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, adding a game or general tag to an Unreviewed clip automatically marks it as Reviewed."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding AutoMarkReviewedOnTagAdd}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Auto-play toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-play clip when opening"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, the video starts playing automatically as soon as a clip is opened in the detail view."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding AutoPlayOnOpen}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Auto-scan at startup toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-scan source folders at startup"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, all active source folders are scanned for new clips each time the application starts. May slow startup on large folders."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding AutoScanAtStartup}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Hash clip contents"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="Reads part of every clip so the library can recognise the same recording imported again under a different name. This is the slow part of an import; turning it off skips the reading entirely. Clips that share a file name are always reported, whether this is on or off."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding ContentHashingEnabled}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+
+                        <!-- Part of the library predates hashing, so it silently takes no part in it. -->
+                        <Border IsVisible="{Binding ShowUnhashedClipNote}"
+                                Background="#33FFA000"
+                                CornerRadius="4"
+                                Padding="10,8"
+                                Margin="0,4,0,0">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <icons:MaterialIcon Kind="AlertOutline"
+                                                    Width="15" Height="15"
+                                                    Foreground="#FFC107"
+                                                    VerticalAlignment="Top"/>
+                                <TextBlock Text="{Binding UnhashedClipNote}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Cache audio mix previews"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, the mixed audio preview (one file per clip) is kept on disk between sessions. Re-opening a clip auto-loads its mix instantly without re-running FFmpeg. When disabled, the preview is regenerated on each open and deleted on close. Each file uses roughly 15-120 MB depending on clip length."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                            <ToggleSwitch IsChecked="{Binding CacheAudioPreviews}"
+                                      OnContent="Keep between sessions"
+                                      OffContent="Regenerate each time"
+                                      FontSize="12"/>
+                        <Button Command="{Binding ClearAudioCacheCommand}"
+                                HorizontalAlignment="Left"
+                                FontSize="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <icons:MaterialIcon Kind="DeleteOutline" Width="16" Height="16"/>
+                                <TextBlock Text="Clear Audio Cache"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Auto-apply "me" player on import toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-tag Me player on import"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, any player marked as Me is automatically tagged on every newly imported clip."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding AutoApplyMePlayerOnImport}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Show images in lists toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Show game cover art and player icons in lists"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, game cover images and player icon thumbnails are shown in the library details view and highlights list. Disable to show plain text instead. Takes effect after the next refresh."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding ShowImagesInLists}"
+                                      OnContent="Show images"
+                                      OffContent="Text only"
+                                      FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Sound effects toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="UI sound effects"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, short audio cues play for events such as import notifications and confirmations."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding SoundEffectsEnabled}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource SystemChromeHighColor}"/>
+
+                <!-- ===== Trash ===== -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Trash"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+
+                    <!-- Recycle bin toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Send deleted items to system Recycle Bin"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, clips removed from the Trash (by auto-expiry after 30 days or via Empty Trash) are moved to the operating-system Recycle Bin instead of being permanently deleted immediately."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding TrashExpiredSendToRecycleBin}"
+                                      OnContent="Send to Recycle Bin"
+                                      OffContent="Permanently delete"
+                                      FontSize="12"/>
+                    </StackPanel>
+                </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>
