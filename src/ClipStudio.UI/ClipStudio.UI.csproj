@@ -1,6 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <!--
+      WinExe, not Exe: on Windows this selects the GUI subsystem, and a console-subsystem
+      binary makes Windows allocate a console window alongside the app. WinExe is valid on
+      every platform - on Linux and macOS it is treated exactly like Exe - so this does not
+      need a condition.
+    -->
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest Condition="$([MSBuild]::IsOSPlatform('Windows'))">app.manifest</ApplicationManifest>
