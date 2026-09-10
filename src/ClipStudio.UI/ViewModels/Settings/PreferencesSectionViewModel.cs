@@ -60,6 +60,18 @@ public sealed partial class PreferencesSectionViewModel : SettingsSectionViewMod
     private bool _autoScanAtStartup;
 
     /// <summary>
+    /// Gets or sets whether the application looks for new releases on its own, at startup and
+    /// every few hours after that.
+    /// </summary>
+    /// <remarks>
+    /// Turning this off stops ClipStudio going looking; the Check for updates button in About
+    /// still works, because that is the user asking. Nothing is ever downloaded without being
+    /// asked for either way.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _automaticUpdateChecksEnabled = true;
+
+    /// <summary>
     /// Gets or sets whether clip files are hashed on import and during Repair Library.
     /// </summary>
     [ObservableProperty]
@@ -141,6 +153,7 @@ public sealed partial class PreferencesSectionViewModel : SettingsSectionViewMod
         AutoMarkReviewedOnTagAdd     = settings.AutoMarkReviewedOnTagAdd;
         AutoPlayOnOpen               = settings.AutoPlayOnOpen;
         AutoScanAtStartup            = settings.AutoScanAtStartup;
+        AutomaticUpdateChecksEnabled = settings.AutomaticUpdateChecksEnabled;
         ContentHashingEnabled        = settings.ContentHashingEnabled;
         CacheAudioPreviews           = settings.CacheAudioPreviews;
         TrashExpiredSendToRecycleBin = settings.TrashExpiredSendToRecycleBin;
@@ -158,6 +171,7 @@ public sealed partial class PreferencesSectionViewModel : SettingsSectionViewMod
         settings.AutoMarkReviewedOnTagAdd     = AutoMarkReviewedOnTagAdd;
         settings.AutoPlayOnOpen               = AutoPlayOnOpen;
         settings.AutoScanAtStartup            = AutoScanAtStartup;
+        settings.AutomaticUpdateChecksEnabled = AutomaticUpdateChecksEnabled;
         settings.ContentHashingEnabled        = ContentHashingEnabled;
         settings.CacheAudioPreviews           = CacheAudioPreviews;
         settings.TrashExpiredSendToRecycleBin = TrashExpiredSendToRecycleBin;

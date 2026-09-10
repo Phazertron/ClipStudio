@@ -128,7 +128,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, ISettingsSectionH
         MaintenanceSection    = new MaintenanceSectionViewModel(this, scopeFactory, tasks);
         ShortcutsSection      = new ShortcutsSectionViewModel(this);
         AttentionSection      = new AttentionSectionViewModel(this, scopeFactory, health, duplicates, this, tasks, updates);
-        AboutSection          = new AboutSectionViewModel(this);
+        AboutSection          = new AboutSectionViewModel(this, updates);
 
         Sections.Add(SourceFoldersSection);
         Sections.Add(PreferencesSection);

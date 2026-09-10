@@ -23,6 +23,13 @@ public sealed class FakeApplicationUpdateService : IApplicationUpdateService
     /// <summary>Gets how many times <see cref="DownloadAsync"/> was called.</summary>
     public int DownloadCount { get; private set; }
 
+    /// <summary>Gets how many times <see cref="CheckAsync"/> was called.</summary>
+    private int _checkCount;
+
+    /// <summary>Gets how many times <see cref="CheckAsync"/> was called.</summary>
+    /// <remarks>Read across threads by the scheduler tests, so it is written with interlock.</remarks>
+    public int CheckCount => Volatile.Read(ref _checkCount);
+
     /// <summary>Gets or sets what <see cref="DownloadAsync"/> returns.</summary>
     public bool DownloadResult { get; set; } = true;
 
@@ -94,7 +101,10 @@ public sealed class FakeApplicationUpdateService : IApplicationUpdateService
 
     /// <inheritdoc/>
     public Task<UpdateStatus> CheckAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult(Status);
+    {
+        Interlocked.Increment(ref _checkCount);
+        return Task.FromResult(Status);
+    }
 
     /// <inheritdoc/>
     public Task<bool> DownloadAsync(

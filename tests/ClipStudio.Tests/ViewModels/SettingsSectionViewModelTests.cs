@@ -305,7 +305,7 @@ public sealed class SettingsSectionViewModelTests
             new TranscriptionSectionViewModel(_host, settings.Object),
             new ObsIntegrationSectionViewModel(_host),
             new MaintenanceSectionViewModel(_host, BuildScopeFactory(), _tasks),
-            new AboutSectionViewModel(_host),
+            new AboutSectionViewModel(_host, new FakeApplicationUpdateService()),
         ];
 
         Assert.All(sections, s => Assert.False(string.IsNullOrWhiteSpace(s.Title)));

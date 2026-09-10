@@ -96,6 +96,21 @@
                                       FontSize="12"/>
                     </StackPanel>
 
+                    <!-- Automatic update checks toggle -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Check for updates automatically"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                        <TextBlock Text="When enabled, ClipStudio looks for a new release at startup and every few hours. Checking downloads nothing: an update is only ever downloaded and installed when you ask for it. You can still check by hand from the About section with this turned off."
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   TextWrapping="Wrap"/>
+                        <ToggleSwitch IsChecked="{Binding AutomaticUpdateChecksEnabled}"
+                                      OnContent="Enabled"
+                                      OffContent="Disabled"
+                                      FontSize="12"/>
+                    </StackPanel>
+
                     <StackPanel Spacing="4">
                         <TextBlock Text="Hash clip contents"
                                    FontSize="12"

@@ -58,6 +58,17 @@ public sealed class AppSettings
     public bool AutoScanAtStartup { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets whether the application looks for new releases on its own. Defaults to
+    /// <c>true</c>.
+    /// </summary>
+    /// <remarks>
+    /// Governs only the automatic checks - the one at startup and the periodic one. Asking for a
+    /// check from the About section always works, because that is the user making the request.
+    /// A check never downloads anything on its own either way.
+    /// </remarks>
+    public bool AutomaticUpdateChecksEnabled { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets whether clip files are hashed, on import and during Repair Library.
     /// </summary>
     /// <remarks>

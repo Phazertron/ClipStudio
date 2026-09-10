@@ -188,10 +188,10 @@ public partial class App : AvaloniaApp
             }
         }
 
-        // Look for a newer release in the background. The check never throws, and installing
-        // what it finds is offered in Settings rather than done here - applying an update
-        // restarts the application, which is not something to do while the user is working.
-        _ = Services.GetRequiredService<IApplicationUpdateService>().CheckAsync();
+        // Look for a newer release now and periodically after that. Checking downloads nothing;
+        // both the download and the install are offered in Settings and taken only when asked
+        // for, because either one is the user's to spend bandwidth on or to restart for.
+        Services.GetRequiredService<UpdateCheckScheduler>().Start();
 
         // Show crash report dialog if a dump from the previous session was found.
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime dl2)
@@ -339,6 +339,10 @@ public partial class App : AvaloniaApp
         // Settings page being closed and reopened.
         services.AddSingleton<IApplicationUpdateService>(
             _ => new VelopackUpdateService(Program.AutoUpdateRepositoryUrl));
+
+        // Owns the periodic check. A singleton because two loops against one updater would
+        // check twice as often for no benefit.
+        services.AddSingleton<UpdateCheckScheduler>();
 
         // ViewModels — setup wizard
         services.AddTransient<SetupWizardViewModel>();
