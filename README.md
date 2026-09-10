@@ -20,6 +20,10 @@ Built for players who record everything but never have time to find the good mom
 - **Trim & Export** — non-destructive (stream copy) or destructive (re-encode) export, queued and processed in the background
 - **Stats dashboard** — play counts, rating distribution, top games and tags
 - **Bulk edit** — select multiple clips and apply tags, game, or players in one action; copy metadata from one clip to others with the format-brush
+- **Duplicate detection** — recognises a recording you already have, even under a different name, on import *and* across the whole library
+- **Clip links** — connect clips as the same moment, a sequel, a reaction or a variant; each is findable from the other
+- **Game import** — reads the games your launchers have installed and creates game tags from them, cover art included
+- **Attention required** — one list of everything the library needs you to decide about: missing files, disconnected drives, un-imported files, duplicates and out-of-range highlights
 - **Cross-platform** — Windows, macOS, Linux (Avalonia UI)
 
 ---
@@ -226,17 +230,71 @@ Use the **filter panel** (funnel icon in the Library toolbar) to combine:
 Use the **sort dropdown** to order by date, name, duration, or rating.  
 Use the **view toggle** to switch between the tile grid and a compact table view.
 
+### Related Clips
+
+Any two clips can be linked from the **Related clips** panel in the clip editor. Choose how they
+relate and the link is shown from both ends — with the wording flipped where it should be, so the
+clip you marked as a *Sequel* shows its origin as a *Prequel*.
+
+| Link type | Means |
+|---|---|
+| Same moment | The same moment from another angle, player or capture |
+| Sequel | What happened next |
+| Reaction | Someone reacting to the other clip |
+| Variant | Another cut of the same footage |
+
+Trashing a clip hides its links; restoring the clip brings them back. Deleting it permanently
+removes them.
+
+### Duplicates
+
+ClipStudio recognises a recording it already holds, even imported under a different name. On import
+you are asked whether to skip it, import it anyway, or **import and link** it to the copy you
+already have.
+
+Duplicates that are *already* in your library are found by **Settings → Attention required → Look
+for duplicates**, which compares every hashed clip against every other. Matches are confirmed by
+reading both files in full, so two different recordings that happen to share a quick hash are never
+reported as duplicates. Resolving a group lets you choose which copy survives and what metadata it
+keeps; the others go to the Trash, where they can be restored for 30 days.
+
+### Importing Games from Your Launchers
+
+**Games → Import from launchers** reads the titles installed on this computer and shows you what it
+found. Nothing is created until you import: games you already have are unticked, and so is anything
+that is not really a game — dedicated servers, soundtracks, demos and redistributables all install
+as separate entries. Steam titles bring their AppId with them, so imported games get their cover art
+without a search.
+
+Steam is supported on Windows, macOS and Linux. Epic and GOG are not implemented yet.
+
+### Background Activity
+
+Scans, library repairs, duplicate searches, transcriptions and exports all report into the
+**activity indicator** at the bottom of the sidebar. It shows what is running from any page, spins
+the icon of the page the work belongs to, and keeps each finished task's full summary so a long
+message is readable rather than truncated. Scans, repairs and duplicate searches can be stopped
+from there.
+
 ### Keyboard Shortcuts
 
-Shortcuts are active when the player view has focus (suppressed while a text field is focused).
+Shortcuts are active when the clip editor has focus, and are suppressed while a text field has it —
+typing always wins over a shortcut. The full list is in **Settings → Keyboard shortcuts**.
 
 | Key | Action |
 |---|---|
 | Space | Play / Pause |
-| Left arrow | Skip backward 5 s |
-| Right arrow | Skip forward 5 s |
-| `,` (comma) | Step one frame backward |
-| `.` (period) | Step one frame forward |
+| Left arrow | Skip backward |
+| Right arrow | Skip forward |
+| `,` (comma) | Previous frame |
+| `.` (period) | Next frame |
+| `C` | Show or hide subtitles |
+| Escape | Close the clip |
+| Alt + Left / Right | Previous / next clip |
+| Alt + Up / Down | Previous / next highlight |
+| `F` | Mark as favourite |
+| `R` | Mark as reviewed |
+| `0` – `5` | Set the rating |
 
 ---
 
@@ -303,6 +361,7 @@ ClipStudio/
 | Dependency Injection | Microsoft.Extensions.DependencyInjection 9 |
 | OBS Integration | Python script (OBS built-in scripting, v1.5.0) |
 | Game Metadata | Steam Community Search API (credential-free) |
+| Installed Games | Steam library files (`libraryfolders.vdf`, `appmanifest_*.acf`), read-only |
 | Updates | Velopack (Windows .exe, macOS .dmg, Linux AppImage) |
 | Testing | xUnit + Moq + EF Core InMemory |
 
