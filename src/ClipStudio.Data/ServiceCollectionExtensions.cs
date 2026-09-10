@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<ISourceFolderRepository, SourceFolderRepository>();
         services.AddScoped<IClipRepository, ClipRepository>();
+        services.AddScoped<IClipLinkRepository, ClipLinkRepository>();
         services.AddScoped<ITagRepository, TagRepository>();
         services.AddScoped<IHighlightRepository, HighlightRepository>();
         services.AddScoped<IScreenshotRepository, ScreenshotRepository>();

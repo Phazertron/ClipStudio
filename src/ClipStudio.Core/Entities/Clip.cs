@@ -127,4 +127,14 @@ public class Clip
 
     /// <summary>Gets the collection of speech-to-text transcriptions produced for this clip.</summary>
     public ICollection<Transcription> Transcriptions { get; set; } = new List<Transcription>();
+
+    /// <summary>Gets or sets the links created from this clip to others.</summary>
+    public ICollection<ClipLink> OutgoingLinks { get; set; } = new List<ClipLink>();
+
+    /// <summary>Gets or sets the links other clips created pointing at this one.</summary>
+    /// <remarks>
+    /// A link is stored once, in the direction it was created, so a clip's full set of related
+    /// clips is the union of both collections.
+    /// </remarks>
+    public ICollection<ClipLink> IncomingLinks { get; set; } = new List<ClipLink>();
 }

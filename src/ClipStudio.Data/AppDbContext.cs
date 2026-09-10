@@ -28,6 +28,9 @@ public sealed class AppDbContext : DbContext
     /// <summary>Gets or sets the soft relations between tags.</summary>
     public DbSet<TagRelation> TagRelations => Set<TagRelation>();
 
+    /// <summary>Gets or sets the relationships drawn between clips.</summary>
+    public DbSet<ClipLink> ClipLinks => Set<ClipLink>();
+
     /// <summary>Gets or sets the clip-level tag assignments.</summary>
     public DbSet<ClipTag> ClipTags => Set<ClipTag>();
 
@@ -75,6 +78,7 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TagConfiguration());
         modelBuilder.ApplyConfiguration(new TagRelationConfiguration());
         modelBuilder.ApplyConfiguration(new ClipTagConfiguration());
+        modelBuilder.ApplyConfiguration(new ClipLinkConfiguration());
         modelBuilder.ApplyConfiguration(new HighlightConfiguration());
         modelBuilder.ApplyConfiguration(new HighlightTagConfiguration());
         modelBuilder.ApplyConfiguration(new ScreenshotConfiguration());

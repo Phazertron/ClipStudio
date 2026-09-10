@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<ILogger<SettingsService>>()));
 
         services.AddScoped<IClipService, ClipService>();
+        services.AddScoped<IClipLinkService, ClipLinkService>();
         services.AddScoped<ITagService, TagService>();
         services.AddScoped<IHighlightService, HighlightService>();
         services.AddScoped<IImportService, ImportService>();
