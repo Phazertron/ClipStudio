@@ -13,6 +13,17 @@ namespace ClipStudio.Application.Services;
 public static class SrtWriter
 {
     /// <summary>
+    /// The line terminator every SRT file uses, regardless of the platform that wrote it.
+    /// </summary>
+    /// <remarks>
+    /// Fixed rather than taken from <see cref="System.Environment.NewLine"/>: an SRT file is
+    /// handed to video players and uploaded, not kept as a local text file, so a subtitle track
+    /// written on Linux has to be byte-identical to one written on Windows. CRLF is what the
+    /// format has always used and what the least tolerant players expect.
+    /// </remarks>
+    private const string LineTerminator = "\r\n";
+
+    /// <summary>
     /// Produces the full text content of an SRT subtitle file from the given segments.
     /// </summary>
     /// <param name="segments">
@@ -24,10 +35,11 @@ public static class SrtWriter
         var sb = new StringBuilder();
         foreach (var seg in segments)
         {
-            sb.AppendLine(seg.IndexNumber.ToString());
-            sb.AppendLine($"{FormatTimestamp(seg.StartMs)} --> {FormatTimestamp(seg.EndMs)}");
-            sb.AppendLine(seg.Text.Trim());
-            sb.AppendLine();
+            sb.Append(seg.IndexNumber).Append(LineTerminator);
+            sb.Append(FormatTimestamp(seg.StartMs)).Append(" --> ")
+              .Append(FormatTimestamp(seg.EndMs)).Append(LineTerminator);
+            sb.Append(seg.Text.Trim()).Append(LineTerminator);
+            sb.Append(LineTerminator);
         }
         return sb.ToString();
     }
