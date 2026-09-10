@@ -1,6 +1,5 @@
 using System;
 using System.Net;
-using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace ClipStudio.UI;
@@ -81,8 +80,7 @@ public static class GitHubIssueHelper
     /// </summary>
     public static string GatherEnvironmentInfo()
     {
-        var v = Assembly.GetExecutingAssembly().GetName().Version;
-        var appVersion = v is null ? "ClipStudio" : $"ClipStudio v{v.Major}.{v.Minor}.{v.Build}";
+        var appVersion = ApplicationVersion.Display;
         var ramGb = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024.0 / 1024.0 / 1024.0;
 
         return

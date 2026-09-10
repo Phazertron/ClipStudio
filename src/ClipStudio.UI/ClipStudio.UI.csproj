@@ -11,9 +11,13 @@
     <Nullable>enable</Nullable>
     <ApplicationManifest Condition="$([MSBuild]::IsOSPlatform('Windows'))">app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!--
+      The version of a local build. The release workflow overrides it with -p:Version=<tag>.
+      AssemblyVersion and FileVersion are deliberately NOT set here: pinning them meant they
+      stayed at 0.1.0.0 no matter what the workflow passed, so every release identified itself
+      as v0.1.0. Left alone, they derive from Version and follow the tag.
+    -->
     <Version>0.1.0</Version>
-    <AssemblyVersion>0.1.0.0</AssemblyVersion>
-    <FileVersion>0.1.0.0</FileVersion>
     <Product>ClipStudio</Product>
     <Copyright>Copyright © 2026 Claudio Bendini</Copyright>
   </PropertyGroup>

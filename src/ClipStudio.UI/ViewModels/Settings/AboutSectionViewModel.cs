@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reflection;
 using CommunityToolkit.Mvvm.Input;
 using Material.Icons;
 
@@ -24,16 +23,9 @@ public sealed class AboutSectionViewModel : SettingsSectionViewModel
     public IRelayCommand SendFeedbackCommand { get; }
 
     /// <summary>
-    /// Gets a human-readable application version string derived from the assembly version.
+    /// Gets a human-readable application version string, such as <c>ClipStudio v1.1.4</c>.
     /// </summary>
-    public string AppVersion
-    {
-        get
-        {
-            var v = Assembly.GetExecutingAssembly().GetName().Version;
-            return v is null ? "ClipStudio" : $"ClipStudio v{v.Major}.{v.Minor}.{v.Build}";
-        }
-    }
+    public string AppVersion => ApplicationVersion.Display;
 
     /// <summary>Initialises a new <see cref="AboutSectionViewModel"/>.</summary>
     /// <param name="host">The settings page hosting this section.</param>
