@@ -336,7 +336,7 @@ ClipStudio targets non-technical end users. A polished first-run experience and 
 - **Tool:** Velopack (cross-platform .NET installer + auto-update framework).
 - **Installers produced per platform:**
   - Windows: `.exe` setup wizard (NSIS-based via Velopack).
-  - macOS: `.dmg` with `.app` bundle.
+  - macOS: `.pkg` installer with `.app` bundle.
   - Linux: `AppImage` (single portable executable).
 - **First-run setup wizard** guides the user through:
   1. Choosing one or more source (clip) folders.

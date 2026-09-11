@@ -24,6 +24,7 @@ Built for players who record everything but never have time to find the good mom
 - **Clip links** — connect clips as the same moment, a sequel, a reaction or a variant; each is findable from the other
 - **Game import** — reads the games your launchers have installed and creates game tags from them, cover art included
 - **Attention required** — one list of everything the library needs you to decide about: missing files, disconnected drives, un-imported files, duplicates and out-of-range highlights
+- **Automatic updates** — tells you when a new version exists and never downloads it without asking
 - **Cross-platform** — Windows, macOS, Linux (Avalonia UI)
 
 ---
@@ -92,6 +93,10 @@ Use the provided launcher script instead of running the binary directly — it a
 ### Download
 
 Grab the latest installer from the [Releases](https://github.com/Phazertron/ClipStudio/releases) page.
+
+Pick the file for your platform: `ClipStudio-win-Setup.exe`, `ClipStudio-osx-Setup.pkg`, or
+`ClipStudio.AppImage`. After the first install, ClipStudio keeps itself up to date — see
+[Updates](#updates).
 
 ### Build from Source
 
@@ -255,8 +260,20 @@ already have.
 Duplicates that are *already* in your library are found by **Settings → Attention required → Look
 for duplicates**, which compares every hashed clip against every other. Matches are confirmed by
 reading both files in full, so two different recordings that happen to share a quick hash are never
-reported as duplicates. Resolving a group lets you choose which copy survives and what metadata it
-keeps; the others go to the Trash, where they can be restored for 30 days.
+reported as duplicates.
+
+**Inspect** a group to resolve it. The dialog plays the copy you have selected to keep, so you can
+remind yourself what the clip actually is, and shows the two copies' tags, players, highlights,
+rating and notes side by side. You choose which copy survives and what metadata it keeps; the
+others go to the Trash, where they can be restored for 30 days.
+
+Only one player is shown, deliberately: a confirmed duplicate is byte-identical, so playing both
+copies would show the same pixels twice. What differs between them is the metadata, which is what
+the comparison puts in front of you.
+
+Once a scan has confirmed a group, it survives closing the app. The confirmed hashes are stored, so
+the groups are rebuilt on the next launch from a single database query without re-reading a single
+file — a scan you have already paid for is never lost.
 
 ### Importing Games from Your Launchers
 
@@ -295,6 +312,32 @@ typing always wins over a shortcut. The full list is in **Settings → Keyboard 
 | `F` | Mark as favourite |
 | `R` | Mark as reviewed |
 | `0` – `5` | Set the rating |
+
+---
+
+## Updates
+
+ClipStudio checks for a new release when it starts and every six hours after that, so a long
+session still hears about one. **A check downloads nothing.**
+
+When a newer version exists it appears in **Settings → Attention required**, and the Settings
+navigation item is badged:
+
+1. **ClipStudio x.y.z is available** — press **Download update** when you want it. Packages are
+   around 250 MB, so nothing is transferred until you ask.
+2. The download runs as a background task with live progress and a working **Cancel**, visible from
+   any page. Cancelling is not refusing — the offer stays.
+3. **Ready to install** — press **Restart and install**. Installing restarts the app, so it only
+   ever happens when you say so.
+
+Your library, settings and database are untouched by an update.
+
+**Checking on demand.** *Settings → About* has a **Check for updates** button and a status line
+showing where this build stands.
+
+**Turning it off.** *Settings → Preferences → Check for updates automatically* stops ClipStudio
+looking on its own. The About button still works with it off — the setting means "do not go
+looking", not "refuse when asked".
 
 ---
 
@@ -362,7 +405,7 @@ ClipStudio/
 | OBS Integration | Python script (OBS built-in scripting, v1.5.0) |
 | Game Metadata | Steam Community Search API (credential-free) |
 | Installed Games | Steam library files (`libraryfolders.vdf`, `appmanifest_*.acf`), read-only |
-| Updates | Velopack (Windows .exe, macOS .dmg, Linux AppImage) |
+| Updates | Velopack 1.2.0 (Windows .exe, macOS .pkg, Linux AppImage), per-platform channels |
 | Testing | xUnit + Moq + EF Core InMemory |
 
 ---

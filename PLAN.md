@@ -6,21 +6,23 @@ used in DECISION_LOG.md and the round planning notes.
 
 Baseline at plan creation (2026-09-08): v1.1.1, master, 0 warnings, 118 tests passing.
 
-Status (2026-09-10): 0 warnings, 738 tests passing, working tree clean.
-**Phase 0, Phase 1, Phase 1.5 and Phase 1.6 are all complete.** F-R, F-A, F-F
-(Steam) and F-I have landed and been verified in the running app under
-`--profile smoke`.
+Status (2026-09-11): 0 warnings, 772 tests passing, working tree clean.
+**Phase 0, Phase 1, Phase 1.5, Phase 1.6 and Phase 1.7 are all complete.** F-R,
+F-A, F-F (Steam) and F-I have landed and been verified in the running app under
+`--profile smoke`. Released through v1.1.6; `dbda633` is unpushed and wants a
+v1.1.7.
 
 **Start here next.** Phase 2 is the next body of work - `F-S` tag and game
 import/export, and `F-P` removable drive auto-archive, whose detection half
-already landed in 1.5.2. Before or alongside it, five things are open and each
-needs a decision, a measurement or a machine rather than effort:
+already landed in 1.5.2. Before or alongside it, these are open and each needs a
+decision, a measurement or a machine rather than effort:
 
 1. `F-F` Epic and GOG scanners - need a machine with those launchers to verify
 2. `1.5.5` The short-clip fallback quality/speed tension - needs the user's call
 3. `1.5.5` Parallel imports - re-measure first; the 1.6x predates the keyframe change
 4. `1.6.2` Shortcut remapping, and a graphical keyboard map
-5. The bug and polish backlog below: a transcription cluster worth one pass, and
+5. `1.7` macOS playback after `MacOsVlcRelauncher` - needs a Mac, see below
+6. The bug and polish backlog below: a transcription cluster worth one pass, and
    the master-volume defect, which is blocked on a diagnosis rather than effort
 
 Commit style from 2026-09-09 onwards follows the conventional-commit skill
@@ -580,6 +582,143 @@ only, which is enough to filter the library but cannot show what was said or see
 **Verified by driving the keyboard** under `--profile smoke`: typing groups the results, Down moves
 the visible highlight, Enter opens exactly the highlighted clip, Enter with nothing selected stays
 on the library, and Escape closes the flyout while keeping the filter.
+
+---
+
+## Phase 1.7 - Release pipeline, auto-update and duplicates - DONE (2026-09-11)
+
+Started as "how do I update the app on my PC" and turned into a rebuild of the
+whole release path, because **auto-update had never worked across three
+published releases and failed silently every time.** Released through v1.1.6.
+
+The lesson worth carrying: **a green CI run does not mean a working release.**
+Every fault below produced green builds and a published release page. The check
+that actually catches them is reading the feed the client fetches - procedure in
+the vault runbook `clipstudio-release-and-autoupdate.md`.
+
+### 1.7.1 The three faults that broke auto-update - done
+
+- All three platform jobs packed with `--channel stable`, so their identically
+  named assets overwrote each other in the same release. The published Windows
+  feed advertised a 141 MB package while the installed Windows package was
+  224 MB - it pointed at a non-Windows payload. Fixed with per-platform channels
+  (`win`/`osx`/`linux`, suffixed for pre-release tags).
+- The client passed a bare repo URL to `UpdateManager`, which Velopack treats as
+  a plain web feed and resolves to `<repo>/releases.<channel>.json` - a 404 on
+  github.com. Fixed with `GithubSource`. An empty `catch` had hidden it.
+- Nothing ever called `ApplyUpdates`, so a successful download was never
+  installed.
+
+Also: the vpk CLI was installed unpinned, so CI packaged with vpk 1.2.0 against
+a Velopack 0.0.1015 runtime. Both are now 1.2.0 and pinned through
+`VELOPACK_VERSION`. **If you bump one, bump the other.**
+
+WARNING: changing a channel orphans existing installs - a client looks for
+updates on the channel recorded in its own `sq.version`. Moving `stable` -> `win`
+cost one manual reinstall.
+
+### 1.7.2 Consent, progress and control - done
+
+A check now downloads nothing. The user is offered the download, it runs as a
+cancellable background task with real percentage progress, and only then is the
+install offered. Packages are ~250 MB and the connection may be metered - do not
+"helpfully" restore silent downloading.
+
+- `UpdateCheckScheduler`: checks at startup and every 6 hours, so a session that
+  runs for days still hears about a release.
+- About gained a Check for updates button and a status line, with an honest
+  "This build does not update itself" for a publish folder, which is in no
+  position to claim it is current.
+- `AutomaticUpdateChecksEnabled` in Preferences, read on every pass so turning it
+  off takes effect without a restart. It governs only the automatic checks;
+  asking from About still works.
+- Re-check in Attention required now covers the update entries too, ordered so a
+  dead network still leaves the folder findings refreshed.
+
+### 1.7.3 Cross-platform and packaging fixes - done
+
+- macOS `vpk pack` failed: Velopack builds a real `.app` and `CFBundleExecutable`
+  cannot be a shell script. `--mainExe` is now the Mach-O binary, and
+  `MacOsVlcRelauncher` sets `DYLD_LIBRARY_PATH`/`VLC_PLUGIN_PATH` from inside the
+  binary, bounded by a sentinel so it cannot loop.
+- The macOS job now runs the test suite. Its absence is why the two faults below
+  reached a tag unnoticed.
+- `SrtWriter` emits CRLF explicitly; `AppendLine` used `Environment.NewLine`, so
+  Linux and macOS wrote bare LF and subtitle files differed by platform.
+- `SteamLibraryScannerTests` takes its fixture root from
+  `SteamLibraryScanner.CandidateRoots` instead of restating a Windows path, so it
+  cannot drift again.
+- `OutputType` back to `WinExe`; `Exe` linked the Windows binary as console
+  subsystem and Windows allocated a console window beside the app.
+- About and every bug report claimed `v0.1.0`: `AssemblyVersion`/`FileVersion`
+  were pinned in the csproj so `-p:Version=` could not override them. Version now
+  comes from `AssemblyInformationalVersion` via `ApplicationVersion`.
+
+### 1.7.4 Import speed on old ffmpeg - done
+
+`MediaService.HasAtLeastKeyframesAsync` probed with `-skip_frame nokey`, which
+goes through the decoder. Now reads `packet=flags` and counts packets marked `K`,
+walking the container index as the early-exit design always assumed.
+
+- 503 MB clip from the real library: **1,724 ms -> 236 ms**.
+- On ffmpeg 4.4.2 the old probe reported **zero** keyframes for every file, so
+  every import on Ubuntu 22.04 silently took the full-decode path and lost the
+  optimisation entirely. CI never caught it - `ubuntu-latest` carries a much
+  newer ffmpeg. Verified on an Ubuntu 22.04 box.
+
+### 1.7.5 Duplicates survive a restart, and an inspector - done
+
+Duplicate groups lived only in memory, so reopening the app showed "nothing
+requires your attention" even after a scan had found some. They were the one
+finding that could not be cheaply re-derived - confirming a group reads whole
+files.
+
+- Persist the **fact**, not the finding: a scan stores each confirmed full hash
+  as `Clip.ContentHash` (migration `Round16ContentHash`), and the groups come
+  back at startup from one indexed query, reading no files.
+- Deriving rather than storing is deliberate. A clip since trashed, deleted or
+  left as the only surviving member simply stops appearing, so a restored group
+  cannot outlive the situation that produced it. Storing the rows would have
+  needed invalidation rules per finding kind.
+- Merge... is now **Inspect...**, with an embedded player above the metadata
+  comparison. **One player, not two:** confirming a duplicate proves the members
+  are byte-identical, so a second view shows the same pixels. The question the
+  dialog answers is "what is this clip and which copy do I keep".
+- True A/B side by side only earns its place for **near**-duplicates - same
+  moment, different encode - which nothing detects yet. That is a real Phase 2
+  candidate and `#LastAdded` is where it would pay off.
+
+### 1.7.6 Found only by running the app
+
+Neither of these could have been caught by the build or the suite, and both were
+introduced by 1.7.5:
+
+- The preview opened a floating `VLC (Direct3D11 output)` window instead of
+  embedding. LibVLC embeds into the control's native handle **at the moment the
+  player is assigned**, and a XAML binding assigns it before the dialog window
+  has a handle. Attach in `OnOpened`, and keep `VideoView` out of a
+  `ScrollViewer` - it is a native child window and does not clip to one.
+- The Inspect button was missing from restored groups. An entry captures its
+  action when it is built, and the list is built at startup - before any view
+  exists to supply the merge action. The view now rebuilds when it attaches.
+
+Also fixed: Attention required shared a circle-with-a-mark icon with About and
+was indistinguishable at 16 px. It is now `AlertOutline`, a triangle, and turns
+amber while the list holds anything - amber rather than the red used for errors,
+because most entries want a decision and are not faults.
+
+### What is left in 1.7
+
+- **macOS playback is unverified.** The job builds and its tests pass, but
+  whether VLC works after `MacOsVlcRelauncher` restarts the process has never
+  been confirmed on real hardware. Needs a Mac.
+- The pointless OK button on Velopack's setup window is not reachable from our
+  side - `vpk pack` exposes only `--splashImage` and `--splashProgressColor`.
+  Upstream issue if it ever matters.
+- The inspector preview is proven on a 289 KB generated clip, not yet on a real
+  300 MB HEVC one.
+- `UpdateCheckScheduler.DisposeAsync` is never called. Harmless - the process
+  exits - but nothing honours the interface.
 
 ---
 
