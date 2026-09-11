@@ -22,10 +22,23 @@ public partial class AttentionSectionView : UserControl
         AttachedToVisualTree += OnAttachedToVisualTree;
     }
 
+    /// <summary>
+    /// Hands the view model the one action that needs a window, then rebuilds the list.
+    /// </summary>
+    /// <remarks>
+    /// The rebuild is not redundant. An entry captures its action when it is built, and the list is
+    /// built at startup - before any view exists - so the badge is right from the first frame. A
+    /// duplicate entry created then has no merge action, because this hook had not run yet, and it
+    /// renders without its button. That stayed invisible while duplicates only ever appeared after
+    /// a scan started from this very section; restoring known groups at startup exposed it.
+    /// </remarks>
     private void OnAttachedToVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
     {
-        if (DataContext is AttentionSectionViewModel vm)
-            vm.MergeRequested = MergeAsync;
+        if (DataContext is not AttentionSectionViewModel vm)
+            return;
+
+        vm.MergeRequested = MergeAsync;
+        _ = vm.RebuildAsync();
     }
 
     /// <summary>

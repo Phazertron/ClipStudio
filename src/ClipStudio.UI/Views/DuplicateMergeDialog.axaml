@@ -13,7 +13,7 @@
         Width="880" Height="700"
         WindowStartupLocation="CenterOwner">
 
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
 
         <!-- Header -->
         <Border Grid.Row="0"
@@ -36,44 +36,47 @@
             </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="1">
-            <StackPanel Margin="20,16" Spacing="20">
+        <!-- ===== Preview =====
+             One player, not two: the members are byte-identical, so a second view would
+             show the same pixels. This answers "what is this clip", not "are they the
+             same" - the hash already settled that. -->
+        <StackPanel Grid.Row="1" Margin="20,16,20,0" Spacing="8" IsVisible="{Binding CanPreview}">
+            <TextBlock Text="Preview"
+                       FontSize="13"
+                       FontWeight="SemiBold"/>
+            <TextBlock Text="Plays the copy selected below. Both copies hold identical video, so this is here to remind you what the clip is - not to compare them."
+                       FontSize="11"
+                       Opacity="0.5"
+                       TextWrapping="Wrap"/>
 
-                <!-- ===== Preview =====
-                     One player, not two: the members are byte-identical, so a second view would
-                     show the same pixels. This answers "what is this clip", not "are they the
-                     same" - the hash already settled that. -->
-                <StackPanel Spacing="8" IsVisible="{Binding CanPreview}">
-                    <TextBlock Text="Preview"
-                               FontSize="13"
-                               FontWeight="SemiBold"/>
-                    <TextBlock Text="Plays the copy selected below. Both copies hold identical video, so this is here to remind you what the clip is - not to compare them."
-                               FontSize="11"
-                               Opacity="0.5"
-                               TextWrapping="Wrap"/>
+            <Border CornerRadius="6"
+                    ClipToBounds="True"
+                    Background="Black"
+                    Height="260">
+                <!-- MediaPlayer is attached in code-behind once the window is open, not bound
+                     here: assigned before the dialog has a native handle, LibVLC gives up on
+                     embedding and opens a floating "VLC (Direct3D11 output)" window instead. -->
+                <vlc:VideoView x:Name="PreviewVideo"/>
+            </Border>
 
-                    <Border CornerRadius="6"
-                            ClipToBounds="True"
-                            Background="Black"
-                            Height="260">
-                        <vlc:VideoView MediaPlayer="{Binding MediaPlayer}"/>
-                    </Border>
-
-                    <Button Command="{Binding TogglePreviewCommand}"
-                            HorizontalAlignment="Left"
-                            FontSize="12">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <icons:MaterialIcon Kind="Play"
-                                                Width="16" Height="16"
-                                                IsVisible="{Binding !IsPreviewPlaying}"/>
-                            <icons:MaterialIcon Kind="Pause"
-                                                Width="16" Height="16"
-                                                IsVisible="{Binding IsPreviewPlaying}"/>
-                            <TextBlock Text="Play"  IsVisible="{Binding !IsPreviewPlaying}"/>
-                            <TextBlock Text="Pause" IsVisible="{Binding IsPreviewPlaying}"/>
-                        </StackPanel>
-                    </Button>
+            <Button Command="{Binding TogglePreviewCommand}"
+                    HorizontalAlignment="Left"
+                    FontSize="12">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <icons:MaterialIcon Kind="Play"
+                                        Width="16" Height="16"
+                                        IsVisible="{Binding !IsPreviewPlaying}"/>
+                    <icons:MaterialIcon Kind="Pause"
+                                        Width="16" Height="16"
+                                        IsVisible="{Binding IsPreviewPlaying}"/>
+                    <TextBlock Text="Play"  IsVisible="{Binding !IsPreviewPlaying}"/>
+                    <TextBlock Text="Pause" IsVisible="{Binding IsPreviewPlaying}"/>
                 </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="2">
+            <StackPanel Margin="20,16" Spacing="20">
 
                 <!-- ===== Which copy survives ===== -->
                 <StackPanel Spacing="8">
@@ -358,7 +361,7 @@
         </ScrollViewer>
 
         <!-- Footer: the destructive step, last -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 Padding="20,14"
                 BorderBrush="{DynamicResource SystemChromeHighColor}"
                 BorderThickness="0,1,0,0">

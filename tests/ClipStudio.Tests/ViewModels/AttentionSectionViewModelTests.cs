@@ -535,6 +535,25 @@ public sealed class AttentionSectionViewModelTests
         Assert.Equal("hash", merged?.FullHash);
     }
 
+    [Fact]
+    public async Task ADuplicateEntryGainsItsActionOnceTheViewCanShowTheDialog()
+    {
+        // The startup rebuild happens before any view exists, so the entry is built with no merge
+        // action. Once the view attaches and sets MergeRequested, rebuilding must give the entry
+        // its button - otherwise a restored group shows as an unresolvable row.
+        _duplicateFinder.Setup(x => x.LastGroups)
+                        .Returns([new DuplicateClipGroup("hash", [1, 2])]);
+
+        var vm = BuildSection();
+        await vm.RebuildAsync();
+        Assert.False(Assert.Single(vm.Entries).HasAction);
+
+        vm.MergeRequested = _ => Task.FromResult(true);
+        await vm.RebuildAsync();
+
+        Assert.True(Assert.Single(vm.Entries).HasAction);
+    }
+
     // ---- Counting ----
 
     [Fact]
