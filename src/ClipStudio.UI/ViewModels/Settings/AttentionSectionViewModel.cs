@@ -54,7 +54,15 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     public override string Title => "Attention required";
 
     /// <inheritdoc/>
-    public override MaterialIconKind Icon => MaterialIconKind.AlertCircleOutline;
+    /// <remarks>
+    /// A triangle, not a circle. About uses <see cref="MaterialIconKind.InformationOutline"/>, and
+    /// at the 16 px the settings list draws them at, two outlined circles with a single glyph
+    /// inside are indistinguishable - both just read as a punctuation mark in a ring.
+    /// </remarks>
+    public override MaterialIconKind Icon => MaterialIconKind.AlertOutline;
+
+    /// <inheritdoc/>
+    public override bool NeedsAttention => EntryCount > 0;
 
     /// <summary>Gets the entries currently needing attention, most serious first.</summary>
     public ObservableCollection<AttentionEntryViewModel> Entries { get; } = new();
@@ -63,6 +71,7 @@ public sealed partial class AttentionSectionViewModel : SettingsSectionViewModel
     /// <remarks>Mirrored as a property so the navigation badge can bind to it.</remarks>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEverythingFine))]
+    [NotifyPropertyChangedFor(nameof(NeedsAttention))]
     private int _entryCount;
 
     /// <summary>Gets whether the library currently needs nothing from the user.</summary>

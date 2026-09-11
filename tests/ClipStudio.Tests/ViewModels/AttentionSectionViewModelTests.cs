@@ -554,6 +554,32 @@ public sealed class AttentionSectionViewModelTests
         Assert.True(Assert.Single(vm.Entries).HasAction);
     }
 
+    [Fact]
+    public async Task HighlightsItsIconOnlyWhileSomethingNeedsDeciding()
+    {
+        var vm = BuildSection();
+        await vm.RefreshAsync();
+
+        // A section that is permanently highlighted teaches the user to ignore the highlight.
+        Assert.False(vm.NeedsAttention);
+
+        _updates.ReportAvailable("1.2.0");
+        await vm.RebuildAsync();
+
+        Assert.True(vm.NeedsAttention);
+    }
+
+    [Fact]
+    public void DoesNotShareAnIconWithAnyOtherSettingsSection()
+    {
+        // Two outlined circles with one glyph inside are indistinguishable at 16 px, which is what
+        // Attention required and About were.
+        var attention = BuildSection().Icon;
+        var about     = new AboutSectionViewModel(_host, _updates).Icon;
+
+        Assert.NotEqual(about, attention);
+    }
+
     // ---- Counting ----
 
     [Fact]

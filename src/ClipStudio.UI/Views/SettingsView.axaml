@@ -44,8 +44,12 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="sections:SettingsSectionViewModel">
                             <Grid ColumnDefinitions="Auto,*">
+                                <!-- The class is only applied while the section is actually
+                                     asking for a visit, so the default foreground - including
+                                     whatever the selected row uses - is left alone otherwise. -->
                                 <icons:MaterialIcon Grid.Column="0"
                                                     Kind="{Binding Icon}"
+                                                    Classes.needsAttention="{Binding NeedsAttention}"
                                                     Width="16" Height="16"
                                                     VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1"
@@ -61,6 +65,12 @@
                         <Style Selector="ListBoxItem">
                             <Setter Property="Padding" Value="10,8"/>
                             <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+
+                        <!-- Amber rather than the red used for errors: these entries need a
+                             decision, and most of them are not faults. -->
+                        <Style Selector="icons|MaterialIcon.needsAttention">
+                            <Setter Property="Foreground" Value="#F1C40F"/>
                         </Style>
                     </ListBox.Styles>
                 </ListBox>

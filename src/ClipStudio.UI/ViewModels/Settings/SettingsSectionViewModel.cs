@@ -35,6 +35,16 @@ public abstract class SettingsSectionViewModel : ViewModelBase
     public abstract MaterialIconKind Icon { get; }
 
     /// <summary>
+    /// Gets whether this section is currently asking to be visited, which colours its icon in the
+    /// settings navigation list.
+    /// </summary>
+    /// <remarks>
+    /// False for every section but Attention required, and false there too while the library needs
+    /// nothing. A section that is permanently highlighted teaches the user to ignore the highlight.
+    /// </remarks>
+    public virtual bool NeedsAttention => false;
+
+    /// <summary>
     /// Copies this section's fields out of the settings snapshot.
     /// </summary>
     /// <param name="settings">The current settings snapshot.</param>
